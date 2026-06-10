@@ -1,11 +1,10 @@
+import { useBusinessProfile } from '@/data/mockBusiness';
 import { router } from 'expo-router';
-import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import type { ReactNode } from 'react';
+import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
-import { businessProfile } from '@/data/mockBusiness';
-
-type AppRoute = '/' | '/invoices' | '/expenses' | '/customers' | '/reports';
-type ActiveNav = 'Dashboard' | 'Invoices' | 'Expenses' | 'Customers' | 'Reports';
+type AppRoute = '/' | '/invoices' | '/expenses' | '/customers' | '/reports' | '/settings';
+type ActiveNav = 'Dashboard' | 'Invoices' | 'Expenses' | 'Customers' | 'Reports' | 'Settings';
 
 const navItems: { label: string; route?: AppRoute }[] = [
   { label: 'Dashboard', route: '/' },
@@ -13,20 +12,22 @@ const navItems: { label: string; route?: AppRoute }[] = [
   { label: 'Expenses', route: '/expenses' },
   { label: 'Customers', route: '/customers' },
   { label: 'Reports', route: '/reports' },
+  { label: 'Settings', route: '/settings' },
 ];
 
 export function AppShell({ activeNav, children }: { activeNav: ActiveNav; children: ReactNode }) {
   const { width } = useWindowDimensions();
   const showSidebar = width >= 900;
+  const profile = useBusinessProfile();
 
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.appShell}>
         {showSidebar && (
           <View style={styles.sidebar}>
-            <View style={styles.sidebarLogoCard}>
-              <Image source={businessProfile.logo} style={styles.sidebarLogo} />
-            </View>
+              <View style={styles.sidebarLogoCard}>
+                <Image source={profile.logoDataUrl ? { uri: profile.logoDataUrl } : profile.logoModule} style={styles.sidebarLogo} />
+              </View>
 
             <View style={styles.navList}>
               {navItems.map((item) => {

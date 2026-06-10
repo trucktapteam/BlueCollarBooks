@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
-import { businessProfile } from '@/data/mockBusiness';
+import { useBusinessProfile } from '@/data/mockBusiness';
 import { type Customer, useCustomers } from '@/data/mockCustomers';
 import {
     formatInvoiceAmount,
@@ -38,7 +38,9 @@ function getNextInvoiceNumber(invoices: Invoice[]) {
 }
 
 export default function NewInvoiceScreen() {
-  const businessLogoUri = Asset.fromModule(businessProfile.logo).uri;
+  const profile = useBusinessProfile();
+  const businessLogoUri =
+    profile.logoDataUrl ?? (profile.logoModule ? Asset.fromModule(profile.logoModule).uri : '');
   const searchParams = useLocalSearchParams();
   const customers = useCustomers();
   const invoices = useInvoices();
@@ -162,6 +164,10 @@ export default function NewInvoiceScreen() {
   const previewPdf = () => {
     const html = buildInvoiceTemplate({
       businessLogoUri,
+      businessName: profile.businessName,
+      businessAddress: profile.address ?? '',
+      businessPhone: profile.phone ?? '',
+      businessEmail: profile.email ?? '',
       number,
       date,
       terms,
@@ -386,6 +392,10 @@ export default function NewInvoiceScreen() {
 
 function buildInvoiceTemplate({
   businessLogoUri,
+  businessName,
+  businessAddress,
+  businessPhone,
+  businessEmail,
   number,
   date,
   terms,
@@ -401,6 +411,10 @@ function buildInvoiceTemplate({
   customerEmail,
 }: {
   businessLogoUri: string;
+  businessName: string;
+  businessAddress: string;
+  businessPhone: string;
+  businessEmail: string;
   number: string;
   date: string;
   terms: string;
@@ -574,12 +588,12 @@ function buildInvoiceTemplate({
         <main class="page">
           <section class="top">
             <div>
-              <img class="logo" src="${businessLogoUri}" alt="${businessProfile.businessName}" />
-              <div class="business-name">${businessProfile.businessName}</div>
+              <img class="logo" src="${businessLogoUri}" alt="${businessName}" />
+              <div class="business-name">${businessName}</div>
               <div class="business-details">
-                ${businessProfile.address}<br />
-                ${businessProfile.phone}<br />
-                ${businessProfile.email}
+                ${businessAddress}<br />
+                ${businessPhone}<br />
+                ${businessEmail}
               </div>
             </div>
             <div>
@@ -642,7 +656,7 @@ function buildInvoiceTemplate({
           </section>
 
           <section class="footer">
-            ${businessProfile.businessName} invoice preview. Mock data only.
+            ${businessName} invoice preview. Mock data only.
           </section>
         </main>
       </body>
