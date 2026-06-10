@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
+import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
-import { type Customer, customers } from '@/data/mockCustomers';
+import { type Customer, useCustomers } from '@/data/mockCustomers';
 import {
   type Invoice,
   calculateInvoiceTotal,
@@ -34,7 +35,7 @@ function getLastInvoiceDate(invoices: Invoice[]) {
     .invoiceDate;
 }
 
-function buildCustomerSummaries(invoices: Invoice[]): CustomerSummary[] {
+function buildCustomerSummaries(customers: Customer[], invoices: Invoice[]): CustomerSummary[] {
   return customers.map((customer) => {
     const customerInvoices = invoices.filter((invoice) => invoice.customer === customer.name);
     const waitingInvoices = customerInvoices.filter(isInvoiceWaitingToBePaid);
@@ -51,8 +52,9 @@ function buildCustomerSummaries(invoices: Invoice[]): CustomerSummary[] {
 }
 
 export default function CustomersScreen() {
+  const customers = useCustomers();
   const invoices = useInvoices();
-  const customerSummaries = useMemo(() => buildCustomerSummaries(invoices), [invoices]);
+  const customerSummaries = useMemo(() => buildCustomerSummaries(customers, invoices), [customers, invoices]);
   const [selectedCustomerName, setSelectedCustomerName] = useState(customerSummaries[0]?.name ?? '');
   const selectedCustomer =
     customerSummaries.find((customer) => customer.name === selectedCustomerName) ?? customerSummaries[0];
@@ -65,7 +67,7 @@ export default function CustomersScreen() {
           <Text style={styles.heading}>Know who owes what.</Text>
         </View>
 
-        <Pressable style={styles.newCustomerButton}>
+        <Pressable style={styles.newCustomerButton} onPress={() => router.push('/new-customer')}>
           <Text style={styles.newCustomerText}>+ New Customer</Text>
         </Pressable>
       </View>

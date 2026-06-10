@@ -13,6 +13,7 @@ import {
 
 import { AppShell } from '@/components/AppShell';
 import { businessProfile } from '@/data/mockBusiness';
+import { type Customer, useCustomers } from '@/data/mockCustomers';
 import {
   formatInvoiceAmount,
   type InvoiceStatus,
@@ -27,10 +28,12 @@ import {
 
 export default function NewInvoiceScreen() {
   const businessLogoUri = Asset.fromModule(businessProfile.logo).uri;
+  const customers = useCustomers();
   const [number, setNumber] = useState(invoiceDraft.number);
   const [date, setDate] = useState(invoiceDraft.date);
   const [terms, setTerms] = useState(invoiceDraft.terms);
   const [customer, setCustomer] = useState(invoiceDraft.customer);
+  const [selectedCustomerName, setSelectedCustomerName] = useState('');
   const [poNumber, setPoNumber] = useState(invoiceDraft.poNumber);
   const [bolNumber, setBolNumber] = useState(invoiceDraft.bolNumber);
   const [shipper, setShipper] = useState(invoiceDraft.shipper);
@@ -51,10 +54,25 @@ export default function NewInvoiceScreen() {
     setLineItems((items) => [...items, { description: '', amount: '$0' }]);
   }
 
+  function handleSelectCustomer(selectedCustomer: Customer) {
+    setSelectedCustomerName(selectedCustomer.name);
+    setCustomer(selectedCustomer.name);
+    setConsignee(selectedCustomer.address);
+  }
+
+  function handleUseManualCustomer() {
+    setSelectedCustomerName('');
+  }
+
+  function handleCustomerNameChange(value: string) {
+    setCustomer(value);
+    setSelectedCustomerName('');
+  }
+
   function handleSaveDraft() {
     saveInvoice({
       invoice: number,
-      customer,
+      customer: customer.trim(),
       amount: invoiceTotal,
       status,
       invoiceDate: date,
@@ -109,9 +127,47 @@ export default function NewInvoiceScreen() {
               </View>
 
               <View style={styles.customerRow}>
-                <Field label="Customer" value={customer} onChangeText={setCustomer} />
+                <Field label="Customer" value={customer} onChangeText={handleCustomerNameChange} />
                 <Field label={invoiceLabels.po} value={poNumber} onChangeText={setPoNumber} />
                 <Field label={invoiceLabels.bol} value={bolNumber} onChangeText={setBolNumber} />
+              </View>
+
+              <View style={styles.customerSelectorSection}>
+                <Text style={styles.fieldLabel}>Select existing customer</Text>
+                <View style={styles.customerSelectorGrid}>
+                  <Pressable
+                    style={[styles.customerChip, !selectedCustomerName && styles.customerChipActive]}
+                    onPress={handleUseManualCustomer}
+                  >
+                    <Text style={[styles.customerChipText, !selectedCustomerName && styles.customerChipTextActive]}>
+                      Manual
+                    </Text>
+                  </Pressable>
+
+                  {customers.map((existingCustomer) => {
+                    const isActive = existingCustomer.name === selectedCustomerName;
+
+                    return (
+                      <Pressable
+                        key={existingCustomer.name}
+                        style={[styles.customerChip, isActive && styles.customerChipActive]}
+                        onPress={() => handleSelectCustomer(existingCustomer)}
+                      >
+                        <Text style={[styles.customerChipText, isActive && styles.customerChipTextActive]}>
+                          {existingCustomer.name}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                {selectedCustomerName ? (
+                  <Text style={styles.selectedCustomerMeta}>
+                    Using saved customer details for {selectedCustomerName}.
+                  </Text>
+                ) : (
+                  <Text style={styles.selectedCustomerMeta}>Type a customer name manually if they are not saved yet.</Text>
+                )}
               </View>
 
               <View style={styles.addressGrid}>
@@ -640,6 +696,40 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 18,
     marginTop: 18,
+  },
+  customerSelectorSection: {
+    gap: 10,
+    marginTop: 18,
+  },
+  customerSelectorGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  customerChip: {
+    backgroundColor: '#252525',
+    borderColor: '#383838',
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  customerChipActive: {
+    backgroundColor: 'rgba(249, 115, 22, 0.14)',
+    borderColor: 'rgba(249, 115, 22, 0.45)',
+  },
+  customerChipText: {
+    color: '#d4d4d4',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  customerChipTextActive: {
+    color: '#f97316',
+  },
+  selectedCustomerMeta: {
+    color: '#a3a3a3',
+    fontSize: 13,
+    fontWeight: '600',
   },
   addressGrid: {
     flexDirection: 'row',

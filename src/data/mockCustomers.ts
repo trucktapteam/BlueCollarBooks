@@ -1,3 +1,5 @@
+import { useSyncExternalStore } from 'react';
+
 export type Customer = {
   name: string;
   contact: string;
@@ -7,7 +9,7 @@ export type Customer = {
   notes: string;
 };
 
-export const customers: Customer[] = [
+const initialCustomers: Customer[] = [
   {
     name: 'Independent Steel',
     contact: 'Mason Clarke',
@@ -33,3 +35,33 @@ export const customers: Customer[] = [
     notes: 'Smaller recurring steel runs.',
   },
 ];
+
+let customersSnapshot = initialCustomers;
+const listeners = new Set<() => void>();
+
+function emitChange() {
+  listeners.forEach((listener) => listener());
+}
+
+export function saveCustomer(customer: Customer) {
+  const existingCustomerIndex = customersSnapshot.findIndex((item) => item.name === customer.name);
+
+  if (existingCustomerIndex >= 0) {
+    customersSnapshot = customersSnapshot.map((item, index) => (index === existingCustomerIndex ? customer : item));
+  } else {
+    customersSnapshot = [customer, ...customersSnapshot];
+  }
+
+  emitChange();
+}
+
+export function useCustomers() {
+  return useSyncExternalStore(
+    (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    () => customersSnapshot,
+    () => customersSnapshot
+  );
+}
