@@ -2,6 +2,7 @@ import { useBusinessProfile } from '@/data/mockBusiness';
 import { router } from 'expo-router';
 import type { ReactNode } from 'react';
 import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+const defaultLogo = require('@/assets/images/blue-collar-books-logo.jpg');
 
 type AppRoute = '/' | '/invoices' | '/expenses' | '/customers' | '/reports' | '/settings';
 type ActiveNav = 'Dashboard' | 'Invoices' | 'Expenses' | 'Customers' | 'Reports' | 'Settings';
@@ -26,7 +27,7 @@ export function AppShell({ activeNav, children }: { activeNav: ActiveNav; childr
         {showSidebar && (
           <View style={styles.sidebar}>
               <View style={styles.sidebarLogoCard}>
-                <Image source={profile.logoDataUrl ? { uri: profile.logoDataUrl } : profile.logoModule} style={styles.sidebarLogo} />
+                <Image source={defaultLogo} style={styles.sidebarLogo} />
               </View>
 
             <View style={styles.navList}>

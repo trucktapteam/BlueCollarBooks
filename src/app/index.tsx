@@ -1,9 +1,9 @@
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { useActivities } from '@/data/activityStore';
-import { startingCashBalance } from '@/data/mockBusiness';
+import { startingCashBalance, useBusinessProfile } from '@/data/mockBusiness';
 import { calculateTotalMonthlyExpenses, useExpenses } from '@/data/mockExpenses';
 import {
   calculateInvoiceTotal,
@@ -25,6 +25,7 @@ const metrics = [
 export default function HomeScreen() {
   const { width } = useWindowDimensions();
   const isCompact = width < 760;
+  const profile = useBusinessProfile();
   const expenses = useExpenses();
   const invoices = useInvoices();
   const waitingToBePaidInvoices = invoices.filter(isInvoiceWaitingToBePaid);
@@ -52,6 +53,12 @@ export default function HomeScreen() {
       <View style={styles.heroCard}>
         <Text style={styles.heroLabel}>Profit This Month</Text>
         <Text style={styles.heroValue}>{formattedProfitThisMonth}</Text>
+        {(profile.logoDataUrl || profile.logoModule) && (
+          <Image
+            source={profile.logoDataUrl ? { uri: profile.logoDataUrl } : profile.logoModule}
+            style={styles.heroLogo}
+          />
+        )}
       </View>
 
       <View style={styles.grid}>
@@ -376,5 +383,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#232323',
     transform: [{ scale: 0.997 }],
     opacity: 0.96,
+  },
+  heroLogo: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 64,
+    height: 64,
+    borderRadius: 8,
+    overflow: 'hidden',
   },
 });

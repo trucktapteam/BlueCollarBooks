@@ -29,6 +29,18 @@ export default function SettingsScreen() {
     router.push('/');
   }
 
+  function handleSignOut() {
+    try {
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem('bcb_dev_logged_in');
+      }
+    } catch {
+      // ignore
+    }
+
+    router.replace('/login');
+  }
+
   function handleLogoUpload(file?: File) {
     if (!file) return;
     const reader = new FileReader();
@@ -134,6 +146,9 @@ export default function SettingsScreen() {
           <Pressable style={styles.primaryButton} onPress={handleSave}>
             <Text style={styles.primaryButtonText}>Save Settings</Text>
           </Pressable>
+          <Pressable style={styles.signOutButton} onPress={handleSignOut}>
+            <Text style={styles.signOutText}>Sign Out</Text>
+          </Pressable>
         </View>
       </View>
     </AppShell>
@@ -223,4 +238,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   primaryButtonText: { color: '#fff', fontWeight: '800' },
+  signOutButton: {
+    marginLeft: 12,
+    backgroundColor: '#252525',
+    borderColor: '#353535',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+  },
+  signOutText: { color: '#d4d4d4', fontWeight: '800' },
 });
