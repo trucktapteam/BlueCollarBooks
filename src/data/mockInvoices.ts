@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { addActivity } from './activityStore';
 import { loadPersistedData, persistData } from './persistentStore';
 
 export type InvoiceStatus = 'Draft' | 'Sent' | 'Overdue' | 'Paid';
@@ -9,6 +10,13 @@ export type Invoice = {
   amount: string;
   status: InvoiceStatus;
   invoiceDate: string;
+  terms?: string;
+  poNumber?: string;
+  bolNumber?: string;
+  shipper?: string;
+  consignee?: string;
+  freightDescription?: string;
+  lineItems?: InvoiceLineItem[];
 };
 
 export type InvoiceLineItem = {
@@ -82,13 +90,18 @@ export function formatInvoiceAmount(amount: number) {
   return `$${amount.toLocaleString()}`;
 }
 
-export function saveInvoice(invoice: Invoice) {
-  const existingInvoiceIndex = invoicesSnapshot.findIndex((item) => item.invoice === invoice.invoice);
+export function saveInvoice(invoice: Invoice, originalInvoiceNumber?: string) {
+  const lookupInvoiceNumber = originalInvoiceNumber ?? invoice.invoice;
+  const existingInvoiceIndex = invoicesSnapshot.findIndex((item) => item.invoice === lookupInvoiceNumber);
 
   if (existingInvoiceIndex >= 0) {
-    invoicesSnapshot = invoicesSnapshot.map((item, index) => (index === existingInvoiceIndex ? invoice : item));
+    invoicesSnapshot = invoicesSnapshot.map((item, index) =>
+      index === existingInvoiceIndex ? invoice : item
+    );
+    addActivity(`Invoice #${invoice.invoice} updated`);
   } else {
     invoicesSnapshot = [invoice, ...invoicesSnapshot];
+    addActivity(`Invoice #${invoice.invoice} created`);
   }
 
   persistData(LOCAL_STORAGE_KEY, invoicesSnapshot);
@@ -100,6 +113,7 @@ export function updateInvoiceStatus(invoiceNumber: string, status: InvoiceStatus
     invoice.invoice === invoiceNumber ? { ...invoice, status } : invoice
   );
   persistData(LOCAL_STORAGE_KEY, invoicesSnapshot);
+  addActivity(`Invoice #${invoiceNumber} marked ${status}`);
   emitChange();
 }
 

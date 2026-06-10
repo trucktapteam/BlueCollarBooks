@@ -122,12 +122,16 @@ export default function CustomersScreen() {
           <View style={styles.detailActions}>
             <Pressable
               style={styles.primaryActionButton}
-              onPress={() => router.push(`/new-invoice?customer=${encodeURIComponent(selectedCustomer.name)}`)}
-            >
-              <Text style={styles.primaryActionButtonText}>Create Invoice</Text>
-            </Pressable>
+                onPress={() => router.push(`/new-customer?customer=${encodeURIComponent(selectedCustomer.name)}`)}
+              >
+                <Text style={styles.primaryActionButtonText}>Edit Customer</Text>
+              </Pressable>
 
-            <Pressable style={styles.secondaryActionButton} onPress={() => {}}>
+              <Pressable
+                style={styles.secondaryActionButton}
+                onPress={() => router.push(`/new-invoice?customer=${encodeURIComponent(selectedCustomer.name)}`)}
+              >
+                <Text style={styles.secondaryActionButtonText}>Create Invoice</Text>
               <Text style={styles.secondaryActionButtonText}>Receive Payment</Text>
             </Pressable>
           </View>

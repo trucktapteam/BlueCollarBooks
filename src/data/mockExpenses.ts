@@ -1,7 +1,9 @@
 import { useSyncExternalStore } from 'react';
+import { addActivity } from './activityStore';
 import { loadPersistedData, persistData } from './persistentStore';
 
 export type Expense = {
+  id?: string;
   date: string;
   vendor: string;
   category: string;
@@ -29,6 +31,10 @@ export const expenseDraft = {
   notes: 'Diesel fill-up',
 };
 
+function generateId() {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 const initialExpenses: Expense[] = [
   { date: '06/09/2026', vendor: 'Loves Travel Stop', category: 'Fuel', amount: 324, notes: 'Diesel fill-up' },
   { date: '06/08/2026', vendor: 'NAPA Auto Parts', category: 'Repairs', amount: 89, notes: 'Replacement parts' },
@@ -37,7 +43,10 @@ const initialExpenses: Expense[] = [
 ];
 
 const LOCAL_STORAGE_KEY = 'bluecollarbooks_expenses';
-let expensesSnapshot = loadPersistedData<Expense[]>(LOCAL_STORAGE_KEY, initialExpenses);
+let expensesSnapshot = loadPersistedData<Expense[]>(LOCAL_STORAGE_KEY, initialExpenses).map((expense) => ({
+  ...expense,
+  id: expense.id ?? generateId(),
+}));
 const listeners = new Set<() => void>();
 
 function emitChange() {
@@ -45,7 +54,24 @@ function emitChange() {
 }
 
 export function addExpense(expense: Expense) {
-  expensesSnapshot = [expense, ...expensesSnapshot];
+  saveExpense({ ...expense, id: expense.id ?? generateId() });
+}
+
+export function saveExpense(expense: Expense, originalId?: string) {
+  const lookupId = originalId ?? expense.id;
+  const expenseToSave = { ...expense, id: lookupId ?? generateId() };
+  const existingExpenseIndex = expensesSnapshot.findIndex((item) => item.id === lookupId);
+
+  if (existingExpenseIndex >= 0) {
+    expensesSnapshot = expensesSnapshot.map((item, index) =>
+      index === existingExpenseIndex ? expenseToSave : item
+    );
+    addActivity(`Expense updated: ${expenseToSave.vendor} $${expenseToSave.amount}`);
+  } else {
+    expensesSnapshot = [expenseToSave, ...expensesSnapshot];
+    addActivity(`Expense added: ${expenseToSave.vendor} $${expenseToSave.amount}`);
+  }
+
   persistData(LOCAL_STORAGE_KEY, expensesSnapshot);
   emitChange();
 }

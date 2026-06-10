@@ -1,10 +1,10 @@
-import { useState } from 'react';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useState } from 'react';
 import type { KeyboardTypeOptions } from 'react-native';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
-import { addExpense, expenseCategories, expenseDraft } from '@/data/mockExpenses';
+import { expenseCategories, expenseDraft, saveExpense, useExpenses } from '@/data/mockExpenses';
 
 function parseAmount(value: string) {
   const amount = Number(value.replace(/[$,]/g, '').trim());
@@ -12,20 +12,45 @@ function parseAmount(value: string) {
 }
 
 export default function NewExpenseScreen() {
+  const searchParams = useLocalSearchParams();
+  const expenses = useExpenses();
+  const [originalId, setOriginalId] = useState<string | undefined>(undefined);
   const [date, setDate] = useState(expenseDraft.date);
   const [vendor, setVendor] = useState(expenseDraft.vendor);
   const [amount, setAmount] = useState(expenseDraft.amount);
   const [category, setCategory] = useState(expenseDraft.category);
   const [notes, setNotes] = useState(expenseDraft.notes);
 
+  useEffect(() => {
+    const idParam = typeof searchParams.id === 'string' ? searchParams.id : '';
+
+    if (!idParam || originalId) {
+      return;
+    }
+
+    const foundExpense = expenses.find((expense) => expense.id === idParam);
+    if (foundExpense) {
+      setOriginalId(foundExpense.id);
+      setDate(foundExpense.date);
+      setVendor(foundExpense.vendor);
+      setAmount(String(foundExpense.amount));
+      setCategory(foundExpense.category);
+      setNotes(foundExpense.notes);
+    }
+  }, [expenses, originalId, searchParams.id]);
+
   function handleSaveExpense() {
-    addExpense({
-      date,
-      vendor,
-      category,
-      amount: parseAmount(amount),
-      notes,
-    });
+    saveExpense(
+      {
+        id: originalId,
+        date,
+        vendor,
+        category,
+        amount: parseAmount(amount),
+        notes,
+      },
+      originalId
+    );
     router.replace('/expenses');
   }
 

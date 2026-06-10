@@ -1,11 +1,14 @@
-import { useState } from 'react';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
-import { saveCustomer } from '@/data/mockCustomers';
+import { saveCustomer, useCustomers } from '@/data/mockCustomers';
 
 export default function NewCustomerScreen() {
+  const searchParams = useLocalSearchParams();
+  const customers = useCustomers();
+  const [originalName, setOriginalName] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [contactName, setContactName] = useState('');
   const [email, setEmail] = useState('');
@@ -13,15 +16,37 @@ export default function NewCustomerScreen() {
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
 
+  useEffect(() => {
+    const customerName = typeof searchParams.customer === 'string' ? searchParams.customer : '';
+    if (!customerName || originalName) {
+      return;
+    }
+
+    const foundCustomer = customers.find((item) => item.name === customerName);
+
+    if (foundCustomer) {
+      setOriginalName(foundCustomer.name);
+      setCompanyName(foundCustomer.name);
+      setContactName(foundCustomer.contact);
+      setEmail(foundCustomer.email);
+      setPhone(foundCustomer.phone);
+      setAddress(foundCustomer.address);
+      setNotes(foundCustomer.notes);
+    }
+  }, [customers, originalName, searchParams.customer]);
+
   function handleSaveCustomer() {
-    saveCustomer({
-      name: companyName,
-      contact: contactName,
-      email,
-      phone,
-      address,
-      notes,
-    });
+    saveCustomer(
+      {
+        name: companyName,
+        contact: contactName,
+        email,
+        phone,
+        address,
+        notes,
+      },
+      originalName || undefined
+    );
     router.replace('/customers');
   }
 
@@ -30,7 +55,7 @@ export default function NewCustomerScreen() {
       <View style={styles.pageHeader}>
         <View>
           <Text style={styles.eyebrow}>Customers</Text>
-          <Text style={styles.heading}>New Customer</Text>
+          <Text style={styles.heading}>{originalName ? 'Edit Customer' : 'New Customer'}</Text>
         </View>
 
         <Pressable style={styles.cancelTopButton} onPress={() => router.push('/customers')}>

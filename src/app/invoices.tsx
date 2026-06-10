@@ -63,13 +63,15 @@ export default function InvoicesScreen() {
               </View>
               <Text style={[styles.invoiceMeta, styles.dateColumn]}>{invoice.invoiceDate}</Text>
               <View style={styles.actionColumn}>
-                {invoice.status !== 'Paid' ? (
+                <Pressable style={styles.editButton} onPress={() => router.push(`/new-invoice?invoice=${encodeURIComponent(invoice.invoice)}`)}>
+                  <Text style={styles.editButtonText}>Edit</Text>
+                </Pressable>
+                {invoice.status !== 'Paid' && (
                   <Pressable style={styles.markPaidButton} onPress={() => updateInvoiceStatus(invoice.invoice, 'Paid')}>
                     <Text style={styles.markPaidButtonText}>Mark Paid</Text>
                   </Pressable>
-                ) : (
-                  <Text style={styles.paidActionText}>Paid</Text>
                 )}
+                {invoice.status === 'Paid' && <Text style={styles.paidActionText}>Paid</Text>}
               </View>
             </View>
           ))}
@@ -239,5 +241,20 @@ const styles = StyleSheet.create({
     color: '#737373',
     fontSize: 13,
     fontWeight: '800',
+  },
+  editButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#252525',
+    borderColor: '#343434',
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  editButtonText: {
+    color: '#d4d4d4',
+    fontSize: 13,
+    fontWeight: '900',
   },
 });

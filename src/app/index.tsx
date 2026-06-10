@@ -1,6 +1,8 @@
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { router } from 'expo-router';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
+import { useActivities } from '@/data/activityStore';
 import { startingCashBalance } from '@/data/mockBusiness';
 import { calculateTotalMonthlyExpenses, useExpenses } from '@/data/mockExpenses';
 import {
@@ -53,39 +55,69 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.grid}>
-        {metrics.map((metric) => (
-          <View
-            key={metric.label}
-            style={[styles.metricCard, isCompact ? styles.fullWidthCard : styles.halfWidthCard]}
-          >
-            <Text style={styles.metricLabel}>{metric.label}</Text>
-            <Text style={styles.metricValue}>
-              {metric.label === 'Cash Available'
-                ? formattedCashAvailable
-                : metric.label === 'Money Out'
-                  ? formattedTotalMonthlyExpenses
-                  : metric.label === 'Money In'
-                    ? formattedMoneyIn
-                    : metric.label === 'Waiting To Be Paid'
-                      ? formattedWaitingToBePaid
-                      : metric.label === 'Paid This Month'
-                        ? formattedPaidThisMonth
-                        : metric.value}
-            </Text>
-          </View>
-        ))}
+        {metrics.map((metric) => {
+          const route =
+            metric.label === 'Money In' || metric.label === 'Waiting To Be Paid' || metric.label === 'Paid This Month'
+              ? '/invoices'
+              : metric.label === 'Money Out'
+                ? '/expenses'
+                : metric.label === 'Cash Available'
+                  ? undefined
+                  : undefined;
+
+          return (
+            <Pressable
+              key={metric.label}
+              disabled={!route}
+              onPress={() => route && router.push(route)}
+              style={({ pressed }) => [
+                styles.metricCard,
+                isCompact ? styles.fullWidthCard : styles.halfWidthCard,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text style={styles.metricLabel}>{metric.label}</Text>
+              <Text style={styles.metricValue}>
+                {metric.label === 'Cash Available'
+                  ? formattedCashAvailable
+                  : metric.label === 'Money Out'
+                    ? formattedTotalMonthlyExpenses
+                    : metric.label === 'Money In'
+                      ? formattedMoneyIn
+                      : metric.label === 'Waiting To Be Paid'
+                        ? formattedWaitingToBePaid
+                        : metric.label === 'Paid This Month'
+                          ? formattedPaidThisMonth
+                          : metric.value}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       <View style={styles.attentionSection}>
         <Text style={styles.attentionHeading}>Needs Attention</Text>
 
         <View style={styles.attentionList}>
-          {attentionItems.map((item) => (
-            <View key={item} style={styles.attentionRow}>
-              <View style={styles.attentionDot} />
-              <Text style={styles.attentionText}>{item}</Text>
-            </View>
-          ))}
+          {attentionItems.map((item) => {
+            const route = item.toLowerCase().includes('overdue')
+              ? '/invoices'
+              : item.toLowerCase().includes('expenses')
+                ? '/expenses'
+                : undefined;
+
+            return (
+              <Pressable
+                key={item}
+                disabled={!route}
+                onPress={() => route && router.push(route)}
+                style={({ pressed }) => [styles.attentionRow, pressed && styles.pressed]}
+              >
+                <View style={styles.attentionDot} />
+                <Text style={styles.attentionText}>{item}</Text>
+              </Pressable>
+            );
+          })}
         </View>
       </View>
 
@@ -98,7 +130,11 @@ export default function HomeScreen() {
 
           <View style={styles.detailList}>
             {waitingToBePaidInvoices.map((item, index) => (
-              <View key={`${item.invoice}-${index}`} style={styles.detailRow}>
+              <Pressable
+                key={`${item.invoice}-${index}`}
+                onPress={() => router.push('/invoices')}
+                style={({ pressed }) => [styles.detailRow, pressed && styles.pressed]}
+              >
                 <View style={styles.detailPrimary}>
                   <Text style={styles.detailTitle}>
                     #{item.invoice} {item.customer}
@@ -107,11 +143,10 @@ export default function HomeScreen() {
                 </View>
 
                 <Text style={styles.detailAmount}>{item.amount}</Text>
-              </View>
+              </Pressable>
             ))}
           </View>
         </View>
-
         <View style={[styles.detailCard, isCompact ? styles.fullWidthCard : styles.halfWidthCard]}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Recent Expenses</Text>
@@ -119,19 +154,61 @@ export default function HomeScreen() {
 
           <View style={styles.detailList}>
             {expenses.map((item, index) => (
-              <View key={`${item.date}-${item.vendor}-${index}`} style={styles.detailRow}>
+              <Pressable
+                key={`${item.date}-${item.vendor}-${index}`}
+                onPress={() => router.push('/expenses')}
+                style={({ pressed }) => [styles.detailRow, pressed && styles.pressed]}
+              >
                 <View style={styles.detailPrimary}>
                   <Text style={styles.detailTitle}>{item.vendor}</Text>
                   <Text style={styles.detailSubtitle}>{item.category}</Text>
                 </View>
 
                 <Text style={styles.detailAmount}>${item.amount}</Text>
-              </View>
+              </Pressable>
             ))}
           </View>
         </View>
+
+        <View style={[styles.detailCard, isCompact ? styles.fullWidthCard : styles.halfWidthCard]}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Recent Activity</Text>
+          </View>
+
+          <RecentActivity />
+        </View>
       </View>
     </AppShell>
+  );
+}
+
+function relativeTime(iso: string) {
+  const then = new Date(iso).getTime();
+  const now = Date.now();
+  const diff = Math.floor((now - then) / 1000);
+
+  if (diff < 5) return 'just now';
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return new Date(iso).toLocaleString();
+}
+
+function RecentActivity() {
+  const activities = useActivities();
+  const recent = activities.slice(0, 10);
+
+  return (
+    <View style={styles.detailList}>
+      {recent.map((act) => (
+        <View key={act.id} style={styles.detailRow}>
+          <View style={styles.detailPrimary}>
+            <Text style={styles.detailTitle}>{act.message}</Text>
+            <Text style={styles.detailSubtitle}>{relativeTime(act.timestamp)}</Text>
+          </View>
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -294,5 +371,10 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 17,
     fontWeight: '800',
+  },
+  pressed: {
+    backgroundColor: '#232323',
+    transform: [{ scale: 0.997 }],
+    opacity: 0.96,
   },
 });

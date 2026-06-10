@@ -42,6 +42,7 @@ export default function NewInvoiceScreen() {
   const searchParams = useLocalSearchParams();
   const customers = useCustomers();
   const invoices = useInvoices();
+  const [originalInvoiceNumber, setOriginalInvoiceNumber] = useState<string | undefined>(undefined);
   const [number, setNumber] = useState(() => getNextInvoiceNumber(invoices));
   const [date, setDate] = useState(invoiceDraft.date);
   const [terms, setTerms] = useState(invoiceDraft.terms);
@@ -68,6 +69,7 @@ export default function NewInvoiceScreen() {
     setLineItems((items) => [...items, { description: '', amount: '$0' }]);
   }
 
+  const invoiceParam = typeof searchParams.invoice === 'string' ? searchParams.invoice : '';
   const preselectedCustomerName =
     typeof searchParams.customer === 'string' ? searchParams.customer : '';
 
@@ -77,6 +79,27 @@ export default function NewInvoiceScreen() {
   );
 
   useEffect(() => {
+    if (invoiceParam && !originalInvoiceNumber) {
+      const foundInvoice = invoices.find((item) => item.invoice === invoiceParam);
+
+      if (foundInvoice) {
+        setOriginalInvoiceNumber(foundInvoice.invoice);
+        setNumber(foundInvoice.invoice);
+        setDate(foundInvoice.invoiceDate);
+        setTerms(foundInvoice.terms ?? invoiceDraft.terms);
+        setCustomer(foundInvoice.customer);
+        setSelectedCustomerName(foundInvoice.customer);
+        setPoNumber(foundInvoice.poNumber ?? invoiceDraft.poNumber);
+        setBolNumber(foundInvoice.bolNumber ?? invoiceDraft.bolNumber);
+        setShipper(foundInvoice.shipper ?? invoiceDraft.shipper);
+        setConsignee(foundInvoice.consignee ?? invoiceDraft.consignee);
+        setFreightDescription(foundInvoice.freightDescription ?? invoiceDraft.freightDescription);
+        setStatus(foundInvoice.status);
+        setLineItems(foundInvoice.lineItems ?? invoiceLineItems);
+      }
+      return;
+    }
+
     if (!preselectedCustomerName || selectedCustomerName) {
       return;
     }
@@ -86,7 +109,7 @@ export default function NewInvoiceScreen() {
     if (foundCustomer) {
       handleSelectCustomer(foundCustomer);
     }
-  }, [customers, preselectedCustomerName, selectedCustomerName]);
+  }, [customers, invoices, invoiceParam, originalInvoiceNumber, preselectedCustomerName, selectedCustomerName]);
 
   function handleSelectCustomer(selectedCustomer: Customer) {
     setSelectedCustomerName(selectedCustomer.name);
@@ -117,13 +140,22 @@ export default function NewInvoiceScreen() {
   }
 
   function handleSaveDraft() {
-    saveInvoice({
-      invoice: number,
-      customer: customer.trim(),
-      amount: invoiceTotal,
-      status,
-      invoiceDate: date,
-    });
+    saveInvoice(
+      {
+        invoice: number,
+        customer: customer.trim(),
+        amount: invoiceTotal,
+        status,
+        invoiceDate: date,
+        poNumber,
+        bolNumber,
+        shipper,
+        consignee,
+        freightDescription,
+        lineItems,
+      },
+      originalInvoiceNumber
+    );
     router.replace('/invoices');
   }
 
@@ -157,16 +189,16 @@ export default function NewInvoiceScreen() {
 
   return (
     <AppShell activeNav="Invoices">
-            <View style={styles.pageHeader}>
-              <View>
-                <Text style={styles.eyebrow}>Invoices</Text>
-                <Text style={styles.heading}>New Invoice</Text>
-              </View>
+      <View style={styles.pageHeader}>
+        <View>
+          <Text style={styles.eyebrow}>Invoices</Text>
+          <Text style={styles.heading}>{originalInvoiceNumber ? 'Edit Invoice' : 'New Invoice'}</Text>
+        </View>
 
-              <Pressable style={styles.backButton} onPress={() => router.push('/invoices')}>
-                <Text style={styles.backButtonText}>Back to invoices</Text>
-              </Pressable>
-            </View>
+        <Pressable style={styles.backButton} onPress={() => router.push('/invoices')}>
+          <Text style={styles.backButtonText}>Back to invoices</Text>
+        </Pressable>
+      </View>
 
               <View style={styles.formCard}>
                 <View style={styles.compactRow}>

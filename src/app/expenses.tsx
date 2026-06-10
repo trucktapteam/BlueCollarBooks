@@ -33,6 +33,7 @@ export default function ExpensesScreen() {
           <Text style={[styles.tableHeaderText, styles.categoryColumn]}>Category</Text>
           <Text style={[styles.tableHeaderText, styles.amountColumn]}>Amount</Text>
           <Text style={[styles.tableHeaderText, styles.notesColumn]}>Notes</Text>
+          <Text style={[styles.tableHeaderText, styles.actionColumn]}>Action</Text>
         </View>
 
         <View style={styles.expenseList}>
@@ -47,6 +48,9 @@ export default function ExpensesScreen() {
               </View>
               <Text style={[styles.expenseAmount, styles.amountColumn]}>${expense.amount}</Text>
               <Text style={[styles.expenseMeta, styles.notesColumn]}>{expense.notes}</Text>
+              <Pressable style={styles.editButton} onPress={() => router.push(`/new-expense?id=${encodeURIComponent(expense.id ?? '')}`)}>
+                <Text style={styles.editButtonText}>Edit</Text>
+              </Pressable>
             </View>
           ))}
         </View>
@@ -162,6 +166,23 @@ const styles = StyleSheet.create({
   },
   notesColumn: {
     flex: 1.6,
+  },
+  actionColumn: {
+    flex: 0.8,
+  },
+  editButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#252525',
+    borderColor: '#343434',
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  editButtonText: {
+    color: '#d4d4d4',
+    fontSize: 13,
+    fontWeight: '900',
   },
   expenseText: {
     color: '#f5f5f5',

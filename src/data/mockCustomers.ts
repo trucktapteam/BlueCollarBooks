@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { addActivity } from './activityStore';
 import { loadPersistedData, persistData } from './persistentStore';
 
 export type Customer = {
@@ -45,13 +46,18 @@ function emitChange() {
   listeners.forEach((listener) => listener());
 }
 
-export function saveCustomer(customer: Customer) {
-  const existingCustomerIndex = customersSnapshot.findIndex((item) => item.name === customer.name);
+export function saveCustomer(customer: Customer, originalName?: string) {
+  const lookupName = originalName ?? customer.name;
+  const existingCustomerIndex = customersSnapshot.findIndex((item) => item.name === lookupName);
 
   if (existingCustomerIndex >= 0) {
-    customersSnapshot = customersSnapshot.map((item, index) => (index === existingCustomerIndex ? customer : item));
+    customersSnapshot = customersSnapshot.map((item, index) =>
+      index === existingCustomerIndex ? customer : item
+    );
+    addActivity(`Customer updated: ${customer.name}`);
   } else {
     customersSnapshot = [customer, ...customersSnapshot];
+    addActivity(`Customer created: ${customer.name}`);
   }
 
   persistData(LOCAL_STORAGE_KEY, customersSnapshot);
