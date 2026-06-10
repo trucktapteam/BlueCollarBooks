@@ -15,6 +15,8 @@ export type InvoiceLineItem = {
   amount: string;
 };
 
+export const invoiceStatuses: InvoiceStatus[] = ['Draft', 'Sent', 'Paid', 'Overdue'];
+
 export const invoiceLabels = {
   description: 'Freight Description',
   shipper: 'Shipper Address',
@@ -57,7 +59,7 @@ const initialInvoices: Invoice[] = [
     invoice: '26027',
     customer: 'ABC Steel',
     amount: '$275',
-    status: 'Draft',
+    status: 'Paid',
     invoiceDate: 'Apr 10, 2026',
   },
 ];
@@ -90,16 +92,27 @@ export function saveInvoice(invoice: Invoice) {
   emitChange();
 }
 
+export function updateInvoiceStatus(invoiceNumber: string, status: InvoiceStatus) {
+  invoicesSnapshot = invoicesSnapshot.map((invoice) =>
+    invoice.invoice === invoiceNumber ? { ...invoice, status } : invoice
+  );
+  emitChange();
+}
+
 export function calculateInvoiceTotal(invoices: Invoice[]) {
   return invoices.reduce((total, invoice) => total + parseInvoiceAmount(invoice.amount), 0);
 }
 
-export function isInvoiceUnpaid(invoice: Invoice) {
-  return invoice.status !== 'Paid';
+export function isInvoiceWaitingToBePaid(invoice: Invoice) {
+  return invoice.status === 'Sent' || invoice.status === 'Overdue';
 }
 
-export function calculateUnpaidInvoiceTotal(invoices: Invoice[]) {
-  return calculateInvoiceTotal(invoices.filter(isInvoiceUnpaid));
+export function calculateWaitingToBePaidTotal(invoices: Invoice[]) {
+  return calculateInvoiceTotal(invoices.filter(isInvoiceWaitingToBePaid));
+}
+
+export function calculatePaidInvoiceTotal(invoices: Invoice[]) {
+  return calculateInvoiceTotal(invoices.filter((invoice) => invoice.status === 'Paid'));
 }
 
 export function useInvoices() {

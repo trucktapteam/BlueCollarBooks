@@ -2,7 +2,27 @@ import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
-import { useInvoices } from '@/data/mockInvoices';
+import { type InvoiceStatus, updateInvoiceStatus, useInvoices } from '@/data/mockInvoices';
+
+function getStatusPillStyle(status: InvoiceStatus) {
+  return [
+    styles.statusPill,
+    status === 'Draft' && styles.statusPillDraft,
+    status === 'Sent' && styles.statusPillSent,
+    status === 'Paid' && styles.statusPillPaid,
+    status === 'Overdue' && styles.statusPillOverdue,
+  ];
+}
+
+function getStatusTextStyle(status: InvoiceStatus) {
+  return [
+    styles.statusText,
+    status === 'Draft' && styles.statusTextDraft,
+    status === 'Sent' && styles.statusTextSent,
+    status === 'Paid' && styles.statusTextPaid,
+    status === 'Overdue' && styles.statusTextOverdue,
+  ];
+}
 
 export default function InvoicesScreen() {
   const invoices = useInvoices();
@@ -27,6 +47,7 @@ export default function InvoicesScreen() {
           <Text style={[styles.tableHeaderText, styles.amountColumn]}>Amount</Text>
           <Text style={[styles.tableHeaderText, styles.statusColumn]}>Status</Text>
           <Text style={[styles.tableHeaderText, styles.dateColumn]}>Invoice Date</Text>
+          <Text style={[styles.tableHeaderText, styles.actionColumn]}>Action</Text>
         </View>
 
         <View style={styles.invoiceList}>
@@ -36,25 +57,20 @@ export default function InvoicesScreen() {
               <Text style={[styles.invoiceText, styles.customerColumn]}>{invoice.customer}</Text>
               <Text style={[styles.invoiceAmount, styles.amountColumn]}>{invoice.amount}</Text>
               <View style={styles.statusColumn}>
-                <View
-                  style={[
-                    styles.statusPill,
-                    invoice.status === 'Overdue' && styles.statusPillOverdue,
-                    invoice.status === 'Draft' && styles.statusPillDraft,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.statusText,
-                      invoice.status === 'Overdue' && styles.statusTextOverdue,
-                      invoice.status === 'Draft' && styles.statusTextDraft,
-                    ]}
-                  >
-                    {invoice.status}
-                  </Text>
+                <View style={getStatusPillStyle(invoice.status)}>
+                  <Text style={getStatusTextStyle(invoice.status)}>{invoice.status}</Text>
                 </View>
               </View>
               <Text style={[styles.invoiceMeta, styles.dateColumn]}>{invoice.invoiceDate}</Text>
+              <View style={styles.actionColumn}>
+                {invoice.status !== 'Paid' ? (
+                  <Pressable style={styles.markPaidButton} onPress={() => updateInvoiceStatus(invoice.invoice, 'Paid')}>
+                    <Text style={styles.markPaidButtonText}>Mark Paid</Text>
+                  </Pressable>
+                ) : (
+                  <Text style={styles.paidActionText}>Paid</Text>
+                )}
+              </View>
             </View>
           ))}
         </View>
@@ -148,6 +164,9 @@ const styles = StyleSheet.create({
   dateColumn: {
     flex: 1,
   },
+  actionColumn: {
+    flex: 0.9,
+  },
   invoiceText: {
     color: '#f5f5f5',
     fontSize: 15,
@@ -165,30 +184,60 @@ const styles = StyleSheet.create({
   },
   statusPill: {
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(34, 197, 94, 0.12)',
-    borderColor: 'rgba(34, 197, 94, 0.36)',
     borderRadius: 999,
     borderWidth: 1,
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  statusPillOverdue: {
-    backgroundColor: 'rgba(249, 115, 22, 0.12)',
-    borderColor: 'rgba(249, 115, 22, 0.42)',
-  },
   statusPillDraft: {
     backgroundColor: 'rgba(163, 163, 163, 0.12)',
     borderColor: 'rgba(163, 163, 163, 0.28)',
   },
+  statusPillSent: {
+    backgroundColor: 'rgba(59, 130, 246, 0.12)',
+    borderColor: 'rgba(59, 130, 246, 0.42)',
+  },
+  statusPillPaid: {
+    backgroundColor: 'rgba(34, 197, 94, 0.12)',
+    borderColor: 'rgba(34, 197, 94, 0.36)',
+  },
+  statusPillOverdue: {
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderColor: 'rgba(239, 68, 68, 0.42)',
+  },
   statusText: {
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  statusTextDraft: {
+    color: '#d4d4d4',
+  },
+  statusTextSent: {
+    color: '#93c5fd',
+  },
+  statusTextPaid: {
+    color: '#86efac',
+  },
+  statusTextOverdue: {
+    color: '#fca5a5',
+  },
+  markPaidButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(34, 197, 94, 0.12)',
+    borderColor: 'rgba(34, 197, 94, 0.36)',
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  markPaidButtonText: {
     color: '#86efac',
     fontSize: 13,
     fontWeight: '900',
   },
-  statusTextOverdue: {
-    color: '#f97316',
-  },
-  statusTextDraft: {
-    color: '#d4d4d4',
+  paidActionText: {
+    color: '#737373',
+    fontSize: 13,
+    fontWeight: '800',
   },
 });

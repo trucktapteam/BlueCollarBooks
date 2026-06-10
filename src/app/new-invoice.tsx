@@ -15,10 +15,12 @@ import { AppShell } from '@/components/AppShell';
 import { businessProfile } from '@/data/mockBusiness';
 import {
   formatInvoiceAmount,
+  type InvoiceStatus,
   type InvoiceLineItem,
   invoiceDraft,
   invoiceLabels,
   invoiceLineItems,
+  invoiceStatuses,
   parseInvoiceAmount,
   saveInvoice,
 } from '@/data/mockInvoices';
@@ -34,6 +36,7 @@ export default function NewInvoiceScreen() {
   const [shipper, setShipper] = useState(invoiceDraft.shipper);
   const [consignee, setConsignee] = useState(invoiceDraft.consignee);
   const [freightDescription, setFreightDescription] = useState(invoiceDraft.freightDescription);
+  const [status, setStatus] = useState<InvoiceStatus>('Draft');
   const [lineItems, setLineItems] = useState(invoiceLineItems);
   const invoiceTotal = useMemo(
     () => formatInvoiceAmount(lineItems.reduce((total, item) => total + parseInvoiceAmount(item.amount), 0)),
@@ -53,7 +56,7 @@ export default function NewInvoiceScreen() {
       invoice: number,
       customer,
       amount: invoiceTotal,
-      status: 'Draft',
+      status,
       invoiceDate: date,
     });
     router.replace('/invoices');
@@ -122,6 +125,27 @@ export default function NewInvoiceScreen() {
                   value={freightDescription}
                   onChangeText={setFreightDescription}
                 />
+              </View>
+
+              <View style={styles.statusSection}>
+                <Text style={styles.fieldLabel}>Status</Text>
+                <View style={styles.statusGrid}>
+                  {invoiceStatuses.map((statusName) => {
+                    const isActive = statusName === status;
+
+                    return (
+                      <Pressable
+                        key={statusName}
+                        style={[styles.statusChip, isActive && styles.statusChipActive]}
+                        onPress={() => setStatus(statusName)}
+                      >
+                        <Text style={[styles.statusChipText, isActive && styles.statusChipTextActive]}>
+                          {statusName}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
               </View>
 
               <View style={styles.sectionDivider} />
@@ -625,6 +649,35 @@ const styles = StyleSheet.create({
   },
   freightRow: {
     marginTop: 18,
+  },
+  statusSection: {
+    gap: 10,
+    marginTop: 18,
+  },
+  statusGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  statusChip: {
+    backgroundColor: '#252525',
+    borderColor: '#383838',
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  statusChipActive: {
+    backgroundColor: 'rgba(249, 115, 22, 0.14)',
+    borderColor: 'rgba(249, 115, 22, 0.45)',
+  },
+  statusChipText: {
+    color: '#d4d4d4',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  statusChipTextActive: {
+    color: '#f97316',
   },
   field: {
     flexBasis: '31%',

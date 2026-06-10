@@ -1,12 +1,14 @@
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
+import { startingCashBalance } from '@/data/mockBusiness';
 import { calculateTotalMonthlyExpenses, useExpenses } from '@/data/mockExpenses';
 import {
   calculateInvoiceTotal,
-  calculateUnpaidInvoiceTotal,
+  calculatePaidInvoiceTotal,
+  calculateWaitingToBePaidTotal,
   formatInvoiceAmount,
-  isInvoiceUnpaid,
+  isInvoiceWaitingToBePaid,
   useInvoices,
 } from '@/data/mockInvoices';
 
@@ -15,12 +17,7 @@ const metrics = [
   { label: 'Waiting To Be Paid', value: '$1,750' },
   { label: 'Money In', value: '$8,500' },
   { label: 'Money Out', value: '$4,180' },
-];
-
-const attentionItems = [
-  '3 overdue invoices',
-  '12 expenses need categories',
-  '1 bank connection needs attention',
+  { label: 'Paid This Month', value: '$0' },
 ];
 
 export default function HomeScreen() {
@@ -28,14 +25,25 @@ export default function HomeScreen() {
   const isCompact = width < 760;
   const expenses = useExpenses();
   const invoices = useInvoices();
-  const unpaidInvoices = invoices.filter(isInvoiceUnpaid);
+  const waitingToBePaidInvoices = invoices.filter(isInvoiceWaitingToBePaid);
+  const overdueInvoiceCount = invoices.filter((invoice) => invoice.status === 'Overdue').length;
   const moneyIn = calculateInvoiceTotal(invoices);
   const moneyOut = calculateTotalMonthlyExpenses(expenses);
   const profitThisMonth = moneyIn - moneyOut;
+  const paidThisMonth = calculatePaidInvoiceTotal(invoices);
+  const cashAvailable = startingCashBalance + paidThisMonth - moneyOut;
   const formattedTotalMonthlyExpenses = `$${moneyOut.toLocaleString()}`;
+  const formattedCashAvailable = formatInvoiceAmount(cashAvailable);
   const formattedMoneyIn = formatInvoiceAmount(moneyIn);
   const formattedProfitThisMonth = formatInvoiceAmount(profitThisMonth);
-  const formattedWaitingToBePaid = formatInvoiceAmount(calculateUnpaidInvoiceTotal(invoices));
+  const formattedWaitingToBePaid = formatInvoiceAmount(calculateWaitingToBePaidTotal(invoices));
+  const formattedPaidThisMonth = formatInvoiceAmount(paidThisMonth);
+  const overdueInvoiceLabel = `${overdueInvoiceCount} overdue invoice${overdueInvoiceCount === 1 ? '' : 's'}`;
+  const attentionItems = [
+    overdueInvoiceLabel,
+    '12 expenses need categories',
+    '1 bank connection needs attention',
+  ];
 
   return (
     <AppShell activeNav="Dashboard">
@@ -52,13 +60,17 @@ export default function HomeScreen() {
           >
             <Text style={styles.metricLabel}>{metric.label}</Text>
             <Text style={styles.metricValue}>
-              {metric.label === 'Money Out'
-                ? formattedTotalMonthlyExpenses
-                : metric.label === 'Money In'
-                  ? formattedMoneyIn
-                  : metric.label === 'Waiting To Be Paid'
-                    ? formattedWaitingToBePaid
-                    : metric.value}
+              {metric.label === 'Cash Available'
+                ? formattedCashAvailable
+                : metric.label === 'Money Out'
+                  ? formattedTotalMonthlyExpenses
+                  : metric.label === 'Money In'
+                    ? formattedMoneyIn
+                    : metric.label === 'Waiting To Be Paid'
+                      ? formattedWaitingToBePaid
+                      : metric.label === 'Paid This Month'
+                        ? formattedPaidThisMonth
+                        : metric.value}
             </Text>
           </View>
         ))}
@@ -85,7 +97,7 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.detailList}>
-            {unpaidInvoices.map((item, index) => (
+            {waitingToBePaidInvoices.map((item, index) => (
               <View key={`${item.invoice}-${index}`} style={styles.detailRow}>
                 <View style={styles.detailPrimary}>
                   <Text style={styles.detailTitle}>

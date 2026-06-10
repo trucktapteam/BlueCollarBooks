@@ -5,3 +5,5 @@ export const businessProfile = {
   email: 'billing@bluecollarbooks.com',
   logo: require('@/assets/images/blue-collar-books-logo.jpg'),
 };
+
+export const startingCashBalance = 7850;
