@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { addActivity } from './activityStore';
 import { loadPersistedData, persistData } from './persistentStore';
 
-export type InvoiceStatus = 'Draft' | 'Sent' | 'Overdue' | 'Paid';
+export type InvoiceStatus = 'Draft' | 'Sent' | 'Due Today' | 'Overdue' | 'Paid';
 
 export type Invoice = {
   invoice: string;
@@ -24,7 +24,7 @@ export type InvoiceLineItem = {
   amount: string;
 };
 
-export const invoiceStatuses: InvoiceStatus[] = ['Draft', 'Sent', 'Paid', 'Overdue'];
+export const invoiceStatuses: InvoiceStatus[] = ['Draft', 'Sent', 'Due Today', 'Paid', 'Overdue'];
 
 export const invoiceLabels = {
   description: 'Freight Description',
@@ -81,6 +81,62 @@ function emitChange() {
   listeners.forEach((listener) => listener());
 }
 
+function parseTermsToDays(terms?: string) {
+  if (!terms) return 0;
+  const m = terms.match(/(\d+)/);
+  if (m) return Number(m[1]);
+  return 0;
+}
+
+function parseDateStringToDate(d?: string) {
+  if (!d) return null;
+  const parsed = Date.parse(d);
+  if (!isNaN(parsed)) return new Date(parsed);
+  // try MM/DD/YYYY
+  const parts = d.split('/').map((p) => Number(p));
+  if (parts.length === 3) {
+    const [m, day, y] = parts;
+    return new Date(y, m - 1, day);
+  }
+  return null;
+}
+
+function formatDateShort(date: Date) {
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function computeDueDate(invoice: Invoice) {
+  const invoiceDt = parseDateStringToDate(invoice.invoiceDate);
+  if (!invoiceDt) return undefined;
+  const days = parseTermsToDays(invoice.terms);
+  const due = new Date(invoiceDt.getTime());
+  due.setDate(due.getDate() + days);
+  return due;
+}
+
+function refreshInvoiceStatuses() {
+  const now = new Date();
+  invoicesSnapshot = invoicesSnapshot.map((inv) => {
+    if (inv.status === 'Paid' || inv.status === 'Draft') return inv;
+
+    const due = computeDueDate(inv);
+    if (!due) return { ...inv, status: 'Sent' };
+
+    const dueDateOnly = new Date(due.getFullYear(), due.getMonth(), due.getDate());
+    const todayOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    if (dueDateOnly.getTime() === todayOnly.getTime()) {
+      return { ...inv, status: 'Due Today' };
+    }
+
+    if (dueDateOnly.getTime() < todayOnly.getTime()) {
+      return { ...inv, status: 'Overdue' };
+    }
+
+    return { ...inv, status: 'Sent' };
+  });
+}
+
 export function parseInvoiceAmount(amount: string) {
   const parsedAmount = Number(amount.replace(/[$,]/g, '').trim());
   return Number.isFinite(parsedAmount) ? parsedAmount : 0;
@@ -105,6 +161,7 @@ export function saveInvoice(invoice: Invoice, originalInvoiceNumber?: string) {
   }
 
   persistData(LOCAL_STORAGE_KEY, invoicesSnapshot);
+  refreshInvoiceStatuses();
   emitChange();
 }
 
@@ -114,6 +171,7 @@ export function updateInvoiceStatus(invoiceNumber: string, status: InvoiceStatus
   );
   persistData(LOCAL_STORAGE_KEY, invoicesSnapshot);
   addActivity(`Invoice #${invoiceNumber} marked ${status}`);
+  refreshInvoiceStatuses();
   emitChange();
 }
 
@@ -122,7 +180,7 @@ export function calculateInvoiceTotal(invoices: Invoice[]) {
 }
 
 export function isInvoiceWaitingToBePaid(invoice: Invoice) {
-  return invoice.status === 'Sent' || invoice.status === 'Overdue';
+  return invoice.status === 'Sent' || invoice.status === 'Overdue' || invoice.status === 'Due Today';
 }
 
 export function calculateWaitingToBePaidTotal(invoices: Invoice[]) {
@@ -134,6 +192,7 @@ export function calculatePaidInvoiceTotal(invoices: Invoice[]) {
 }
 
 export function useInvoices() {
+  refreshInvoiceStatuses();
   return useSyncExternalStore(
     (listener) => {
       listeners.add(listener);

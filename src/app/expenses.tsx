@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { calculateTotalMonthlyExpenses, useExpenses } from '@/data/mockExpenses';
@@ -7,6 +8,23 @@ import { calculateTotalMonthlyExpenses, useExpenses } from '@/data/mockExpenses'
 export default function ExpensesScreen() {
   const expenses = useExpenses();
   const totalMonthlyExpenses = calculateTotalMonthlyExpenses(expenses);
+  const [query, setQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('All');
+
+  const categories = ['All', 'Fuel', 'Repairs', 'Insurance', 'Permits', 'Tolls', 'Meals', 'Office', 'Software', 'Other'];
+
+  const visibleExpenses = useMemo(() =>
+    expenses.filter((exp) => {
+      if (categoryFilter !== 'All' && exp.category !== categoryFilter) return false;
+      if (!query.trim()) return true;
+      const q = query.toLowerCase();
+      return (
+        exp.vendor.toLowerCase().includes(q) ||
+        (exp.category ?? '').toLowerCase().includes(q) ||
+        (exp.notes ?? '').toLowerCase().includes(q)
+      );
+    }), [expenses, query, categoryFilter]
+  );
 
   return (
     <AppShell activeNav="Expenses">
@@ -26,6 +44,24 @@ export default function ExpensesScreen() {
         <Text style={styles.summaryValue}>${totalMonthlyExpenses.toLocaleString()}</Text>
       </View>
 
+      <View style={styles.searchRow}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search expenses (vendor, category, notes)"
+          placeholderTextColor="#6b6b6b"
+          value={query}
+          onChangeText={setQuery}
+        />
+
+        <View style={styles.filterRow}>
+          {categories.map((c) => (
+            <Pressable key={c} onPress={() => setCategoryFilter(c)} style={[styles.filterChip, categoryFilter === c && styles.filterChipActive]}>
+              <Text style={[styles.filterChipText, categoryFilter === c && styles.filterChipTextActive]}>{c}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+
       <View style={styles.expenseCard}>
         <View style={styles.tableHeader}>
           <Text style={[styles.tableHeaderText, styles.dateColumn]}>Date</Text>
@@ -37,7 +73,7 @@ export default function ExpensesScreen() {
         </View>
 
         <View style={styles.expenseList}>
-          {expenses.map((expense, index) => (
+          {visibleExpenses.map((expense, index) => (
             <View key={`${expense.date}-${expense.vendor}-${index}`} style={styles.expenseRow}>
               <Text style={[styles.expenseMeta, styles.dateColumn]}>{expense.date}</Text>
               <Text style={[styles.expenseText, styles.vendorColumn]}>{expense.vendor}</Text>
@@ -141,6 +177,27 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 16,
   },
+  searchRow: { marginTop: 18, marginBottom: 12, gap: 12 },
+  searchInput: {
+    backgroundColor: '#252525',
+    borderColor: '#353535',
+    borderRadius: 10,
+    borderWidth: 1,
+    color: '#ffffff',
+    padding: 10,
+  },
+  filterRow: { flexDirection: 'row', gap: 8, marginTop: 10, flexWrap: 'wrap' },
+  filterChip: {
+    backgroundColor: '#252525',
+    borderColor: '#353535',
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  filterChipActive: { backgroundColor: 'rgba(249,115,22,0.14)', borderColor: 'rgba(249,115,22,0.4)' },
+  filterChipText: { color: '#d4d4d4', fontWeight: '800' },
+  filterChipTextActive: { color: '#f97316' },
   expenseRow: {
     alignItems: 'center',
     backgroundColor: '#252525',

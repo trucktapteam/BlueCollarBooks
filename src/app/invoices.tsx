@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { type InvoiceStatus, updateInvoiceStatus, useInvoices } from '@/data/mockInvoices';
@@ -10,6 +11,7 @@ function getStatusPillStyle(status: InvoiceStatus) {
     status === 'Draft' && styles.statusPillDraft,
     status === 'Sent' && styles.statusPillSent,
     status === 'Paid' && styles.statusPillPaid,
+    status === 'Due Today' && styles.statusPillDueToday,
     status === 'Overdue' && styles.statusPillOverdue,
   ];
 }
@@ -20,12 +22,36 @@ function getStatusTextStyle(status: InvoiceStatus) {
     status === 'Draft' && styles.statusTextDraft,
     status === 'Sent' && styles.statusTextSent,
     status === 'Paid' && styles.statusTextPaid,
+    status === 'Due Today' && styles.statusTextDueToday,
     status === 'Overdue' && styles.statusTextOverdue,
   ];
 }
 
 export default function InvoicesScreen() {
   const invoices = useInvoices();
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<'All' | 'Draft' | 'Sent' | 'Paid' | 'Overdue'>('All');
+
+  const visibleInvoices = useMemo(() => {
+    return invoices
+      .filter((inv) => {
+        if (filter !== 'All') {
+          if (filter === 'Overdue') return inv.status === 'Overdue';
+          return inv.status === filter;
+        }
+        return true;
+      })
+      .filter((inv) => {
+        if (!query.trim()) return true;
+        const q = query.toLowerCase();
+        return (
+          inv.invoice.toLowerCase().includes(q) ||
+          inv.customer.toLowerCase().includes(q) ||
+          (inv.poNumber ?? '').toLowerCase().includes(q) ||
+          (inv.bolNumber ?? '').toLowerCase().includes(q)
+        );
+      });
+  }, [invoices, query, filter]);
 
   return (
     <AppShell activeNav="Invoices">
@@ -39,6 +65,27 @@ export default function InvoicesScreen() {
           <Text style={styles.newInvoiceText}>+ New Invoice</Text>
         </Pressable>
       </View>
+      <View style={styles.searchRow}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search invoices (number, customer, PO, BOL)"
+          placeholderTextColor="#6b6b6b"
+          value={query}
+          onChangeText={setQuery}
+        />
+
+        <View style={styles.filterRow}>
+          {(['All', 'Draft', 'Sent', 'Paid', 'Overdue'] as const).map((f) => (
+            <Pressable
+              key={f}
+              onPress={() => setFilter(f)}
+              style={[styles.filterChip, filter === f && styles.filterChipActive]}
+            >
+              <Text style={[styles.filterChipText, filter === f && styles.filterChipTextActive]}>{f}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
 
       <View style={styles.invoiceCard}>
         <View style={styles.tableHeader}>
@@ -47,11 +94,12 @@ export default function InvoicesScreen() {
           <Text style={[styles.tableHeaderText, styles.amountColumn]}>Amount</Text>
           <Text style={[styles.tableHeaderText, styles.statusColumn]}>Status</Text>
           <Text style={[styles.tableHeaderText, styles.dateColumn]}>Invoice Date</Text>
+          <Text style={[styles.tableHeaderText, styles.dateColumn]}>Due Date</Text>
           <Text style={[styles.tableHeaderText, styles.actionColumn]}>Action</Text>
         </View>
 
         <View style={styles.invoiceList}>
-          {invoices.map((invoice, index) => (
+          {visibleInvoices.map((invoice, index) => (
             <View key={`${invoice.invoice}-${index}`} style={styles.invoiceRow}>
               <Text style={[styles.invoiceText, styles.invoiceColumn]}>#{invoice.invoice}</Text>
               <Text style={[styles.invoiceText, styles.customerColumn]}>{invoice.customer}</Text>
@@ -62,6 +110,20 @@ export default function InvoicesScreen() {
                 </View>
               </View>
               <Text style={[styles.invoiceMeta, styles.dateColumn]}>{invoice.invoiceDate}</Text>
+              <Text style={[styles.invoiceMeta, styles.dateColumn]}>{(function () {
+                // compute due date
+                try {
+                  const dt = Date.parse(invoice.invoiceDate);
+                  if (!isNaN(dt)) {
+                    const date = new Date(dt);
+                    const m = (invoice.terms || '').match(/(\d+)/);
+                    const days = m ? Number(m[1]) : 0;
+                    date.setDate(date.getDate() + days);
+                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                  }
+                } catch {}
+                return '';
+              })()}</Text>
               <View style={styles.actionColumn}>
                 <Pressable style={styles.editButton} onPress={() => router.push(`/new-invoice?invoice=${encodeURIComponent(invoice.invoice)}`)}>
                   <Text style={styles.editButtonText}>Edit</Text>
@@ -140,6 +202,27 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 16,
   },
+  searchRow: { marginTop: 18, marginBottom: 12, gap: 12 },
+  searchInput: {
+    backgroundColor: '#252525',
+    borderColor: '#353535',
+    borderRadius: 10,
+    borderWidth: 1,
+    color: '#ffffff',
+    padding: 10,
+  },
+  filterRow: { flexDirection: 'row', gap: 8, marginTop: 10, flexWrap: 'wrap' },
+  filterChip: {
+    backgroundColor: '#252525',
+    borderColor: '#353535',
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  filterChipActive: { backgroundColor: 'rgba(249,115,22,0.14)', borderColor: 'rgba(249,115,22,0.4)' },
+  filterChipText: { color: '#d4d4d4', fontWeight: '800' },
+  filterChipTextActive: { color: '#f97316' },
   invoiceRow: {
     alignItems: 'center',
     backgroundColor: '#252525',
@@ -206,6 +289,13 @@ const styles = StyleSheet.create({
   statusPillOverdue: {
     backgroundColor: 'rgba(239, 68, 68, 0.12)',
     borderColor: 'rgba(239, 68, 68, 0.42)',
+  },
+  statusPillDueToday: {
+    backgroundColor: 'rgba(250, 204, 21, 0.12)',
+    borderColor: 'rgba(250, 204, 21, 0.36)',
+  },
+  statusTextDueToday: {
+    color: '#facc15',
   },
   statusText: {
     fontSize: 13,

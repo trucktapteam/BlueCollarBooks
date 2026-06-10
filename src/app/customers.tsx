@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { type Customer, useCustomers } from '@/data/mockCustomers';
@@ -55,6 +55,28 @@ export default function CustomersScreen() {
   const customers = useCustomers();
   const invoices = useInvoices();
   const customerSummaries = useMemo(() => buildCustomerSummaries(customers, invoices), [customers, invoices]);
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<'All' | 'Owes Money' | 'Paid Up' | 'No Invoices'>('All');
+
+  const visibleCustomerSummaries = useMemo(() => {
+    return customerSummaries
+      .filter((c) => {
+        if (filter === 'Owes Money') return c.invoices.some(isInvoiceWaitingToBePaid);
+        if (filter === 'Paid Up') return c.invoiceCount > 0 && !c.invoices.some(isInvoiceWaitingToBePaid);
+        if (filter === 'No Invoices') return c.invoiceCount === 0;
+        return true;
+      })
+      .filter((c) => {
+        if (!query.trim()) return true;
+        const q = query.toLowerCase();
+        return (
+          c.name.toLowerCase().includes(q) ||
+          (c.contact ?? '').toLowerCase().includes(q) ||
+          (c.email ?? '').toLowerCase().includes(q) ||
+          (c.phone ?? '').toLowerCase().includes(q)
+        );
+      });
+  }, [customerSummaries, filter, query]);
   const [selectedCustomerName, setSelectedCustomerName] = useState(customerSummaries[0]?.name ?? '');
   const selectedCustomer =
     customerSummaries.find((customer) => customer.name === selectedCustomerName) ?? customerSummaries[0];
@@ -72,6 +94,24 @@ export default function CustomersScreen() {
         </Pressable>
       </View>
 
+      <View style={styles.searchRow}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search customers (company, contact, email, phone)"
+          placeholderTextColor="#6b6b6b"
+          value={query}
+          onChangeText={setQuery}
+        />
+
+        <View style={styles.filterRow}>
+          {(['All', 'Owes Money', 'Paid Up', 'No Invoices'] as const).map((f) => (
+            <Pressable key={f} onPress={() => setFilter(f)} style={[styles.filterChip, filter === f && styles.filterChipActive]}>
+              <Text style={[styles.filterChipText, filter === f && styles.filterChipTextActive]}>{f}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+
       <View style={styles.customerCard}>
         <View style={styles.tableHeader}>
           <Text style={[styles.tableHeaderText, styles.customerColumn]}>Customer</Text>
@@ -82,7 +122,7 @@ export default function CustomersScreen() {
         </View>
 
         <View style={styles.customerList}>
-          {customerSummaries.map((customer) => {
+          {visibleCustomerSummaries.map((customer) => {
             const isSelected = customer.name === selectedCustomer?.name;
 
             return (
@@ -257,6 +297,27 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 16,
   },
+  searchRow: { marginTop: 18, marginBottom: 12, gap: 12 },
+  searchInput: {
+    backgroundColor: '#252525',
+    borderColor: '#353535',
+    borderRadius: 10,
+    borderWidth: 1,
+    color: '#ffffff',
+    padding: 10,
+  },
+  filterRow: { flexDirection: 'row', gap: 8, marginTop: 10, flexWrap: 'wrap' },
+  filterChip: {
+    backgroundColor: '#252525',
+    borderColor: '#353535',
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  filterChipActive: { backgroundColor: 'rgba(249,115,22,0.14)', borderColor: 'rgba(249,115,22,0.4)' },
+  filterChipText: { color: '#d4d4d4', fontWeight: '800' },
+  filterChipTextActive: { color: '#f97316' },
   customerRow: {
     alignItems: 'center',
     backgroundColor: '#252525',

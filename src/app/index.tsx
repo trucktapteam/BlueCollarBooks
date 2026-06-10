@@ -11,6 +11,7 @@ import {
   calculateWaitingToBePaidTotal,
   formatInvoiceAmount,
   isInvoiceWaitingToBePaid,
+  parseInvoiceAmount,
   useInvoices,
 } from '@/data/mockInvoices';
 
@@ -29,7 +30,9 @@ export default function HomeScreen() {
   const expenses = useExpenses();
   const invoices = useInvoices();
   const waitingToBePaidInvoices = invoices.filter(isInvoiceWaitingToBePaid);
-  const overdueInvoiceCount = invoices.filter((invoice) => invoice.status === 'Overdue').length;
+  const overdueInvoices = invoices.filter((invoice) => invoice.status === 'Overdue');
+  const overdueInvoiceCount = overdueInvoices.length;
+  const totalOverdueAmount = overdueInvoices.reduce((sum, inv) => sum + parseInvoiceAmount(inv.amount), 0);
   const moneyIn = calculateInvoiceTotal(invoices);
   const moneyOut = calculateTotalMonthlyExpenses(expenses);
   const profitThisMonth = moneyIn - moneyOut;
@@ -146,6 +149,25 @@ export default function HomeScreen() {
                   <Text style={styles.detailTitle}>
                     #{item.invoice} {item.customer}
                   </Text>
+                  <Text style={styles.detailSubtitle}>{item.status}</Text>
+                </View>
+
+                <Text style={styles.detailAmount}>{item.amount}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+        <View style={[styles.detailCard, isCompact ? styles.fullWidthCard : styles.halfWidthCard]}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Overdue Invoices</Text>
+            <Text style={styles.sectionTotal}>Count: {overdueInvoiceCount} • Total: ${totalOverdueAmount.toLocaleString()}</Text>
+          </View>
+
+          <View style={styles.detailList}>
+            {overdueInvoices.map((item, index) => (
+              <Pressable key={`${item.invoice}-${index}`} style={styles.detailRow} onPress={() => router.push('/invoices')}>
+                <View style={styles.detailPrimary}>
+                  <Text style={styles.detailTitle}>#{item.invoice} {item.customer}</Text>
                   <Text style={styles.detailSubtitle}>{item.status}</Text>
                 </View>
 
