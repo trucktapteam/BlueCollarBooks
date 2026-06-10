@@ -26,6 +26,7 @@ const metrics = [
 export default function HomeScreen() {
   const { width } = useWindowDimensions();
   const isCompact = width < 760;
+  const isWideDesktop = width > 1400;
   const profile = useBusinessProfile();
   const expenses = useExpenses();
   const invoices = useInvoices();
@@ -53,16 +54,57 @@ export default function HomeScreen() {
 
   return (
     <AppShell activeNav="Dashboard">
-      <View style={styles.heroCard}>
-        <Text style={styles.heroLabel}>Profit This Month</Text>
-        <Text style={styles.heroValue}>{formattedProfitThisMonth}</Text>
-        {(profile.logoDataUrl || profile.logoModule) && (
-          <Image
-            source={profile.logoDataUrl ? { uri: profile.logoDataUrl } : profile.logoModule}
-            style={styles.heroLogo}
-          />
-        )}
-      </View>
+      {isWideDesktop ? (
+        <View style={styles.desktopTopSection}>
+          <View style={[styles.heroCard, styles.desktopHeroCard]}>
+            <Text style={styles.heroLabel}>Profit This Month</Text>
+            <Text style={styles.heroValue}>{formattedProfitThisMonth}</Text>
+            {(profile.logoDataUrl || profile.logoModule) && (
+              <Image
+                source={profile.logoDataUrl ? { uri: profile.logoDataUrl } : profile.logoModule}
+                style={styles.heroLogo}
+              />
+            )}
+          </View>
+
+          <View style={[styles.attentionSection, styles.desktopAttentionSection]}>
+            <Text style={styles.attentionHeading}>Needs Attention</Text>
+
+            <View style={styles.attentionList}>
+              {attentionItems.map((item) => {
+                const route = item.toLowerCase().includes('overdue')
+                  ? '/invoices'
+                  : item.toLowerCase().includes('expenses')
+                    ? '/expenses'
+                    : undefined;
+
+                return (
+                  <Pressable
+                    key={item}
+                    disabled={!route}
+                    onPress={() => route && router.push(route)}
+                    style={({ pressed }) => [styles.attentionRow, pressed && styles.pressed]}
+                  >
+                    <View style={styles.attentionDot} />
+                    <Text style={styles.attentionText}>{item}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        </View>
+      ) : (
+        <View style={styles.heroCard}>
+          <Text style={styles.heroLabel}>Profit This Month</Text>
+          <Text style={styles.heroValue}>{formattedProfitThisMonth}</Text>
+          {(profile.logoDataUrl || profile.logoModule) && (
+            <Image
+              source={profile.logoDataUrl ? { uri: profile.logoDataUrl } : profile.logoModule}
+              style={styles.heroLogo}
+            />
+          )}
+        </View>
+      )}
 
       <View style={styles.grid}>
         {metrics.map((metric) => {
@@ -82,7 +124,7 @@ export default function HomeScreen() {
               onPress={() => route && router.push(route)}
               style={({ pressed }) => [
                 styles.metricCard,
-                isCompact ? styles.fullWidthCard : styles.halfWidthCard,
+                isCompact ? styles.fullWidthCard : isWideDesktop ? styles.quarterWidthCard : styles.halfWidthCard,
                 pressed && styles.pressed,
               ]}
             >
@@ -105,34 +147,36 @@ export default function HomeScreen() {
         })}
       </View>
 
-      <View style={styles.attentionSection}>
-        <Text style={styles.attentionHeading}>Needs Attention</Text>
+      {!isWideDesktop && (
+        <View style={styles.attentionSection}>
+          <Text style={styles.attentionHeading}>Needs Attention</Text>
 
-        <View style={styles.attentionList}>
-          {attentionItems.map((item) => {
-            const route = item.toLowerCase().includes('overdue')
-              ? '/invoices'
-              : item.toLowerCase().includes('expenses')
-                ? '/expenses'
-                : undefined;
+          <View style={styles.attentionList}>
+            {attentionItems.map((item) => {
+              const route = item.toLowerCase().includes('overdue')
+                ? '/invoices'
+                : item.toLowerCase().includes('expenses')
+                  ? '/expenses'
+                  : undefined;
 
-            return (
-              <Pressable
-                key={item}
-                disabled={!route}
-                onPress={() => route && router.push(route)}
-                style={({ pressed }) => [styles.attentionRow, pressed && styles.pressed]}
-              >
-                <View style={styles.attentionDot} />
-                <Text style={styles.attentionText}>{item}</Text>
-              </Pressable>
-            );
-          })}
+              return (
+                <Pressable
+                  key={item}
+                  disabled={!route}
+                  onPress={() => route && router.push(route)}
+                  style={({ pressed }) => [styles.attentionRow, pressed && styles.pressed]}
+                >
+                  <View style={styles.attentionDot} />
+                  <Text style={styles.attentionText}>{item}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
-      </View>
+      )}
 
       <View style={styles.detailGrid}>
-        <View style={[styles.detailCard, isCompact ? styles.fullWidthCard : styles.halfWidthCard]}>
+        <View style={[styles.detailCard, isCompact ? styles.fullWidthCard : isWideDesktop ? styles.quarterWidthCard : styles.halfWidthCard]}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Waiting To Be Paid</Text>
             <Text style={styles.sectionTotal}>Total: {formattedWaitingToBePaid}</Text>
@@ -157,7 +201,7 @@ export default function HomeScreen() {
             ))}
           </View>
         </View>
-        <View style={[styles.detailCard, isCompact ? styles.fullWidthCard : styles.halfWidthCard]}>
+        <View style={[styles.detailCard, isCompact ? styles.fullWidthCard : isWideDesktop ? styles.quarterWidthCard : styles.halfWidthCard]}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Overdue Invoices</Text>
             <Text style={styles.sectionTotal}>Count: {overdueInvoiceCount} • Total: ${totalOverdueAmount.toLocaleString()}</Text>
@@ -176,7 +220,7 @@ export default function HomeScreen() {
             ))}
           </View>
         </View>
-        <View style={[styles.detailCard, isCompact ? styles.fullWidthCard : styles.halfWidthCard]}>
+        <View style={[styles.detailCard, isCompact ? styles.fullWidthCard : isWideDesktop ? styles.quarterWidthCard : styles.halfWidthCard]}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Recent Expenses</Text>
           </View>
@@ -199,7 +243,7 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <View style={[styles.detailCard, isCompact ? styles.fullWidthCard : styles.halfWidthCard]}>
+        <View style={[styles.detailCard, isCompact ? styles.fullWidthCard : isWideDesktop ? styles.quarterWidthCard : styles.halfWidthCard]}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Recent Activity</Text>
           </View>
@@ -242,6 +286,12 @@ function RecentActivity() {
 }
 
 const styles = StyleSheet.create({
+  desktopTopSection: {
+    alignItems: 'stretch',
+    flexDirection: 'row',
+    gap: 24,
+    marginBottom: 24,
+  },
   heroCard: {
     backgroundColor: '#202020',
     borderColor: 'rgba(249, 115, 22, 0.42)',
@@ -253,6 +303,10 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 18 },
     shadowOpacity: 0.16,
     shadowRadius: 34,
+  },
+  desktopHeroCard: {
+    flex: 2,
+    marginBottom: 0,
   },
   heroLabel: {
     color: '#a3a3a3',
@@ -284,6 +338,10 @@ const styles = StyleSheet.create({
     flexBasis: '48%',
     flexGrow: 1,
   },
+  quarterWidthCard: {
+    flexBasis: '23%',
+    flexGrow: 1,
+  },
   fullWidthCard: {
     flexBasis: '100%',
   },
@@ -305,6 +363,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginTop: 24,
     padding: 24,
+  },
+  desktopAttentionSection: {
+    flex: 1,
+    marginTop: 0,
   },
   attentionHeading: {
     color: '#ffffff',
