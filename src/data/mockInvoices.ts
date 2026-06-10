@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { loadPersistedData, persistData } from './persistentStore';
 
 export type InvoiceStatus = 'Draft' | 'Sent' | 'Overdue' | 'Paid';
 
@@ -64,7 +65,8 @@ const initialInvoices: Invoice[] = [
   },
 ];
 
-let invoicesSnapshot = initialInvoices;
+const LOCAL_STORAGE_KEY = 'bluecollarbooks_invoices';
+let invoicesSnapshot = loadPersistedData<Invoice[]>(LOCAL_STORAGE_KEY, initialInvoices);
 const listeners = new Set<() => void>();
 
 function emitChange() {
@@ -89,6 +91,7 @@ export function saveInvoice(invoice: Invoice) {
     invoicesSnapshot = [invoice, ...invoicesSnapshot];
   }
 
+  persistData(LOCAL_STORAGE_KEY, invoicesSnapshot);
   emitChange();
 }
 
@@ -96,6 +99,7 @@ export function updateInvoiceStatus(invoiceNumber: string, status: InvoiceStatus
   invoicesSnapshot = invoicesSnapshot.map((invoice) =>
     invoice.invoice === invoiceNumber ? { ...invoice, status } : invoice
   );
+  persistData(LOCAL_STORAGE_KEY, invoicesSnapshot);
   emitChange();
 }
 

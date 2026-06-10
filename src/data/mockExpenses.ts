@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { loadPersistedData, persistData } from './persistentStore';
 
 export type Expense = {
   date: string;
@@ -35,7 +36,8 @@ const initialExpenses: Expense[] = [
   { date: '06/06/2026', vendor: 'Google Play', category: 'Software', amount: 25, notes: 'App publishing' },
 ];
 
-let expensesSnapshot = initialExpenses;
+const LOCAL_STORAGE_KEY = 'bluecollarbooks_expenses';
+let expensesSnapshot = loadPersistedData<Expense[]>(LOCAL_STORAGE_KEY, initialExpenses);
 const listeners = new Set<() => void>();
 
 function emitChange() {
@@ -44,6 +46,7 @@ function emitChange() {
 
 export function addExpense(expense: Expense) {
   expensesSnapshot = [expense, ...expensesSnapshot];
+  persistData(LOCAL_STORAGE_KEY, expensesSnapshot);
   emitChange();
 }
 

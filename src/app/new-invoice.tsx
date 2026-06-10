@@ -1,39 +1,53 @@
-import { useMemo, useState } from 'react';
-import { router } from 'expo-router';
 import { Asset } from 'expo-asset';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
 import type { KeyboardTypeOptions } from 'react-native';
 import {
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    Platform,
+    Pressable,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { businessProfile } from '@/data/mockBusiness';
 import { type Customer, useCustomers } from '@/data/mockCustomers';
 import {
-  formatInvoiceAmount,
-  type InvoiceStatus,
-  type InvoiceLineItem,
-  invoiceDraft,
-  invoiceLabels,
-  invoiceLineItems,
-  invoiceStatuses,
-  parseInvoiceAmount,
-  saveInvoice,
+    formatInvoiceAmount,
+    type Invoice,
+    invoiceDraft,
+    invoiceLabels,
+    type InvoiceLineItem,
+    invoiceLineItems,
+    type InvoiceStatus,
+    invoiceStatuses,
+    parseInvoiceAmount,
+    saveInvoice,
+    useInvoices,
 } from '@/data/mockInvoices';
+
+function getNextInvoiceNumber(invoices: Invoice[]) {
+    const numericValues = invoices
+        .map((invoice) => Number(invoice.invoice.replace(/\D/g, '')))
+        .filter((value) => Number.isFinite(value) && value > 0);
+
+    const nextNumber = numericValues.length ? Math.max(...numericValues) + 1 : Number(invoiceDraft.number) || 0;
+    return String(nextNumber);
+}
 
 export default function NewInvoiceScreen() {
   const businessLogoUri = Asset.fromModule(businessProfile.logo).uri;
+  const searchParams = useLocalSearchParams();
   const customers = useCustomers();
-  const [number, setNumber] = useState(invoiceDraft.number);
+  const invoices = useInvoices();
+  const [number, setNumber] = useState(() => getNextInvoiceNumber(invoices));
   const [date, setDate] = useState(invoiceDraft.date);
   const [terms, setTerms] = useState(invoiceDraft.terms);
   const [customer, setCustomer] = useState(invoiceDraft.customer);
   const [selectedCustomerName, setSelectedCustomerName] = useState('');
+  const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
   const [poNumber, setPoNumber] = useState(invoiceDraft.poNumber);
   const [bolNumber, setBolNumber] = useState(invoiceDraft.bolNumber);
   const [shipper, setShipper] = useState(invoiceDraft.shipper);
@@ -54,14 +68,47 @@ export default function NewInvoiceScreen() {
     setLineItems((items) => [...items, { description: '', amount: '$0' }]);
   }
 
+  const preselectedCustomerName =
+    typeof searchParams.customer === 'string' ? searchParams.customer : '';
+
+  const selectedCustomer = useMemo(
+    () => customers.find((item) => item.name === selectedCustomerName),
+    [customers, selectedCustomerName]
+  );
+
+  useEffect(() => {
+    if (!preselectedCustomerName || selectedCustomerName) {
+      return;
+    }
+
+    const foundCustomer = customers.find((item) => item.name === preselectedCustomerName);
+
+    if (foundCustomer) {
+      handleSelectCustomer(foundCustomer);
+    }
+  }, [customers, preselectedCustomerName, selectedCustomerName]);
+
   function handleSelectCustomer(selectedCustomer: Customer) {
     setSelectedCustomerName(selectedCustomer.name);
     setCustomer(selectedCustomer.name);
     setConsignee(selectedCustomer.address);
   }
 
-  function handleUseManualCustomer() {
+  function handleSelectExistingCustomer(selectedCustomer: Customer) {
+    setIsCustomerDropdownOpen(false);
+    handleSelectCustomer(selectedCustomer);
+  }
+
+  function handleSelectManualEntry() {
+    setIsCustomerDropdownOpen(false);
     setSelectedCustomerName('');
+    setCustomer('');
+    setConsignee('');
+  }
+
+  function handleAddNewCustomerOption() {
+    setIsCustomerDropdownOpen(false);
+    router.push('/new-customer');
   }
 
   function handleCustomerNameChange(value: string) {
@@ -94,6 +141,8 @@ export default function NewInvoiceScreen() {
       freightDescription,
       lineItems,
       invoiceTotal,
+      customerPhone: selectedCustomer?.phone ?? '',
+      customerEmail: selectedCustomer?.email ?? '',
     });
 
     if (Platform.OS === 'web') {
@@ -134,37 +183,63 @@ export default function NewInvoiceScreen() {
 
               <View style={styles.customerSelectorSection}>
                 <Text style={styles.fieldLabel}>Select existing customer</Text>
-                <View style={styles.customerSelectorGrid}>
-                  <Pressable
-                    style={[styles.customerChip, !selectedCustomerName && styles.customerChipActive]}
-                    onPress={handleUseManualCustomer}
-                  >
-                    <Text style={[styles.customerChipText, !selectedCustomerName && styles.customerChipTextActive]}>
-                      Manual
-                    </Text>
-                  </Pressable>
-
-                  {customers.map((existingCustomer) => {
-                    const isActive = existingCustomer.name === selectedCustomerName;
-
-                    return (
-                      <Pressable
-                        key={existingCustomer.name}
-                        style={[styles.customerChip, isActive && styles.customerChipActive]}
-                        onPress={() => handleSelectCustomer(existingCustomer)}
-                      >
-                        <Text style={[styles.customerChipText, isActive && styles.customerChipTextActive]}>
-                          {existingCustomer.name}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-
-                {selectedCustomerName ? (
-                  <Text style={styles.selectedCustomerMeta}>
-                    Using saved customer details for {selectedCustomerName}.
+                <Pressable style={styles.customerDropdown} onPress={() => setIsCustomerDropdownOpen((open) => !open)}>
+                  <Text style={styles.customerDropdownText}>
+                    {selectedCustomerName || customer || 'Select existing customer or type manually'}
                   </Text>
+                  <Text style={styles.customerDropdownIcon}>{isCustomerDropdownOpen ? '˄' : '˅'}</Text>
+                </Pressable>
+
+                {isCustomerDropdownOpen && (
+                  <View style={styles.customerDropdownList}>
+                    <Pressable style={styles.customerDropdownOption} onPress={handleSelectManualEntry}>
+                      <Text style={styles.customerDropdownOptionText}>Manual Entry</Text>
+                      <Text style={styles.customerDropdownOptionSubtext}>
+                        Type customer name and address manually.
+                      </Text>
+                    </Pressable>
+
+                    <Pressable style={styles.customerDropdownOption} onPress={handleAddNewCustomerOption}>
+                      <Text style={styles.customerDropdownOptionText}>+ Add New Customer</Text>
+                    </Pressable>
+
+                    {customers.map((existingCustomer) => {
+                      const isActive = existingCustomer.name === selectedCustomerName;
+
+                      return (
+                        <Pressable
+                          key={existingCustomer.name}
+                          style={[styles.customerDropdownOption, isActive && styles.customerDropdownOptionActive]}
+                          onPress={() => handleSelectExistingCustomer(existingCustomer)}
+                        >
+                          <Text
+                            style={[
+                              styles.customerDropdownOptionText,
+                              isActive && styles.customerDropdownOptionTextActive,
+                            ]}
+                          >
+                            {existingCustomer.name}
+                          </Text>
+                          <Text style={styles.customerDropdownOptionSubtext}>{existingCustomer.address}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
+
+                {selectedCustomer ? (
+                  <View>
+                    <Text style={styles.selectedCustomerMeta}>
+                      Using saved customer details for {selectedCustomer.name}.
+                    </Text>
+                    {(selectedCustomer.phone || selectedCustomer.email) && (
+                      <Text style={styles.selectedCustomerMeta}>
+                        {selectedCustomer.phone ? `Phone: ${selectedCustomer.phone}` : ''}
+                        {selectedCustomer.phone && selectedCustomer.email ? ' • ' : ''}
+                        {selectedCustomer.email ? `Email: ${selectedCustomer.email}` : ''}
+                      </Text>
+                    )}
+                  </View>
                 ) : (
                   <Text style={styles.selectedCustomerMeta}>Type a customer name manually if they are not saved yet.</Text>
                 )}
@@ -290,6 +365,8 @@ function buildInvoiceTemplate({
   freightDescription,
   lineItems,
   invoiceTotal,
+  customerPhone,
+  customerEmail,
 }: {
   businessLogoUri: string;
   number: string;
@@ -303,6 +380,8 @@ function buildInvoiceTemplate({
   freightDescription: string;
   lineItems: InvoiceLineItem[];
   invoiceTotal: string;
+  customerPhone: string;
+  customerEmail: string;
 }) {
   const rows = lineItems
     .map(
@@ -485,6 +564,7 @@ function buildInvoiceTemplate({
             <div class="block">
               <div class="label">Customer</div>
               <div class="value">${customer}</div>
+              ${customerPhone || customerEmail ? `<div class="customer-contact">${customerPhone ? `Phone: ${customerPhone}` : ''}${customerPhone && customerEmail ? ' &bull; ' : ''}${customerEmail ? `Email: ${customerEmail}` : ''}</div>` : ''}
             </div>
             <div class="block">
               <div class="label">${invoiceLabels.po}</div>
@@ -725,6 +805,60 @@ const styles = StyleSheet.create({
   },
   customerChipTextActive: {
     color: '#f97316',
+  },
+  customerDropdown: {
+    alignItems: 'center',
+    backgroundColor: '#252525',
+    borderColor: '#383838',
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    minHeight: 50,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  customerDropdownText: {
+    color: '#f5f5f5',
+    fontSize: 15,
+    fontWeight: '800',
+    flex: 1,
+  },
+  customerDropdownIcon: {
+    color: '#a3a3a3',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  customerDropdownList: {
+    backgroundColor: '#1e1e1e',
+    borderColor: '#323232',
+    borderRadius: 14,
+    borderWidth: 1,
+    marginTop: 10,
+    overflow: 'hidden',
+  },
+  customerDropdownOption: {
+    borderBottomColor: '#323232',
+    borderBottomWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  customerDropdownOptionActive: {
+    backgroundColor: 'rgba(249, 115, 22, 0.12)',
+  },
+  customerDropdownOptionText: {
+    color: '#f5f5f5',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  customerDropdownOptionTextActive: {
+    color: '#f97316',
+  },
+  customerDropdownOptionSubtext: {
+    color: '#a3a3a3',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 6,
   },
   selectedCustomerMeta: {
     color: '#a3a3a3',

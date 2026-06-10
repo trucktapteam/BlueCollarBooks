@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { loadPersistedData, persistData } from './persistentStore';
 
 export type Customer = {
   name: string;
@@ -36,7 +37,8 @@ const initialCustomers: Customer[] = [
   },
 ];
 
-let customersSnapshot = initialCustomers;
+const LOCAL_STORAGE_KEY = 'bluecollarbooks_customers';
+let customersSnapshot = loadPersistedData<Customer[]>(LOCAL_STORAGE_KEY, initialCustomers);
 const listeners = new Set<() => void>();
 
 function emitChange() {
@@ -52,6 +54,7 @@ export function saveCustomer(customer: Customer) {
     customersSnapshot = [customer, ...customersSnapshot];
   }
 
+  persistData(LOCAL_STORAGE_KEY, customersSnapshot);
   emitChange();
 }
 

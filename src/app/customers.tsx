@@ -1,16 +1,16 @@
-import { useMemo, useState } from 'react';
 import { router } from 'expo-router';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { type Customer, useCustomers } from '@/data/mockCustomers';
 import {
-  type Invoice,
-  calculateInvoiceTotal,
-  formatInvoiceAmount,
-  isInvoiceWaitingToBePaid,
-  updateInvoiceStatus,
-  useInvoices,
+    type Invoice,
+    calculateInvoiceTotal,
+    formatInvoiceAmount,
+    isInvoiceWaitingToBePaid,
+    updateInvoiceStatus,
+    useInvoices,
 } from '@/data/mockInvoices';
 
 type CustomerSummary = Customer & {
@@ -117,6 +117,19 @@ export default function CustomersScreen() {
               <Text style={styles.detailTotalLabel}>Waiting</Text>
               <Text style={styles.detailTotalValue}>{selectedCustomer.waitingToBePaid}</Text>
             </View>
+          </View>
+
+          <View style={styles.detailActions}>
+            <Pressable
+              style={styles.primaryActionButton}
+              onPress={() => router.push(`/new-invoice?customer=${encodeURIComponent(selectedCustomer.name)}`)}
+            >
+              <Text style={styles.primaryActionButtonText}>Create Invoice</Text>
+            </Pressable>
+
+            <Pressable style={styles.secondaryActionButton} onPress={() => {}}>
+              <Text style={styles.secondaryActionButtonText}>Receive Payment</Text>
+            </Pressable>
           </View>
 
           <View style={styles.infoGrid}>
@@ -321,6 +334,39 @@ const styles = StyleSheet.create({
   },
   detailTotals: {
     alignItems: 'flex-end',
+  },
+  detailActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 18,
+  },
+  primaryActionButton: {
+    backgroundColor: '#f97316',
+    borderRadius: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    shadowColor: '#f97316',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+  },
+  primaryActionButtonText: {
+    color: '#111111',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  secondaryActionButton: {
+    backgroundColor: '#252525',
+    borderColor: '#343434',
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  secondaryActionButtonText: {
+    color: '#d4d4d4',
+    fontSize: 15,
+    fontWeight: '900',
   },
   detailTotalLabel: {
     color: '#a3a3a3',
