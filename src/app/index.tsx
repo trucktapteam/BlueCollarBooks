@@ -1,8 +1,14 @@
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
-import { expenses, totalMonthlyExpenses } from '@/data/mockExpenses';
-import { waitingToBePaid } from '@/data/mockInvoices';
+import { calculateTotalMonthlyExpenses, useExpenses } from '@/data/mockExpenses';
+import {
+  calculateInvoiceTotal,
+  calculateUnpaidInvoiceTotal,
+  formatInvoiceAmount,
+  isInvoiceUnpaid,
+  useInvoices,
+} from '@/data/mockInvoices';
 
 const metrics = [
   { label: 'Cash Available', value: '$7,850' },
@@ -17,17 +23,25 @@ const attentionItems = [
   '1 bank connection needs attention',
 ];
 
-const formattedTotalMonthlyExpenses = `$${totalMonthlyExpenses.toLocaleString()}`;
-
 export default function HomeScreen() {
   const { width } = useWindowDimensions();
   const isCompact = width < 760;
+  const expenses = useExpenses();
+  const invoices = useInvoices();
+  const unpaidInvoices = invoices.filter(isInvoiceUnpaid);
+  const moneyIn = calculateInvoiceTotal(invoices);
+  const moneyOut = calculateTotalMonthlyExpenses(expenses);
+  const profitThisMonth = moneyIn - moneyOut;
+  const formattedTotalMonthlyExpenses = `$${moneyOut.toLocaleString()}`;
+  const formattedMoneyIn = formatInvoiceAmount(moneyIn);
+  const formattedProfitThisMonth = formatInvoiceAmount(profitThisMonth);
+  const formattedWaitingToBePaid = formatInvoiceAmount(calculateUnpaidInvoiceTotal(invoices));
 
   return (
     <AppShell activeNav="Dashboard">
       <View style={styles.heroCard}>
         <Text style={styles.heroLabel}>Profit This Month</Text>
-        <Text style={styles.heroValue}>$4,320</Text>
+        <Text style={styles.heroValue}>{formattedProfitThisMonth}</Text>
       </View>
 
       <View style={styles.grid}>
@@ -38,7 +52,13 @@ export default function HomeScreen() {
           >
             <Text style={styles.metricLabel}>{metric.label}</Text>
             <Text style={styles.metricValue}>
-              {metric.label === 'Money Out' ? formattedTotalMonthlyExpenses : metric.value}
+              {metric.label === 'Money Out'
+                ? formattedTotalMonthlyExpenses
+                : metric.label === 'Money In'
+                  ? formattedMoneyIn
+                  : metric.label === 'Waiting To Be Paid'
+                    ? formattedWaitingToBePaid
+                    : metric.value}
             </Text>
           </View>
         ))}
@@ -61,15 +81,15 @@ export default function HomeScreen() {
         <View style={[styles.detailCard, isCompact ? styles.fullWidthCard : styles.halfWidthCard]}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Waiting To Be Paid</Text>
-            <Text style={styles.sectionTotal}>Total: $1,750</Text>
+            <Text style={styles.sectionTotal}>Total: {formattedWaitingToBePaid}</Text>
           </View>
 
           <View style={styles.detailList}>
-            {waitingToBePaid.map((item) => (
-              <View key={item.invoice} style={styles.detailRow}>
+            {unpaidInvoices.map((item, index) => (
+              <View key={`${item.invoice}-${index}`} style={styles.detailRow}>
                 <View style={styles.detailPrimary}>
                   <Text style={styles.detailTitle}>
-                    {item.invoice} {item.customer}
+                    #{item.invoice} {item.customer}
                   </Text>
                   <Text style={styles.detailSubtitle}>{item.status}</Text>
                 </View>
@@ -86,8 +106,8 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.detailList}>
-            {expenses.map((item) => (
-              <View key={item.vendor} style={styles.detailRow}>
+            {expenses.map((item, index) => (
+              <View key={`${item.date}-${item.vendor}-${index}`} style={styles.detailRow}>
                 <View style={styles.detailPrimary}>
                   <Text style={styles.detailTitle}>{item.vendor}</Text>
                   <Text style={styles.detailSubtitle}>{item.category}</Text>

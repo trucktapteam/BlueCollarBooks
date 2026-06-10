@@ -1,5 +1,7 @@
+import { useMemo, useState } from 'react';
 import { router } from 'expo-router';
 import { Asset } from 'expo-asset';
+import type { KeyboardTypeOptions } from 'react-native';
 import {
   Platform,
   Pressable,
@@ -11,12 +13,67 @@ import {
 
 import { AppShell } from '@/components/AppShell';
 import { businessProfile } from '@/data/mockBusiness';
-import { invoiceDraft, invoiceLabels, invoiceLineItems } from '@/data/mockInvoices';
+import {
+  formatInvoiceAmount,
+  type InvoiceLineItem,
+  invoiceDraft,
+  invoiceLabels,
+  invoiceLineItems,
+  parseInvoiceAmount,
+  saveInvoice,
+} from '@/data/mockInvoices';
 
 export default function NewInvoiceScreen() {
   const businessLogoUri = Asset.fromModule(businessProfile.logo).uri;
+  const [number, setNumber] = useState(invoiceDraft.number);
+  const [date, setDate] = useState(invoiceDraft.date);
+  const [terms, setTerms] = useState(invoiceDraft.terms);
+  const [customer, setCustomer] = useState(invoiceDraft.customer);
+  const [poNumber, setPoNumber] = useState(invoiceDraft.poNumber);
+  const [bolNumber, setBolNumber] = useState(invoiceDraft.bolNumber);
+  const [shipper, setShipper] = useState(invoiceDraft.shipper);
+  const [consignee, setConsignee] = useState(invoiceDraft.consignee);
+  const [freightDescription, setFreightDescription] = useState(invoiceDraft.freightDescription);
+  const [lineItems, setLineItems] = useState(invoiceLineItems);
+  const invoiceTotal = useMemo(
+    () => formatInvoiceAmount(lineItems.reduce((total, item) => total + parseInvoiceAmount(item.amount), 0)),
+    [lineItems]
+  );
+
+  function updateLineItem(index: number, field: 'description' | 'amount', value: string) {
+    setLineItems((items) => items.map((item, itemIndex) => (itemIndex === index ? { ...item, [field]: value } : item)));
+  }
+
+  function handleAddLineItem() {
+    setLineItems((items) => [...items, { description: '', amount: '$0' }]);
+  }
+
+  function handleSaveDraft() {
+    saveInvoice({
+      invoice: number,
+      customer,
+      amount: invoiceTotal,
+      status: 'Draft',
+      invoiceDate: date,
+    });
+    router.replace('/invoices');
+  }
+
   const previewPdf = () => {
-    const html = buildInvoiceTemplate(businessLogoUri);
+    const html = buildInvoiceTemplate({
+      businessLogoUri,
+      number,
+      date,
+      terms,
+      customer,
+      poNumber,
+      bolNumber,
+      shipper,
+      consignee,
+      freightDescription,
+      lineItems,
+      invoiceTotal,
+    });
 
     if (Platform.OS === 'web') {
       const previewWindow = window.open('', '_blank');
@@ -41,33 +98,37 @@ export default function NewInvoiceScreen() {
               </Pressable>
             </View>
 
-            <View style={styles.formCard}>
-              <View style={styles.compactRow}>
-                <Field label="Invoice #" value={invoiceDraft.number} />
-                <Field label="Invoice Date" value={invoiceDraft.date} />
-                <Field label="Terms" value={invoiceDraft.terms} />
+              <View style={styles.formCard}>
+                <View style={styles.compactRow}>
+                <Field label="Invoice #" value={number} onChangeText={setNumber} />
+                <Field label="Invoice Date" value={date} onChangeText={setDate} />
+                <Field label="Terms" value={terms} onChangeText={setTerms} />
               </View>
 
               <View style={styles.customerRow}>
-                <Field label="Customer" value={invoiceDraft.customer} />
-                <Field label={invoiceLabels.po} value={invoiceDraft.poNumber} />
-                <Field label={invoiceLabels.bol} value={invoiceDraft.bolNumber} />
+                <Field label="Customer" value={customer} onChangeText={setCustomer} />
+                <Field label={invoiceLabels.po} value={poNumber} onChangeText={setPoNumber} />
+                <Field label={invoiceLabels.bol} value={bolNumber} onChangeText={setBolNumber} />
               </View>
 
               <View style={styles.addressGrid}>
-                <Field label={invoiceLabels.shipper} value={invoiceDraft.shipper} multiline />
-                <Field label={invoiceLabels.consignee} value={invoiceDraft.consignee} multiline />
+                <Field label={invoiceLabels.shipper} value={shipper} onChangeText={setShipper} multiline />
+                <Field label={invoiceLabels.consignee} value={consignee} onChangeText={setConsignee} multiline />
               </View>
 
               <View style={styles.freightRow}>
-                <Field label={invoiceLabels.description} value={invoiceDraft.freightDescription} />
+                <Field
+                  label={invoiceLabels.description}
+                  value={freightDescription}
+                  onChangeText={setFreightDescription}
+                />
               </View>
 
               <View style={styles.sectionDivider} />
 
               <View style={styles.lineItemsHeader}>
                 <Text style={styles.sectionTitle}>Line Items</Text>
-                <Pressable style={styles.addLineButton}>
+                <Pressable style={styles.addLineButton} onPress={handleAddLineItem}>
                   <Text style={styles.addLineButtonText}>+ Add Line Item</Text>
                 </Pressable>
               </View>
@@ -78,10 +139,19 @@ export default function NewInvoiceScreen() {
                   <Text style={[styles.tableHeaderText, styles.amountColumn]}>Amount</Text>
                 </View>
 
-                {invoiceLineItems.map((item) => (
-                  <View key={item.description} style={styles.lineItemRow}>
-                    <Text style={[styles.lineItemText, styles.descriptionColumn]}>{item.description}</Text>
-                    <Text style={[styles.lineItemAmount, styles.amountColumn]}>{item.amount}</Text>
+                {lineItems.map((item, index) => (
+                  <View key={index} style={styles.lineItemRow}>
+                    <TextInput
+                      onChangeText={(value) => updateLineItem(index, 'description', value)}
+                      style={[styles.lineItemText, styles.descriptionColumn]}
+                      value={item.description}
+                    />
+                    <TextInput
+                      keyboardType="decimal-pad"
+                      onChangeText={(value) => updateLineItem(index, 'amount', value)}
+                      style={[styles.lineItemAmount, styles.amountColumn]}
+                      value={item.amount}
+                    />
                   </View>
                 ))}
               </View>
@@ -99,17 +169,17 @@ export default function NewInvoiceScreen() {
 
               <View style={styles.totalSection}>
                 <Text style={styles.totalLabel}>Invoice Total</Text>
-                <Text style={styles.totalValue}>{invoiceDraft.total}</Text>
+                <Text style={styles.totalValue}>{invoiceTotal}</Text>
               </View>
 
               <View style={styles.bottomActionBar}>
                 <View>
                   <Text style={styles.actionLabel}>Ready when the paperwork is.</Text>
-                  <Text style={styles.actionSubtext}>No backend logic yet. This is a static draft view.</Text>
+                  <Text style={styles.actionSubtext}>Mock-only draft. No backend storage yet.</Text>
                 </View>
 
                 <View style={styles.actionRow}>
-                  <Pressable style={styles.secondaryButton}>
+                  <Pressable style={styles.secondaryButton} onPress={handleSaveDraft}>
                     <Text style={styles.secondaryButtonText}>Save Draft</Text>
                   </Pressable>
 
@@ -127,8 +197,34 @@ export default function NewInvoiceScreen() {
   );
 }
 
-function buildInvoiceTemplate(businessLogoUri: string) {
-  const rows = invoiceLineItems
+function buildInvoiceTemplate({
+  businessLogoUri,
+  number,
+  date,
+  terms,
+  customer,
+  poNumber,
+  bolNumber,
+  shipper,
+  consignee,
+  freightDescription,
+  lineItems,
+  invoiceTotal,
+}: {
+  businessLogoUri: string;
+  number: string;
+  date: string;
+  terms: string;
+  customer: string;
+  poNumber: string;
+  bolNumber: string;
+  shipper: string;
+  consignee: string;
+  freightDescription: string;
+  lineItems: InvoiceLineItem[];
+  invoiceTotal: string;
+}) {
+  const rows = lineItems
     .map(
       (item) => `
         <tr>
@@ -144,7 +240,7 @@ function buildInvoiceTemplate(businessLogoUri: string) {
     <html>
       <head>
         <meta charset="utf-8" />
-        <title>Invoice #${invoiceDraft.number}</title>
+        <title>Invoice #${number}</title>
         <style>
           @page { size: letter; margin: 0.5in; }
           * { box-sizing: border-box; }
@@ -298,9 +394,9 @@ function buildInvoiceTemplate(businessLogoUri: string) {
             <div>
               <h1 class="invoice-title">INVOICE</h1>
               <div class="invoice-meta">
-                Invoice #${invoiceDraft.number}<br />
-                Invoice Date: ${invoiceDraft.date}<br />
-                Terms: ${invoiceDraft.terms}
+                Invoice #${number}<br />
+                Invoice Date: ${date}<br />
+                Terms: ${terms}
               </div>
             </div>
           </section>
@@ -308,33 +404,33 @@ function buildInvoiceTemplate(businessLogoUri: string) {
           <section class="grid">
             <div class="block">
               <div class="label">Customer</div>
-              <div class="value">${invoiceDraft.customer}</div>
+              <div class="value">${customer}</div>
             </div>
             <div class="block">
               <div class="label">${invoiceLabels.po}</div>
-              <div class="value">${invoiceDraft.poNumber}</div>
+              <div class="value">${poNumber}</div>
             </div>
             <div class="block">
               <div class="label">${invoiceLabels.bol}</div>
-              <div class="value">${invoiceDraft.bolNumber}</div>
+              <div class="value">${bolNumber}</div>
             </div>
           </section>
 
           <section class="address-grid">
             <div class="block">
               <div class="label">${invoiceLabels.shipper}</div>
-              <div class="value">${invoiceDraft.shipper}</div>
+              <div class="value">${shipper}</div>
             </div>
             <div class="block">
               <div class="label">${invoiceLabels.consignee}</div>
-              <div class="value">${invoiceDraft.consignee}</div>
+              <div class="value">${consignee}</div>
             </div>
           </section>
 
           <section class="grid">
             <div class="block wide">
               <div class="label">${invoiceLabels.description}</div>
-              <div class="value">${invoiceDraft.freightDescription}</div>
+              <div class="value">${freightDescription}</div>
             </div>
           </section>
 
@@ -350,7 +446,7 @@ function buildInvoiceTemplate(businessLogoUri: string) {
 
           <section class="total">
             <div class="total-label">Invoice Total</div>
-            <div class="total-value">${invoiceDraft.total}</div>
+            <div class="total-value">${invoiceTotal}</div>
           </section>
 
           <section class="footer">
@@ -362,13 +458,27 @@ function buildInvoiceTemplate(businessLogoUri: string) {
   `;
 }
 
-function Field({ label, value, multiline = false }: { label: string; value: string; multiline?: boolean }) {
+function Field({
+  label,
+  value,
+  onChangeText,
+  multiline = false,
+  keyboardType = 'default',
+}: {
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  multiline?: boolean;
+  keyboardType?: KeyboardTypeOptions;
+}) {
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
-        editable={false}
+        editable
+        keyboardType={keyboardType}
         multiline={multiline}
+        onChangeText={onChangeText}
         style={[styles.input, multiline && styles.multilineInput]}
         value={value}
       />

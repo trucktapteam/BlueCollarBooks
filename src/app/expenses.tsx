@@ -2,9 +2,12 @@ import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
-import { expenses, totalMonthlyExpenses } from '@/data/mockExpenses';
+import { calculateTotalMonthlyExpenses, useExpenses } from '@/data/mockExpenses';
 
 export default function ExpensesScreen() {
+  const expenses = useExpenses();
+  const totalMonthlyExpenses = calculateTotalMonthlyExpenses(expenses);
+
   return (
     <AppShell activeNav="Expenses">
       <View style={styles.pageHeader}>
@@ -33,8 +36,8 @@ export default function ExpensesScreen() {
         </View>
 
         <View style={styles.expenseList}>
-          {expenses.map((expense) => (
-            <View key={`${expense.date}-${expense.vendor}`} style={styles.expenseRow}>
+          {expenses.map((expense, index) => (
+            <View key={`${expense.date}-${expense.vendor}-${index}`} style={styles.expenseRow}>
               <Text style={[styles.expenseMeta, styles.dateColumn]}>{expense.date}</Text>
               <Text style={[styles.expenseText, styles.vendorColumn]}>{expense.vendor}</Text>
               <View style={styles.categoryColumn}>

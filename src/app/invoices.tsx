@@ -2,9 +2,11 @@ import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
-import { invoices } from '@/data/mockInvoices';
+import { useInvoices } from '@/data/mockInvoices';
 
 export default function InvoicesScreen() {
+  const invoices = useInvoices();
+
   return (
     <AppShell activeNav="Invoices">
       <View style={styles.pageHeader}>
@@ -28,8 +30,8 @@ export default function InvoicesScreen() {
         </View>
 
         <View style={styles.invoiceList}>
-          {invoices.map((invoice) => (
-            <View key={invoice.invoice} style={styles.invoiceRow}>
+          {invoices.map((invoice, index) => (
+            <View key={`${invoice.invoice}-${index}`} style={styles.invoiceRow}>
               <Text style={[styles.invoiceText, styles.invoiceColumn]}>#{invoice.invoice}</Text>
               <Text style={[styles.invoiceText, styles.customerColumn]}>{invoice.customer}</Text>
               <Text style={[styles.invoiceAmount, styles.amountColumn]}>{invoice.amount}</Text>

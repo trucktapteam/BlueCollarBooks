@@ -1,10 +1,34 @@
+import { useState } from 'react';
 import { router } from 'expo-router';
+import type { KeyboardTypeOptions } from 'react-native';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
-import { expenseCategories, expenseDraft } from '@/data/mockExpenses';
+import { addExpense, expenseCategories, expenseDraft } from '@/data/mockExpenses';
+
+function parseAmount(value: string) {
+  const amount = Number(value.replace(/[$,]/g, '').trim());
+  return Number.isFinite(amount) ? amount : 0;
+}
 
 export default function NewExpenseScreen() {
+  const [date, setDate] = useState(expenseDraft.date);
+  const [vendor, setVendor] = useState(expenseDraft.vendor);
+  const [amount, setAmount] = useState(expenseDraft.amount);
+  const [category, setCategory] = useState(expenseDraft.category);
+  const [notes, setNotes] = useState(expenseDraft.notes);
+
+  function handleSaveExpense() {
+    addExpense({
+      date,
+      vendor,
+      category,
+      amount: parseAmount(amount),
+      notes,
+    });
+    router.replace('/expenses');
+  }
+
   return (
     <AppShell activeNav="Expenses">
       <View style={styles.pageHeader}>
@@ -20,30 +44,34 @@ export default function NewExpenseScreen() {
 
       <View style={styles.formCard}>
         <View style={styles.formGrid}>
-          <Field label="Date" value={expenseDraft.date} />
-          <Field label="Vendor" value={expenseDraft.vendor} />
-          <Field label="Amount" value={expenseDraft.amount} />
+          <Field label="Date" value={date} onChangeText={setDate} />
+          <Field label="Vendor" value={vendor} onChangeText={setVendor} />
+          <Field label="Amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" />
         </View>
 
         <View style={styles.categorySection}>
           <Text style={styles.fieldLabel}>Category</Text>
           <View style={styles.categoryGrid}>
-            {expenseCategories.map((category) => {
-              const isActive = category === expenseDraft.category;
+            {expenseCategories.map((categoryName) => {
+              const isActive = categoryName === category;
 
               return (
-                <View key={category} style={[styles.categoryChip, isActive && styles.categoryChipActive]}>
+                <Pressable
+                  key={categoryName}
+                  style={[styles.categoryChip, isActive && styles.categoryChipActive]}
+                  onPress={() => setCategory(categoryName)}
+                >
                   <Text style={[styles.categoryChipText, isActive && styles.categoryChipTextActive]}>
-                    {category}
+                    {categoryName}
                   </Text>
-                </View>
+                </Pressable>
               );
             })}
           </View>
         </View>
 
         <View style={styles.notesSection}>
-          <Field label="Notes" value={expenseDraft.notes} multiline />
+          <Field label="Notes" value={notes} onChangeText={setNotes} multiline />
         </View>
 
         <Pressable style={styles.receiptCard}>
@@ -68,7 +96,7 @@ export default function NewExpenseScreen() {
               <Text style={styles.secondaryButtonText}>Cancel</Text>
             </Pressable>
 
-            <Pressable style={styles.primaryButton}>
+            <Pressable style={styles.primaryButton} onPress={handleSaveExpense}>
               <Text style={styles.primaryButtonText}>Save Expense</Text>
             </Pressable>
           </View>
@@ -78,13 +106,27 @@ export default function NewExpenseScreen() {
   );
 }
 
-function Field({ label, value, multiline = false }: { label: string; value: string; multiline?: boolean }) {
+function Field({
+  label,
+  value,
+  onChangeText,
+  multiline = false,
+  keyboardType = 'default',
+}: {
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  multiline?: boolean;
+  keyboardType?: KeyboardTypeOptions;
+}) {
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
-        editable={false}
+        editable
+        keyboardType={keyboardType}
         multiline={multiline}
+        onChangeText={onChangeText}
         style={[styles.input, multiline && styles.multilineInput]}
         value={value}
       />
