@@ -4,15 +4,15 @@ import type { ReactNode } from 'react';
 
 import { businessProfile } from '@/data/mockBusiness';
 
-type AppRoute = '/' | '/invoices' | '/expenses' | '/customers';
-type ActiveNav = 'Dashboard' | 'Invoices' | 'Expenses' | 'Customers';
+type AppRoute = '/' | '/invoices' | '/expenses' | '/customers' | '/reports';
+type ActiveNav = 'Dashboard' | 'Invoices' | 'Expenses' | 'Customers' | 'Reports';
 
 const navItems: { label: string; route?: AppRoute }[] = [
   { label: 'Dashboard', route: '/' },
   { label: 'Invoices', route: '/invoices' },
   { label: 'Expenses', route: '/expenses' },
   { label: 'Customers', route: '/customers' },
-  { label: 'Reports' },
+  { label: 'Reports', route: '/reports' },
 ];
 
 export function AppShell({ activeNav, children }: { activeNav: ActiveNav; children: ReactNode }) {
