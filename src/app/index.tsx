@@ -6,12 +6,12 @@ import { useActivities } from '@/data/activityStore';
 import { startingCashBalance, useBusinessProfile } from '@/data/mockBusiness';
 import { calculateTotalMonthlyExpenses, useExpenses } from '@/data/mockExpenses';
 import {
+  calculateInvoiceBalance,
   calculateInvoiceTotal,
   calculatePaidInvoiceTotal,
   calculateWaitingToBePaidTotal,
   formatInvoiceAmount,
   isInvoiceWaitingToBePaid,
-  parseInvoiceAmount,
   useInvoices,
 } from '@/data/mockInvoices';
 
@@ -33,7 +33,7 @@ export default function HomeScreen() {
   const waitingToBePaidInvoices = invoices.filter(isInvoiceWaitingToBePaid);
   const overdueInvoices = invoices.filter((invoice) => invoice.status === 'Overdue');
   const overdueInvoiceCount = overdueInvoices.length;
-  const totalOverdueAmount = overdueInvoices.reduce((sum, inv) => sum + parseInvoiceAmount(inv.amount), 0);
+  const totalOverdueAmount = overdueInvoices.reduce((sum, inv) => sum + calculateInvoiceBalance(inv), 0);
   const moneyIn = calculateInvoiceTotal(invoices);
   const moneyOut = calculateTotalMonthlyExpenses(expenses);
   const profitThisMonth = moneyIn - moneyOut;
@@ -124,7 +124,7 @@ export default function HomeScreen() {
               onPress={() => route && router.push(route)}
               style={({ pressed }) => [
                 styles.metricCard,
-                isCompact ? styles.fullWidthCard : isWideDesktop ? styles.quarterWidthCard : styles.halfWidthCard,
+                isCompact ? styles.fullWidthCard : isWideDesktop ? styles.fifthWidthCard : styles.halfWidthCard,
                 pressed && styles.pressed,
               ]}
             >
@@ -196,7 +196,7 @@ export default function HomeScreen() {
                   <Text style={styles.detailSubtitle}>{item.status}</Text>
                 </View>
 
-                <Text style={styles.detailAmount}>{item.amount}</Text>
+                <Text style={styles.detailAmount}>{formatInvoiceAmount(calculateInvoiceBalance(item))}</Text>
               </Pressable>
             ))}
           </View>
@@ -215,7 +215,7 @@ export default function HomeScreen() {
                   <Text style={styles.detailSubtitle}>{item.status}</Text>
                 </View>
 
-                <Text style={styles.detailAmount}>{item.amount}</Text>
+                <Text style={styles.detailAmount}>{formatInvoiceAmount(calculateInvoiceBalance(item))}</Text>
               </Pressable>
             ))}
           </View>
@@ -340,6 +340,10 @@ const styles = StyleSheet.create({
   },
   quarterWidthCard: {
     flexBasis: '23%',
+    flexGrow: 1,
+  },
+  fifthWidthCard: {
+    flexBasis: '18%',
     flexGrow: 1,
   },
   fullWidthCard: {

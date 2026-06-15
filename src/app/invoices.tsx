@@ -3,7 +3,14 @@ import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
-import { type InvoiceStatus, updateInvoiceStatus, useInvoices } from '@/data/mockInvoices';
+import { ReceivePaymentModal } from '@/components/ReceivePaymentModal';
+import {
+  calculateInvoiceBalance,
+  formatInvoiceAmount,
+  type InvoiceStatus,
+  updateInvoiceStatus,
+  useInvoices,
+} from '@/data/mockInvoices';
 
 function getStatusPillStyle(status: InvoiceStatus) {
   return [
@@ -31,6 +38,8 @@ export default function InvoicesScreen() {
   const invoices = useInvoices();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'All' | 'Draft' | 'Sent' | 'Paid' | 'Overdue'>('All');
+  const [paymentInvoiceNumber, setPaymentInvoiceNumber] = useState('');
+  const paymentInvoice = invoices.find((invoice) => invoice.invoice === paymentInvoiceNumber);
 
   const visibleInvoices = useMemo(() => {
     return invoices
@@ -99,46 +108,64 @@ export default function InvoicesScreen() {
         </View>
 
         <View style={styles.invoiceList}>
-          {visibleInvoices.map((invoice, index) => (
-            <View key={`${invoice.invoice}-${index}`} style={styles.invoiceRow}>
-              <Text style={[styles.invoiceText, styles.invoiceColumn]}>#{invoice.invoice}</Text>
-              <Text style={[styles.invoiceText, styles.customerColumn]}>{invoice.customer}</Text>
-              <Text style={[styles.invoiceAmount, styles.amountColumn]}>{invoice.amount}</Text>
-              <View style={styles.statusColumn}>
-                <View style={getStatusPillStyle(invoice.status)}>
-                  <Text style={getStatusTextStyle(invoice.status)}>{invoice.status}</Text>
+          {visibleInvoices.map((invoice, index) => {
+            const balance = calculateInvoiceBalance(invoice);
+
+            return (
+              <View key={`${invoice.invoice}-${index}`} style={styles.invoiceRow}>
+                <Text style={[styles.invoiceText, styles.invoiceColumn]}>#{invoice.invoice}</Text>
+                <Text style={[styles.invoiceText, styles.customerColumn]}>{invoice.customer}</Text>
+                <View style={styles.amountColumn}>
+                  <Text style={styles.invoiceAmount}>{formatInvoiceAmount(balance)}</Text>
+                  <Text style={styles.invoiceMeta}>of {invoice.amount}</Text>
+                </View>
+                <View style={styles.statusColumn}>
+                  <View style={getStatusPillStyle(invoice.status)}>
+                    <Text style={getStatusTextStyle(invoice.status)}>{invoice.status}</Text>
+                  </View>
+                </View>
+                <Text style={[styles.invoiceMeta, styles.dateColumn]}>{invoice.invoiceDate}</Text>
+                <Text style={[styles.invoiceMeta, styles.dateColumn]}>{(function () {
+                  // compute due date
+                  try {
+                    const dt = Date.parse(invoice.invoiceDate);
+                    if (!isNaN(dt)) {
+                      const date = new Date(dt);
+                      const m = (invoice.terms || '').match(/(\d+)/);
+                      const days = m ? Number(m[1]) : 0;
+                      date.setDate(date.getDate() + days);
+                      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                    }
+                  } catch {}
+                  return '';
+                })()}</Text>
+                <View style={styles.actionColumn}>
+                  <Pressable style={styles.editButton} onPress={() => router.push(`/new-invoice?invoice=${encodeURIComponent(invoice.invoice)}`)}>
+                    <Text style={styles.editButtonText}>Edit</Text>
+                  </Pressable>
+                  {balance > 0 && (
+                    <Pressable style={styles.receivePaymentButton} onPress={() => setPaymentInvoiceNumber(invoice.invoice)}>
+                      <Text style={styles.receivePaymentButtonText}>Receive Payment</Text>
+                    </Pressable>
+                  )}
+                  {balance > 0 && (
+                    <Pressable style={styles.markPaidButton} onPress={() => updateInvoiceStatus(invoice.invoice, 'Paid')}>
+                      <Text style={styles.markPaidButtonText}>Mark Paid</Text>
+                    </Pressable>
+                  )}
+                  {balance <= 0 && <Text style={styles.paidActionText}>Paid</Text>}
                 </View>
               </View>
-              <Text style={[styles.invoiceMeta, styles.dateColumn]}>{invoice.invoiceDate}</Text>
-              <Text style={[styles.invoiceMeta, styles.dateColumn]}>{(function () {
-                // compute due date
-                try {
-                  const dt = Date.parse(invoice.invoiceDate);
-                  if (!isNaN(dt)) {
-                    const date = new Date(dt);
-                    const m = (invoice.terms || '').match(/(\d+)/);
-                    const days = m ? Number(m[1]) : 0;
-                    date.setDate(date.getDate() + days);
-                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                  }
-                } catch {}
-                return '';
-              })()}</Text>
-              <View style={styles.actionColumn}>
-                <Pressable style={styles.editButton} onPress={() => router.push(`/new-invoice?invoice=${encodeURIComponent(invoice.invoice)}`)}>
-                  <Text style={styles.editButtonText}>Edit</Text>
-                </Pressable>
-                {invoice.status !== 'Paid' && (
-                  <Pressable style={styles.markPaidButton} onPress={() => updateInvoiceStatus(invoice.invoice, 'Paid')}>
-                    <Text style={styles.markPaidButtonText}>Mark Paid</Text>
-                  </Pressable>
-                )}
-                {invoice.status === 'Paid' && <Text style={styles.paidActionText}>Paid</Text>}
-              </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
       </View>
+
+      <ReceivePaymentModal
+        invoices={paymentInvoice ? [paymentInvoice] : []}
+        visible={!!paymentInvoice}
+        onClose={() => setPaymentInvoiceNumber('')}
+      />
     </AppShell>
   );
 }
@@ -324,6 +351,21 @@ const styles = StyleSheet.create({
   },
   markPaidButtonText: {
     color: '#86efac',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  receivePaymentButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(249, 115, 22, 0.12)',
+    borderColor: 'rgba(249, 115, 22, 0.36)',
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  receivePaymentButtonText: {
+    color: '#fdba74',
     fontSize: 13,
     fontWeight: '900',
   },

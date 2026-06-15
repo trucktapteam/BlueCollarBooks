@@ -17,11 +17,25 @@ export type Invoice = {
   consignee?: string;
   freightDescription?: string;
   lineItems?: InvoiceLineItem[];
+  payments?: InvoicePayment[];
 };
 
 export type InvoiceLineItem = {
   description: string;
   amount: string;
+};
+
+export type InvoicePayment = {
+  id: string;
+  amount: number;
+  date: string;
+  notes?: string;
+};
+
+export type ReceiveInvoicePaymentInput = {
+  amount: number;
+  date: string;
+  notes?: string;
 };
 
 export const invoiceStatuses: InvoiceStatus[] = ['Draft', 'Sent', 'Due Today', 'Paid', 'Overdue'];
@@ -79,6 +93,10 @@ const listeners = new Set<() => void>();
 
 function emitChange() {
   listeners.forEach((listener) => listener());
+}
+
+function generateId() {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function parseTermsToDays(terms?: string) {
@@ -143,7 +161,35 @@ export function parseInvoiceAmount(amount: string) {
 }
 
 export function formatInvoiceAmount(amount: number) {
-  return `$${amount.toLocaleString()}`;
+  return amount.toLocaleString('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function isSameMonth(dateString: string, comparisonDate: Date) {
+  const parsed = parseDateStringToDate(dateString);
+  return (
+    !!parsed &&
+    parsed.getFullYear() === comparisonDate.getFullYear() &&
+    parsed.getMonth() === comparisonDate.getMonth()
+  );
+}
+
+export function calculateInvoicePaymentTotal(invoice: Invoice) {
+  const explicitPaymentTotal = (invoice.payments ?? []).reduce((total, payment) => total + payment.amount, 0);
+
+  if (explicitPaymentTotal > 0) {
+    return Math.min(explicitPaymentTotal, parseInvoiceAmount(invoice.amount));
+  }
+
+  return invoice.status === 'Paid' ? parseInvoiceAmount(invoice.amount) : 0;
+}
+
+export function calculateInvoiceBalance(invoice: Invoice) {
+  return Math.max(parseInvoiceAmount(invoice.amount) - calculateInvoicePaymentTotal(invoice), 0);
 }
 
 export function saveInvoice(invoice: Invoice, originalInvoiceNumber?: string) {
@@ -151,8 +197,14 @@ export function saveInvoice(invoice: Invoice, originalInvoiceNumber?: string) {
   const existingInvoiceIndex = invoicesSnapshot.findIndex((item) => item.invoice === lookupInvoiceNumber);
 
   if (existingInvoiceIndex >= 0) {
+    const existingInvoice = invoicesSnapshot[existingInvoiceIndex];
+    const invoiceToSave = {
+      ...invoice,
+      payments: invoice.payments ?? existingInvoice.payments,
+    };
+
     invoicesSnapshot = invoicesSnapshot.map((item, index) =>
-      index === existingInvoiceIndex ? invoice : item
+      index === existingInvoiceIndex ? invoiceToSave : item
     );
     addActivity(`Invoice #${invoice.invoice} updated`);
   } else {
@@ -166,11 +218,66 @@ export function saveInvoice(invoice: Invoice, originalInvoiceNumber?: string) {
 }
 
 export function updateInvoiceStatus(invoiceNumber: string, status: InvoiceStatus) {
+  if (status === 'Paid') {
+    const invoice = invoicesSnapshot.find((item) => item.invoice === invoiceNumber);
+    const balance = invoice ? calculateInvoiceBalance(invoice) : 0;
+
+    if (invoice && balance > 0) {
+      receiveInvoicePayment(invoiceNumber, {
+        amount: balance,
+        date: new Date().toISOString(),
+      });
+      return;
+    }
+  }
+
   invoicesSnapshot = invoicesSnapshot.map((invoice) =>
     invoice.invoice === invoiceNumber ? { ...invoice, status } : invoice
   );
   persistData(LOCAL_STORAGE_KEY, invoicesSnapshot);
   addActivity(`Invoice #${invoiceNumber} marked ${status}`);
+  refreshInvoiceStatuses();
+  emitChange();
+}
+
+export function receiveInvoicePayment(invoiceNumber: string, paymentInput: ReceiveInvoicePaymentInput) {
+  const invoice = invoicesSnapshot.find((item) => item.invoice === invoiceNumber);
+
+  if (!invoice) {
+    return;
+  }
+
+  const currentBalance = calculateInvoiceBalance(invoice);
+  const receivedAmount = Math.min(Math.max(paymentInput.amount, 0), currentBalance);
+
+  if (receivedAmount <= 0) {
+    return;
+  }
+
+  const payment: InvoicePayment = {
+    id: generateId(),
+    amount: receivedAmount,
+    date: paymentInput.date,
+    notes: paymentInput.notes?.trim() || undefined,
+  };
+
+  invoicesSnapshot = invoicesSnapshot.map((item) => {
+    if (item.invoice !== invoiceNumber) {
+      return item;
+    }
+
+    const payments = [...(item.payments ?? []), payment];
+    const updatedInvoice = { ...item, payments };
+    const balance = calculateInvoiceBalance(updatedInvoice);
+
+    return {
+      ...updatedInvoice,
+      status: balance <= 0 ? 'Paid' : item.status === 'Draft' ? 'Sent' : item.status,
+    };
+  });
+
+  persistData(LOCAL_STORAGE_KEY, invoicesSnapshot);
+  addActivity(`Payment received: ${formatInvoiceAmount(receivedAmount)} from ${invoice.customer} for invoice #${invoiceNumber}`);
   refreshInvoiceStatuses();
   emitChange();
 }
@@ -184,11 +291,25 @@ export function isInvoiceWaitingToBePaid(invoice: Invoice) {
 }
 
 export function calculateWaitingToBePaidTotal(invoices: Invoice[]) {
-  return calculateInvoiceTotal(invoices.filter(isInvoiceWaitingToBePaid));
+  return invoices.filter(isInvoiceWaitingToBePaid).reduce((total, invoice) => total + calculateInvoiceBalance(invoice), 0);
 }
 
-export function calculatePaidInvoiceTotal(invoices: Invoice[]) {
-  return calculateInvoiceTotal(invoices.filter((invoice) => invoice.status === 'Paid'));
+export function calculatePaidInvoiceTotal(invoices: Invoice[], comparisonDate = new Date()) {
+  return invoices.reduce((total, invoice) => {
+    const paymentsThisMonth = (invoice.payments ?? [])
+      .filter((payment) => isSameMonth(payment.date, comparisonDate))
+      .reduce((paymentTotal, payment) => paymentTotal + payment.amount, 0);
+
+    if (paymentsThisMonth > 0) {
+      return total + paymentsThisMonth;
+    }
+
+    if (invoice.status === 'Paid' && !invoice.payments?.length && isSameMonth(invoice.invoiceDate, comparisonDate)) {
+      return total + parseInvoiceAmount(invoice.amount);
+    }
+
+    return total;
+  }, 0);
 }
 
 export function useInvoices() {

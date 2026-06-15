@@ -3,14 +3,16 @@ import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
+import { ReceivePaymentModal } from '@/components/ReceivePaymentModal';
 import { type Customer, useCustomers } from '@/data/mockCustomers';
 import {
-    type Invoice,
-    calculateInvoiceTotal,
-    formatInvoiceAmount,
-    isInvoiceWaitingToBePaid,
-    updateInvoiceStatus,
-    useInvoices,
+  type Invoice,
+  calculateInvoiceBalance,
+  calculateInvoiceTotal,
+  formatInvoiceAmount,
+  isInvoiceWaitingToBePaid,
+  updateInvoiceStatus,
+  useInvoices,
 } from '@/data/mockInvoices';
 
 type CustomerSummary = Customer & {
@@ -44,7 +46,7 @@ function buildCustomerSummaries(customers: Customer[], invoices: Invoice[]): Cus
       ...customer,
       invoices: customerInvoices,
       totalRevenue: formatInvoiceAmount(calculateInvoiceTotal(customerInvoices)),
-      waitingToBePaid: formatInvoiceAmount(calculateInvoiceTotal(waitingInvoices)),
+      waitingToBePaid: formatInvoiceAmount(waitingInvoices.reduce((total, invoice) => total + calculateInvoiceBalance(invoice), 0)),
       invoiceCount: customerInvoices.length,
       lastInvoiceDate: getLastInvoiceDate(customerInvoices),
     };
@@ -57,6 +59,7 @@ export default function CustomersScreen() {
   const customerSummaries = useMemo(() => buildCustomerSummaries(customers, invoices), [customers, invoices]);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'All' | 'Owes Money' | 'Paid Up' | 'No Invoices'>('All');
+  const [isPaymentModalVisible, setIsPaymentModalVisible] = useState(false);
 
   const visibleCustomerSummaries = useMemo(() => {
     return customerSummaries
@@ -80,6 +83,7 @@ export default function CustomersScreen() {
   const [selectedCustomerName, setSelectedCustomerName] = useState(customerSummaries[0]?.name ?? '');
   const selectedCustomer =
     customerSummaries.find((customer) => customer.name === selectedCustomerName) ?? customerSummaries[0];
+  const selectedOpenInvoices = selectedCustomer?.invoices.filter((invoice) => calculateInvoiceBalance(invoice) > 0) ?? [];
 
   return (
     <AppShell activeNav="Customers">
@@ -162,16 +166,22 @@ export default function CustomersScreen() {
           <View style={styles.detailActions}>
             <Pressable
               style={styles.primaryActionButton}
-                onPress={() => router.push(`/new-customer?customer=${encodeURIComponent(selectedCustomer.name)}`)}
-              >
-                <Text style={styles.primaryActionButtonText}>Edit Customer</Text>
-              </Pressable>
+              onPress={() => router.push(`/new-customer?customer=${encodeURIComponent(selectedCustomer.name)}`)}
+            >
+              <Text style={styles.primaryActionButtonText}>Edit Customer</Text>
+            </Pressable>
 
-              <Pressable
-                style={styles.secondaryActionButton}
-                onPress={() => router.push(`/new-invoice?customer=${encodeURIComponent(selectedCustomer.name)}`)}
-              >
-                <Text style={styles.secondaryActionButtonText}>Create Invoice</Text>
+            <Pressable
+              style={styles.secondaryActionButton}
+              onPress={() => router.push(`/new-invoice?customer=${encodeURIComponent(selectedCustomer.name)}`)}
+            >
+              <Text style={styles.secondaryActionButtonText}>Create Invoice</Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.secondaryActionButton}
+              onPress={() => setIsPaymentModalVisible(true)}
+            >
               <Text style={styles.secondaryActionButtonText}>Receive Payment</Text>
             </Pressable>
           </View>
@@ -193,29 +203,36 @@ export default function CustomersScreen() {
 
             <View style={styles.invoiceList}>
               {selectedCustomer.invoices.length > 0 ? (
-                selectedCustomer.invoices.map((invoice) => (
-                  <View key={invoice.invoice} style={styles.invoiceRow}>
-                    <View style={styles.invoicePrimary}>
-                      <Text style={styles.invoiceTitle}>#{invoice.invoice}</Text>
-                      <Text style={styles.invoiceSubtitle}>{invoice.invoiceDate}</Text>
+                selectedCustomer.invoices.map((invoice) => {
+                  const balance = calculateInvoiceBalance(invoice);
+
+                  return (
+                    <View key={invoice.invoice} style={styles.invoiceRow}>
+                      <View style={styles.invoicePrimary}>
+                        <Text style={styles.invoiceTitle}>#{invoice.invoice}</Text>
+                        <Text style={styles.invoiceSubtitle}>{invoice.invoiceDate}</Text>
+                      </View>
+
+                      <View style={styles.statusPill}>
+                        <Text style={styles.statusText}>{invoice.status}</Text>
+                      </View>
+
+                      <View style={styles.invoiceAmountBlock}>
+                        <Text style={styles.invoiceAmount}>{formatInvoiceAmount(balance)}</Text>
+                        <Text style={styles.invoiceSubtitle}>of {invoice.amount}</Text>
+                      </View>
+
+                      {balance > 0 && (
+                        <Pressable
+                          style={styles.markPaidButton}
+                          onPress={() => updateInvoiceStatus(invoice.invoice, 'Paid')}
+                        >
+                          <Text style={styles.markPaidButtonText}>Mark Paid</Text>
+                        </Pressable>
+                      )}
                     </View>
-
-                    <View style={styles.statusPill}>
-                      <Text style={styles.statusText}>{invoice.status}</Text>
-                    </View>
-
-                    <Text style={styles.invoiceAmount}>{invoice.amount}</Text>
-
-                    {isInvoiceWaitingToBePaid(invoice) && (
-                      <Pressable
-                        style={styles.markPaidButton}
-                        onPress={() => updateInvoiceStatus(invoice.invoice, 'Paid')}
-                      >
-                        <Text style={styles.markPaidButtonText}>Mark Paid</Text>
-                      </Pressable>
-                    )}
-                  </View>
-                ))
+                  );
+                })
               ) : (
                 <View style={styles.emptyRow}>
                   <Text style={styles.emptyText}>No invoices for this customer yet.</Text>
@@ -225,6 +242,12 @@ export default function CustomersScreen() {
           </View>
         </View>
       )}
+
+      <ReceivePaymentModal
+        invoices={selectedOpenInvoices}
+        visible={isPaymentModalVisible}
+        onClose={() => setIsPaymentModalVisible(false)}
+      />
     </AppShell>
   );
 }
@@ -533,6 +556,9 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 17,
     fontWeight: '900',
+  },
+  invoiceAmountBlock: {
+    alignItems: 'flex-end',
   },
   markPaidButton: {
     backgroundColor: 'rgba(34, 197, 94, 0.12)',
