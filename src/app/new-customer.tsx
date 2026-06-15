@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { saveCustomer, useCustomers } from '@/data/mockCustomers';
@@ -15,6 +15,14 @@ export default function NewCustomerScreen() {
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
+  const [showSavedToast, setShowSavedToast] = useState(false);
+
+  useEffect(() => {
+    if (showSavedToast) {
+      const timer = setTimeout(() => setShowSavedToast(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [showSavedToast]);
 
   useEffect(() => {
     const customerName = typeof searchParams.customer === 'string' ? searchParams.customer : '';
@@ -50,8 +58,48 @@ export default function NewCustomerScreen() {
     router.replace('/customers');
   }
 
+  function handleSave() {
+    saveCustomer(
+      {
+        name: companyName,
+        contact: contactName,
+        email,
+        phone,
+        address,
+        notes,
+      },
+      originalName || undefined
+    );
+    setOriginalName(companyName);
+    setShowSavedToast(true);
+  }
+
+  function handleSaveAndClose() {
+    saveCustomer(
+      {
+        name: companyName,
+        contact: contactName,
+        email,
+        phone,
+        address,
+        notes,
+      },
+      originalName || undefined
+    );
+    router.replace('/customers');
+  }
+
+  function handleCancel() {
+    router.push('/customers');
+  }
+
   return (
     <AppShell activeNav="Customers">
+      {showSavedToast && (
+        <View style={styles.toast}>
+          <Text style={styles.toastText}>Saved</Text>
+        </View>
+      )}
       <View style={styles.pageHeader}>
         <View>
           <Text style={styles.eyebrow}>Customers</Text>
@@ -79,19 +127,23 @@ export default function NewCustomerScreen() {
           <Field label="Notes" value={notes} onChangeText={setNotes} multiline />
         </View>
 
-        <View style={styles.bottomActionBar}>
+        <View style={[styles.bottomActionBar, Platform.OS === 'web' && styles.bottomActionBarSticky]}>
           <View>
             <Text style={styles.actionLabel}>Customer draft ready.</Text>
             <Text style={styles.actionSubtext}>Mock-only customer list. No backend storage yet.</Text>
           </View>
 
           <View style={styles.actionRow}>
-            <Pressable style={styles.secondaryButton} onPress={() => router.push('/customers')}>
+            <Pressable style={styles.secondaryButton} onPress={handleCancel}>
               <Text style={styles.secondaryButtonText}>Cancel</Text>
             </Pressable>
 
-            <Pressable style={styles.primaryButton} onPress={handleSaveCustomer}>
-              <Text style={styles.primaryButtonText}>Save Customer</Text>
+            <Pressable style={styles.primaryButton} onPress={handleSave}>
+              <Text style={styles.primaryButtonText}>Save</Text>
+            </Pressable>
+
+            <Pressable style={styles.secondaryButton} onPress={handleSaveAndClose}>
+              <Text style={styles.secondaryButtonText}>Save & Close</Text>
             </Pressable>
           </View>
         </View>
@@ -214,6 +266,13 @@ const styles = StyleSheet.create({
     marginTop: 24,
     padding: 16,
   },
+  bottomActionBarSticky: {
+    position: 'fixed',
+    left: 48,
+    right: 48,
+    bottom: 24,
+    zIndex: 60,
+  },
   actionLabel: {
     color: '#ffffff',
     fontSize: 16,
@@ -257,5 +316,21 @@ const styles = StyleSheet.create({
     color: '#111111',
     fontSize: 16,
     fontWeight: '900',
+  },
+  toast: {
+    position: 'fixed',
+    top: 20,
+    left: '50%',
+    marginLeft: -60,
+    backgroundColor: '#22c55e',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    zIndex: 100,
+  },
+  toastText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

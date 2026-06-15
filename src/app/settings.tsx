@@ -1,7 +1,7 @@
 import { AppShell } from '@/components/AppShell';
 import { saveBusinessProfile, useBusinessProfile } from '@/data/mockBusiness';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 export default function SettingsScreen() {
@@ -14,6 +14,14 @@ export default function SettingsScreen() {
   const [website, setWebsite] = useState(profile.website || '');
   const [defaultPaymentTerms, setDefaultPaymentTerms] = useState(profile.defaultPaymentTerms || '');
   const [startingInvoiceNumber, setStartingInvoiceNumber] = useState(profile.startingInvoiceNumber || '');
+  const [showSavedToast, setShowSavedToast] = useState(false);
+
+  useEffect(() => {
+    if (showSavedToast) {
+      const timer = setTimeout(() => setShowSavedToast(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [showSavedToast]);
 
   function handleSave() {
     saveBusinessProfile({
@@ -26,7 +34,7 @@ export default function SettingsScreen() {
       defaultPaymentTerms,
       startingInvoiceNumber,
     });
-    router.push('/');
+    setShowSavedToast(true);
   }
 
   function handleSignOut() {
@@ -55,6 +63,11 @@ export default function SettingsScreen() {
 
   return (
     <AppShell activeNav="Settings">
+      {showSavedToast && (
+        <View style={styles.toast}>
+          <Text style={styles.toastText}>Saved</Text>
+        </View>
+      )}
       <View style={styles.pageHeader}>
         <View>
           <Text style={styles.eyebrow}>Settings</Text>
@@ -142,13 +155,20 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        <View style={styles.actionRow}>
-          <Pressable style={styles.primaryButton} onPress={handleSave}>
-            <Text style={styles.primaryButtonText}>Save Settings</Text>
-          </Pressable>
-          <Pressable style={styles.signOutButton} onPress={handleSignOut}>
-            <Text style={styles.signOutText}>Sign Out</Text>
-          </Pressable>
+        <View style={[styles.bottomActionBar, Platform.OS === 'web' && styles.bottomActionBarSticky]}>
+          <View>
+            <Text style={styles.actionLabel}>Business settings</Text>
+            <Text style={styles.actionSubtext}>Changes saved locally.</Text>
+          </View>
+
+          <View style={styles.actionRow}>
+            <Pressable style={styles.primaryButton} onPress={handleSave}>
+              <Text style={styles.primaryButtonText}>Save Settings</Text>
+            </Pressable>
+            <Pressable style={styles.signOutButton} onPress={handleSignOut}>
+              <Text style={styles.signOutText}>Sign Out</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
     </AppShell>
@@ -248,4 +268,50 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   signOutText: { color: '#d4d4d4', fontWeight: '800' },
+  bottomActionBar: {
+    alignItems: 'center',
+    backgroundColor: '#252525',
+    borderColor: '#323232',
+    borderRadius: 18,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 14,
+    justifyContent: 'space-between',
+    marginTop: 24,
+    padding: 16,
+  },
+  actionLabel: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  actionSubtext: {
+    color: '#a3a3a3',
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 3,
+  },
+  bottomActionBarSticky: {
+    position: 'fixed',
+    left: 48,
+    right: 48,
+    bottom: 24,
+    zIndex: 60,
+  },
+  toast: {
+    position: 'fixed',
+    top: 20,
+    left: '50%',
+    marginLeft: -60,
+    backgroundColor: '#22c55e',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    zIndex: 100,
+  },
+  toastText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
 });

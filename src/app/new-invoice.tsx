@@ -3,30 +3,30 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import type { KeyboardTypeOptions } from 'react-native';
 import {
-    Linking,
-    Platform,
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  Linking,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { useBusinessProfile } from '@/data/mockBusiness';
 import { type Customer, useCustomers } from '@/data/mockCustomers';
 import {
-    formatInvoiceAmount,
-    type Invoice,
-    invoiceDraft,
-    invoiceLabels,
-    type InvoiceLineItem,
-    invoiceLineItems,
-    type InvoiceStatus,
-    invoiceStatuses,
-    parseInvoiceAmount,
-    saveInvoice,
-    useInvoices,
+  formatInvoiceAmount,
+  type Invoice,
+  invoiceDraft,
+  invoiceLabels,
+  type InvoiceLineItem,
+  invoiceLineItems,
+  type InvoiceStatus,
+  invoiceStatuses,
+  parseInvoiceAmount,
+  saveInvoice,
+  useInvoices,
 } from '@/data/mockInvoices';
 
 function getNextInvoiceNumber(invoices: Invoice[]) {
@@ -59,6 +59,14 @@ export default function NewInvoiceScreen() {
   const [freightDescription, setFreightDescription] = useState(invoiceDraft.freightDescription);
   const [status, setStatus] = useState<InvoiceStatus>('Draft');
   const [lineItems, setLineItems] = useState(invoiceLineItems);
+  const [showSavedToast, setShowSavedToast] = useState(false);
+
+  useEffect(() => {
+    if (showSavedToast) {
+      const timer = setTimeout(() => setShowSavedToast(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [showSavedToast]);
   const invoiceTotal = useMemo(
     () => formatInvoiceAmount(lineItems.reduce((total, item) => total + parseInvoiceAmount(item.amount), 0)),
     [lineItems]
@@ -142,7 +150,28 @@ export default function NewInvoiceScreen() {
     setSelectedCustomerName('');
   }
 
-  function handleSaveDraft() {
+  function handleSave() {
+    saveInvoice(
+      {
+        invoice: number,
+        customer: customer.trim(),
+        amount: invoiceTotal,
+        status,
+        invoiceDate: date,
+        poNumber,
+        bolNumber,
+        shipper,
+        consignee,
+        freightDescription,
+        lineItems,
+      },
+      originalInvoiceNumber
+    );
+    setOriginalInvoiceNumber(number);
+    setShowSavedToast(true);
+  }
+
+  function handleSaveAndClose() {
     saveInvoice(
       {
         invoice: number,
@@ -162,43 +191,42 @@ export default function NewInvoiceScreen() {
     router.replace('/invoices');
   }
 
+  function handleCancel() {
+    router.push('/invoices');
+  }
+
   const previewPdf = () => {
-    const html = buildInvoiceTemplate({
-      businessLogoUri,
-      businessName: profile.businessName,
-      businessAddress: profile.address ?? '',
-      businessPhone: profile.phone ?? '',
-      businessEmail: profile.email ?? '',
-      number,
-      date,
-      terms,
-      customer,
-      poNumber,
-      bolNumber,
-      shipper,
-      consignee,
-      freightDescription,
-      lineItems,
-      invoiceTotal,
-      customerPhone: selectedCustomer?.phone ?? '',
-      customerEmail: selectedCustomer?.email ?? '',
-    });
-
-    if (Platform.OS === 'web') {
-      const previewWindow = window.open('', '_blank');
-
-      if (previewWindow) {
-        previewWindow.document.write(html);
-        previewWindow.document.close();
-      }
-    }
-  };
-
-  const downloadPdf = () => {
     if (Platform.OS !== 'web') return;
 
-    const sanitizedCustomer = (customer || 'customer').replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-_]/g, '');
-    const filename = `invoice-${number}-${sanitizedCustomer}.pdf`;
+    const html = buildInvoiceTemplate({
+      businessLogoUri,
+      businessName: profile.businessName,
+      businessAddress: profile.address ?? '',
+      businessPhone: profile.phone ?? '',
+      businessEmail: profile.email ?? '',
+      number,
+      date,
+      terms,
+      customer,
+      poNumber,
+      bolNumber,
+      shipper,
+      consignee,
+      freightDescription,
+      lineItems,
+      invoiceTotal,
+      customerPhone: selectedCustomer?.phone ?? '',
+      customerEmail: selectedCustomer?.email ?? '',
+    });
+
+    // Open HTML invoice in a new tab
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+  };
+
+  const printPdf = () => {
+    if (Platform.OS !== 'web') return;
 
     const html = buildInvoiceTemplate({
       businessLogoUri,
@@ -221,44 +249,14 @@ export default function NewInvoiceScreen() {
       customerEmail: selectedCustomer?.email ?? '',
     });
 
-    // Create a temporary container to render HTML and generate PDF from it
-    try {
-      import('html2pdf.js/dist/html2pdf.bundle').then((mod) => {
-        const html2pdf = (mod as any).default || mod;
-        const container = document.createElement('div');
-        container.style.position = 'fixed';
-        container.style.left = '0';
-        container.style.top = '0';
-        container.style.width = '8.5in';
-        container.style.background = 'white';
-        container.style.zIndex = '999999';
-        container.style.padding = '0';
-        container.innerHTML = html;
-        document.body.appendChild(container);
-
-        const opt = {
-          margin: 0.5,
-          filename,
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2 },
-          jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
-        } as any;
-
-        try {
-          html2pdf()
-            .set(opt)
-            .from(container)
-            .save()
-            .finally(() => {
-              container.remove();
-            });
-        } catch (e) {
-          container.remove();
-          console.error('PDF generation failed', e);
-        }
+    // Open HTML invoice in a new tab and trigger print
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const newWindow = window.open(url, '_blank');
+    if (newWindow) {
+      newWindow.addEventListener('load', () => {
+        newWindow.print();
       });
-    } catch (e) {
-      console.error('Failed to load pdf generator', e);
     }
   };
 
@@ -301,6 +299,11 @@ export default function NewInvoiceScreen() {
 
   return (
     <AppShell activeNav="Invoices">
+      {showSavedToast && (
+        <View style={styles.toast}>
+          <Text style={styles.toastText}>Saved</Text>
+        </View>
+      )}
       <View style={styles.pageHeader}>
         <View>
           <Text style={styles.eyebrow}>Invoices</Text>
@@ -471,19 +474,31 @@ export default function NewInvoiceScreen() {
                 <Text style={styles.totalValue}>{invoiceTotal}</Text>
               </View>
 
-              <View style={styles.bottomActionBar}>
+              <View style={[styles.bottomActionBar, Platform.OS === 'web' && styles.bottomActionBarSticky]}>
                 <View>
                   <Text style={styles.actionLabel}>Ready when the paperwork is.</Text>
                   <Text style={styles.actionSubtext}>Mock-only draft. No backend storage yet.</Text>
                 </View>
 
                 <View style={styles.actionRow}>
-                  <Pressable style={styles.secondaryButton} onPress={handleSaveDraft}>
-                    <Text style={styles.secondaryButtonText}>Save Draft</Text>
+                  <Pressable style={styles.secondaryButton} onPress={handleCancel}>
+                    <Text style={styles.secondaryButtonText}>Cancel</Text>
+                  </Pressable>
+
+                  <Pressable style={styles.primaryButton} onPress={handleSave}>
+                    <Text style={styles.primaryButtonText}>Save</Text>
+                  </Pressable>
+
+                  <Pressable style={styles.secondaryButton} onPress={handleSaveAndClose}>
+                    <Text style={styles.secondaryButtonText}>Save & Close</Text>
                   </Pressable>
 
                   <Pressable style={styles.previewButton} onPress={previewPdf}>
                     <Text style={styles.previewButtonText}>Preview PDF</Text>
+                  </Pressable>
+
+                  <Pressable style={styles.previewButton} onPress={printPdf}>
+                    <Text style={styles.previewButtonText}>Print / Save PDF</Text>
                   </Pressable>
 
                   <Pressable
@@ -494,10 +509,6 @@ export default function NewInvoiceScreen() {
                     <Text style={[styles.emailButtonText, !selectedCustomer?.email && styles.emailButtonTextDisabled]}>
                       {selectedCustomer?.email ? 'Email Invoice' : 'No email'}
                     </Text>
-                  </Pressable>
-
-                  <Pressable style={styles.primaryButton} onPress={previewPdf}>
-                    <Text style={styles.primaryButtonText}>Generate PDF</Text>
                   </Pressable>
                 </View>
               </View>
@@ -1232,6 +1243,13 @@ const styles = StyleSheet.create({
     marginTop: 24,
     padding: 16,
   },
+  bottomActionBarSticky: {
+    position: 'fixed',
+    left: 48,
+    right: 48,
+    bottom: 24,
+    zIndex: 60,
+  },
   actionLabel: {
     color: '#ffffff',
     fontSize: 16,
@@ -1307,5 +1325,21 @@ const styles = StyleSheet.create({
     color: '#111111',
     fontSize: 16,
     fontWeight: '900',
+  },
+  toast: {
+    position: 'fixed',
+    top: 20,
+    left: '50%',
+    marginLeft: -60,
+    backgroundColor: '#22c55e',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    zIndex: 100,
+  },
+  toastText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

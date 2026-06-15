@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import type { KeyboardTypeOptions } from 'react-native';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { expenseCategories, expenseDraft, saveExpense, useExpenses } from '@/data/mockExpenses';
@@ -20,6 +20,14 @@ export default function NewExpenseScreen() {
   const [amount, setAmount] = useState(expenseDraft.amount);
   const [category, setCategory] = useState(expenseDraft.category);
   const [notes, setNotes] = useState(expenseDraft.notes);
+  const [showSavedToast, setShowSavedToast] = useState(false);
+
+  useEffect(() => {
+    if (showSavedToast) {
+      const timer = setTimeout(() => setShowSavedToast(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [showSavedToast]);
 
   useEffect(() => {
     const idParam = typeof searchParams.id === 'string' ? searchParams.id : '';
@@ -51,11 +59,52 @@ export default function NewExpenseScreen() {
       },
       originalId
     );
+    // default was save & close; keep that behavior elsewhere
     router.replace('/expenses');
+  }
+
+  function handleSave() {
+    saveExpense(
+      {
+        id: originalId,
+        date,
+        vendor,
+        category,
+        amount: parseAmount(amount),
+        notes,
+      },
+      originalId
+    );
+    setOriginalId(originalId ?? undefined);
+    setShowSavedToast(true);
+  }
+
+  function handleSaveAndClose() {
+    saveExpense(
+      {
+        id: originalId,
+        date,
+        vendor,
+        category,
+        amount: parseAmount(amount),
+        notes,
+      },
+      originalId
+    );
+    router.replace('/expenses');
+  }
+
+  function handleCancel() {
+    router.push('/expenses');
   }
 
   return (
     <AppShell activeNav="Expenses">
+      {showSavedToast && (
+        <View style={styles.toast}>
+          <Text style={styles.toastText}>Saved</Text>
+        </View>
+      )}
       <View style={styles.pageHeader}>
         <View>
           <Text style={styles.eyebrow}>Expenses</Text>
@@ -110,19 +159,23 @@ export default function NewExpenseScreen() {
           </View>
         </Pressable>
 
-        <View style={styles.bottomActionBar}>
+        <View style={[styles.bottomActionBar, Platform.OS === 'web' && styles.bottomActionBarSticky]}>
           <View>
             <Text style={styles.actionLabel}>Expense draft ready.</Text>
             <Text style={styles.actionSubtext}>Mock-only form. No backend storage yet.</Text>
           </View>
 
           <View style={styles.actionRow}>
-            <Pressable style={styles.secondaryButton} onPress={() => router.push('/expenses')}>
+            <Pressable style={styles.secondaryButton} onPress={handleCancel}>
               <Text style={styles.secondaryButtonText}>Cancel</Text>
             </Pressable>
 
-            <Pressable style={styles.primaryButton} onPress={handleSaveExpense}>
-              <Text style={styles.primaryButtonText}>Save Expense</Text>
+            <Pressable style={styles.primaryButton} onPress={handleSave}>
+              <Text style={styles.primaryButtonText}>Save</Text>
+            </Pressable>
+
+            <Pressable style={styles.secondaryButton} onPress={handleSaveAndClose}>
+              <Text style={styles.secondaryButtonText}>Save & Close</Text>
             </Pressable>
           </View>
         </View>
@@ -314,6 +367,13 @@ const styles = StyleSheet.create({
     marginTop: 24,
     padding: 16,
   },
+  bottomActionBarSticky: {
+    position: 'fixed',
+    left: 48,
+    right: 48,
+    bottom: 24,
+    zIndex: 60,
+  },
   actionLabel: {
     color: '#ffffff',
     fontSize: 16,
@@ -357,5 +417,21 @@ const styles = StyleSheet.create({
     color: '#111111',
     fontSize: 16,
     fontWeight: '900',
+  },
+  toast: {
+    position: 'fixed',
+    top: 20,
+    left: '50%',
+    marginLeft: -60,
+    backgroundColor: '#22c55e',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    zIndex: 100,
+  },
+  toastText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
