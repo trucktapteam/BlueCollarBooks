@@ -1,8 +1,10 @@
 import { router } from 'expo-router';
+import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { useActivities } from '@/data/activityStore';
+import { useBankAccounts } from '@/data/mockBankAccounts';
 import { startingCashBalance, useBusinessProfile } from '@/data/mockBusiness';
 import { calculateTotalMonthlyExpenses, useExpenses } from '@/data/mockExpenses';
 import {
@@ -27,7 +29,9 @@ export default function HomeScreen() {
   const { width } = useWindowDimensions();
   const isCompact = width < 760;
   const isWideDesktop = width > 1400;
+  const [isBankCardHighlighted, setIsBankCardHighlighted] = useState(false);
   const profile = useBusinessProfile();
+  const bankAccounts = useBankAccounts();
   const expenses = useExpenses();
   const invoices = useInvoices();
   const waitingToBePaidInvoices = invoices.filter(isInvoiceWaitingToBePaid);
@@ -51,6 +55,22 @@ export default function HomeScreen() {
     '12 expenses need categories',
     '1 bank connection needs attention',
   ];
+  const handleAttentionPress = (item: string) => {
+    if (item.toLowerCase().includes('overdue')) {
+      router.push('/invoices');
+      return;
+    }
+
+    if (item.toLowerCase().includes('expenses')) {
+      router.push('/expenses');
+      return;
+    }
+
+    if (item.toLowerCase().includes('bank')) {
+      setIsBankCardHighlighted(true);
+      setTimeout(() => setIsBankCardHighlighted(false), 1800);
+    }
+  };
 
   return (
     <AppShell activeNav="Dashboard">
@@ -72,17 +92,13 @@ export default function HomeScreen() {
 
             <View style={styles.attentionList}>
               {attentionItems.map((item) => {
-                const route = item.toLowerCase().includes('overdue')
-                  ? '/invoices'
-                  : item.toLowerCase().includes('expenses')
-                    ? '/expenses'
-                    : undefined;
+                const isActionable = item.toLowerCase().includes('overdue') || item.toLowerCase().includes('expenses') || item.toLowerCase().includes('bank');
 
                 return (
                   <Pressable
                     key={item}
-                    disabled={!route}
-                    onPress={() => route && router.push(route)}
+                    disabled={!isActionable}
+                    onPress={() => handleAttentionPress(item)}
                     style={({ pressed }) => [styles.attentionRow, pressed && styles.pressed]}
                   >
                     <View style={styles.attentionDot} />
@@ -153,17 +169,13 @@ export default function HomeScreen() {
 
           <View style={styles.attentionList}>
             {attentionItems.map((item) => {
-              const route = item.toLowerCase().includes('overdue')
-                ? '/invoices'
-                : item.toLowerCase().includes('expenses')
-                  ? '/expenses'
-                  : undefined;
+              const isActionable = item.toLowerCase().includes('overdue') || item.toLowerCase().includes('expenses') || item.toLowerCase().includes('bank');
 
               return (
                 <Pressable
                   key={item}
-                  disabled={!route}
-                  onPress={() => route && router.push(route)}
+                  disabled={!isActionable}
+                  onPress={() => handleAttentionPress(item)}
                   style={({ pressed }) => [styles.attentionRow, pressed && styles.pressed]}
                 >
                   <View style={styles.attentionDot} />
@@ -176,6 +188,39 @@ export default function HomeScreen() {
       )}
 
       <View style={styles.detailGrid}>
+        <View
+          style={[
+            styles.detailCard,
+            isCompact ? styles.fullWidthCard : isWideDesktop ? styles.quarterWidthCard : styles.halfWidthCard,
+            isBankCardHighlighted && styles.highlightedDetailCard,
+          ]}
+        >
+          <View style={[styles.sectionHeader, styles.bankSectionHeader]}>
+            <View>
+              <Text style={styles.sectionTitle}>Bank Accounts</Text>
+              <Text style={styles.sectionTotal}>Connection needs attention</Text>
+            </View>
+
+            <Pressable style={styles.connectBankButton}>
+              <Text style={styles.connectBankButtonText}>Connect Bank</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.detailList}>
+            {bankAccounts.map((account) => (
+              <View key={account.id} style={styles.detailRow}>
+                <View style={styles.detailPrimary}>
+                  <Text style={styles.detailTitle}>{account.name}</Text>
+                  <Text style={styles.detailSubtitle}>Last 4: {account.last4}</Text>
+                  <Text style={styles.detailSubtitle}>Updated {account.lastUpdated}</Text>
+                </View>
+
+                <Text style={styles.detailAmount}>{formatInvoiceAmount(account.balance)}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
         <View style={[styles.detailCard, isCompact ? styles.fullWidthCard : isWideDesktop ? styles.quarterWidthCard : styles.halfWidthCard]}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Waiting To Be Paid</Text>
@@ -416,11 +461,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 24,
   },
+  highlightedDetailCard: {
+    borderColor: 'rgba(249, 115, 22, 0.72)',
+  },
   sectionHeader: {
     borderBottomColor: '#323232',
     borderBottomWidth: 1,
     marginBottom: 16,
     paddingBottom: 16,
+  },
+  bankSectionHeader: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: 16,
+    justifyContent: 'space-between',
   },
   sectionTitle: {
     color: '#ffffff',
@@ -432,6 +486,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     marginTop: 6,
+  },
+  connectBankButton: {
+    backgroundColor: 'rgba(249, 115, 22, 0.12)',
+    borderColor: 'rgba(249, 115, 22, 0.36)',
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  connectBankButtonText: {
+    color: '#fdba74',
+    fontSize: 13,
+    fontWeight: '900',
   },
   detailList: {
     gap: 12,
