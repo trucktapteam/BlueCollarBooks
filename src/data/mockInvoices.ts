@@ -18,6 +18,7 @@ export type Invoice = {
   freightDescription?: string;
   lineItems?: InvoiceLineItem[];
   payments?: InvoicePayment[];
+  attachments?: InvoiceAttachment[];
 };
 
 export type InvoiceLineItem = {
@@ -30,6 +31,22 @@ export type InvoicePayment = {
   amount: number;
   date: string;
   notes?: string;
+};
+
+export type InvoiceAttachment = {
+  id: string;
+  name: string;
+  type: string;
+  dateAdded: string;
+  size?: number;
+  objectUrl?: string;
+};
+
+export type InvoiceAttachmentInput = {
+  name: string;
+  type: string;
+  size?: number;
+  objectUrl?: string;
 };
 
 export type ReceiveInvoicePaymentInput = {
@@ -88,12 +105,25 @@ const initialInvoices: Invoice[] = [
 ];
 
 const LOCAL_STORAGE_KEY = 'bluecollarbooks_invoices';
-let invoicesSnapshot = loadPersistedData<Invoice[]>(LOCAL_STORAGE_KEY, initialInvoices);
+let invoicesSnapshot = loadPersistedData<Invoice[]>(LOCAL_STORAGE_KEY, initialInvoices).map(sanitizeInvoiceForPersistence);
 const listeners = new Set<() => void>();
 
 function emitChange() {
   listeners.forEach((listener) => listener());
 }
+
+function sanitizeInvoiceForPersistence(invoice: Invoice): Invoice {
+  return {
+    ...invoice,
+    attachments: invoice.attachments?.map(({ objectUrl, ...attachment }) => attachment),
+  };
+}
+
+function persistInvoices() {
+  persistData(LOCAL_STORAGE_KEY, invoicesSnapshot.map(sanitizeInvoiceForPersistence));
+}
+
+persistInvoices();
 
 function generateId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -200,6 +230,7 @@ export function saveInvoice(invoice: Invoice, originalInvoiceNumber?: string) {
     const existingInvoice = invoicesSnapshot[existingInvoiceIndex];
     const invoiceToSave = {
       ...invoice,
+      attachments: invoice.attachments ?? existingInvoice.attachments,
       payments: invoice.payments ?? existingInvoice.payments,
     };
 
@@ -212,8 +243,99 @@ export function saveInvoice(invoice: Invoice, originalInvoiceNumber?: string) {
     addActivity(`Invoice #${invoice.invoice} created`);
   }
 
-  persistData(LOCAL_STORAGE_KEY, invoicesSnapshot);
+  persistInvoices();
   refreshInvoiceStatuses();
+  emitChange();
+}
+
+export function addInvoiceAttachment(invoiceNumber: string, attachmentInput?: InvoiceAttachmentInput) {
+  const invoice = invoicesSnapshot.find((item) => item.invoice === invoiceNumber);
+
+  if (!invoice) {
+    return;
+  }
+
+  const attachmentCount = (invoice.attachments ?? []).length + 1;
+  const attachment: InvoiceAttachment = {
+    id: generateId(),
+    name: attachmentInput?.name || `invoice-${invoiceNumber}-paperwork-${attachmentCount}.pdf`,
+    type: attachmentInput?.type || 'application/pdf',
+    dateAdded: new Date().toISOString(),
+    size: attachmentInput?.size,
+    objectUrl: attachmentInput?.objectUrl,
+  };
+
+  invoicesSnapshot = invoicesSnapshot.map((item) =>
+    item.invoice === invoiceNumber
+      ? { ...item, attachments: [...(item.attachments ?? []), attachment] }
+      : item
+  );
+
+  persistInvoices();
+  addActivity(`Attachment added to invoice #${invoiceNumber}: ${attachment.name}`);
+  emitChange();
+}
+
+export function reattachInvoiceAttachment(
+  invoiceNumber: string,
+  attachmentId: string,
+  attachmentInput: InvoiceAttachmentInput
+) {
+  const invoice = invoicesSnapshot.find((item) => item.invoice === invoiceNumber);
+  const attachment = invoice?.attachments?.find((item) => item.id === attachmentId);
+
+  if (!invoice || !attachment) {
+    return;
+  }
+
+  if (typeof URL !== 'undefined' && attachment.objectUrl?.startsWith('blob:')) {
+    URL.revokeObjectURL(attachment.objectUrl);
+  }
+
+  invoicesSnapshot = invoicesSnapshot.map((item) =>
+    item.invoice === invoiceNumber
+      ? {
+          ...item,
+          attachments: (item.attachments ?? []).map((file) =>
+            file.id === attachmentId
+              ? {
+                  ...file,
+                  name: attachmentInput.name,
+                  type: attachmentInput.type,
+                  size: attachmentInput.size,
+                  objectUrl: attachmentInput.objectUrl,
+                }
+              : file
+          ),
+        }
+      : item
+  );
+
+  persistInvoices();
+  addActivity(`Attachment reattached to invoice #${invoiceNumber}: ${attachmentInput.name}`);
+  emitChange();
+}
+
+export function deleteInvoiceAttachment(invoiceNumber: string, attachmentId: string) {
+  const invoice = invoicesSnapshot.find((item) => item.invoice === invoiceNumber);
+  const attachment = invoice?.attachments?.find((item) => item.id === attachmentId);
+
+  if (!invoice || !attachment) {
+    return;
+  }
+
+  if (typeof URL !== 'undefined' && attachment.objectUrl?.startsWith('blob:')) {
+    URL.revokeObjectURL(attachment.objectUrl);
+  }
+
+  invoicesSnapshot = invoicesSnapshot.map((item) =>
+    item.invoice === invoiceNumber
+      ? { ...item, attachments: (item.attachments ?? []).filter((file) => file.id !== attachmentId) }
+      : item
+  );
+
+  persistInvoices();
+  addActivity(`Attachment deleted from invoice #${invoiceNumber}: ${attachment.name}`);
   emitChange();
 }
 
@@ -234,7 +356,7 @@ export function updateInvoiceStatus(invoiceNumber: string, status: InvoiceStatus
   invoicesSnapshot = invoicesSnapshot.map((invoice) =>
     invoice.invoice === invoiceNumber ? { ...invoice, status } : invoice
   );
-  persistData(LOCAL_STORAGE_KEY, invoicesSnapshot);
+  persistInvoices();
   addActivity(`Invoice #${invoiceNumber} marked ${status}`);
   refreshInvoiceStatuses();
   emitChange();
@@ -276,7 +398,7 @@ export function receiveInvoicePayment(invoiceNumber: string, paymentInput: Recei
     };
   });
 
-  persistData(LOCAL_STORAGE_KEY, invoicesSnapshot);
+  persistInvoices();
   addActivity(`Payment received: ${formatInvoiceAmount(receivedAmount)} from ${invoice.customer} for invoice #${invoiceNumber}`);
   refreshInvoiceStatuses();
   emitChange();

@@ -37,6 +37,7 @@ export default function HomeScreen() {
   const waitingToBePaidInvoices = invoices.filter(isInvoiceWaitingToBePaid);
   const overdueInvoices = invoices.filter((invoice) => invoice.status === 'Overdue');
   const overdueInvoiceCount = overdueInvoices.length;
+  const missingPaperworkCount = invoices.filter((invoice) => (invoice.attachments ?? []).length === 0).length;
   const totalOverdueAmount = overdueInvoices.reduce((sum, inv) => sum + calculateInvoiceBalance(inv), 0);
   const moneyIn = calculateInvoiceTotal(invoices);
   const moneyOut = calculateTotalMonthlyExpenses(expenses);
@@ -52,11 +53,12 @@ export default function HomeScreen() {
   const overdueInvoiceLabel = `${overdueInvoiceCount} overdue invoice${overdueInvoiceCount === 1 ? '' : 's'}`;
   const attentionItems = [
     overdueInvoiceLabel,
+    ...(missingPaperworkCount > 0 ? ['Invoices missing paperwork'] : []),
     '12 expenses need categories',
     '1 bank connection needs attention',
   ];
   const handleAttentionPress = (item: string) => {
-    if (item.toLowerCase().includes('overdue')) {
+    if (item.toLowerCase().includes('overdue') || item.toLowerCase().includes('paperwork')) {
       router.push('/invoices');
       return;
     }
@@ -92,7 +94,7 @@ export default function HomeScreen() {
 
             <View style={styles.attentionList}>
               {attentionItems.map((item) => {
-                const isActionable = item.toLowerCase().includes('overdue') || item.toLowerCase().includes('expenses') || item.toLowerCase().includes('bank');
+                const isActionable = item.toLowerCase().includes('overdue') || item.toLowerCase().includes('paperwork') || item.toLowerCase().includes('expenses') || item.toLowerCase().includes('bank');
 
                 return (
                   <Pressable
@@ -169,7 +171,7 @@ export default function HomeScreen() {
 
           <View style={styles.attentionList}>
             {attentionItems.map((item) => {
-              const isActionable = item.toLowerCase().includes('overdue') || item.toLowerCase().includes('expenses') || item.toLowerCase().includes('bank');
+              const isActionable = item.toLowerCase().includes('overdue') || item.toLowerCase().includes('paperwork') || item.toLowerCase().includes('expenses') || item.toLowerCase().includes('bank');
 
               return (
                 <Pressable
@@ -195,15 +197,9 @@ export default function HomeScreen() {
             isBankCardHighlighted && styles.highlightedDetailCard,
           ]}
         >
-          <View style={[styles.sectionHeader, styles.bankSectionHeader]}>
-            <View>
-              <Text style={styles.sectionTitle}>Bank Accounts</Text>
-              <Text style={styles.sectionTotal}>Connection needs attention</Text>
-            </View>
-
-            <Pressable style={styles.connectBankButton}>
-              <Text style={styles.connectBankButtonText}>Connect Bank</Text>
-            </Pressable>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Bank Accounts</Text>
+            <Text style={styles.sectionTotal}>Connection needs attention</Text>
           </View>
 
           <View style={styles.detailList}>
@@ -219,6 +215,10 @@ export default function HomeScreen() {
               </View>
             ))}
           </View>
+
+          <Pressable style={styles.connectBankButton}>
+            <Text style={styles.connectBankButtonText}>Connect Bank</Text>
+          </Pressable>
         </View>
 
         <View style={[styles.detailCard, isCompact ? styles.fullWidthCard : isWideDesktop ? styles.quarterWidthCard : styles.halfWidthCard]}>
@@ -288,7 +288,13 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <View style={[styles.detailCard, isCompact ? styles.fullWidthCard : isWideDesktop ? styles.quarterWidthCard : styles.halfWidthCard]}>
+        <View
+          style={[
+            styles.detailCard,
+            styles.recentActivityCard,
+            isCompact ? styles.fullWidthCard : isWideDesktop ? styles.quarterWidthCard : styles.halfWidthCard,
+          ]}
+        >
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Recent Activity</Text>
           </View>
@@ -464,17 +470,14 @@ const styles = StyleSheet.create({
   highlightedDetailCard: {
     borderColor: 'rgba(249, 115, 22, 0.72)',
   },
+  recentActivityCard: {
+    alignSelf: 'flex-start',
+  },
   sectionHeader: {
     borderBottomColor: '#323232',
     borderBottomWidth: 1,
     marginBottom: 16,
     paddingBottom: 16,
-  },
-  bankSectionHeader: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    gap: 16,
-    justifyContent: 'space-between',
   },
   sectionTitle: {
     color: '#ffffff',
@@ -488,12 +491,15 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   connectBankButton: {
+    alignItems: 'center',
     backgroundColor: 'rgba(249, 115, 22, 0.12)',
     borderColor: 'rgba(249, 115, 22, 0.36)',
     borderRadius: 12,
     borderWidth: 1,
+    marginTop: 16,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 12,
+    width: '100%',
   },
   connectBankButtonText: {
     color: '#fdba74',

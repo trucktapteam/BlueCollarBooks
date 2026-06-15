@@ -3,7 +3,64 @@ import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
-import { calculateTotalMonthlyExpenses, useExpenses } from '@/data/mockExpenses';
+import {
+  attachExpenseReceipt,
+  calculateTotalMonthlyExpenses,
+  deleteExpenseReceipt,
+  type ExpenseReceipt,
+  reattachExpenseReceipt,
+  useExpenses,
+} from '@/data/mockExpenses';
+
+function formatFileSize(size?: number) {
+  if (!size) return 'Size unknown';
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatUploadDate(dateAdded: string) {
+  const parsed = Date.parse(dateAdded);
+  return Number.isFinite(parsed) ? new Date(parsed).toLocaleDateString() : dateAdded;
+}
+
+function pickExpenseReceipt(expenseId: string, reattach = false) {
+  if (typeof document === 'undefined' || typeof URL === 'undefined') {
+    if (!reattach) {
+      attachExpenseReceipt(expenseId);
+    }
+    return;
+  }
+
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.onchange = () => {
+    const file = input.files?.[0];
+    if (!file) return;
+
+    const receiptInput = {
+      name: file.name,
+      type: file.type || 'application/octet-stream',
+      size: file.size,
+      objectUrl: URL.createObjectURL(file),
+    };
+
+    if (reattach) {
+      reattachExpenseReceipt(expenseId, receiptInput);
+    } else {
+      attachExpenseReceipt(expenseId, receiptInput);
+    }
+  };
+  input.click();
+}
+
+function viewReceipt(receipt: ExpenseReceipt) {
+  if (typeof window === 'undefined' || !receipt.objectUrl) {
+    return;
+  }
+
+  window.open(receipt.objectUrl, '_blank', 'noopener,noreferrer');
+}
 
 export default function ExpensesScreen() {
   const expenses = useExpenses();
@@ -74,19 +131,78 @@ export default function ExpensesScreen() {
 
         <View style={styles.expenseList}>
           {visibleExpenses.map((expense, index) => (
-            <View key={`${expense.date}-${expense.vendor}-${index}`} style={styles.expenseRow}>
-              <Text style={[styles.expenseMeta, styles.dateColumn]}>{expense.date}</Text>
-              <Text style={[styles.expenseText, styles.vendorColumn]}>{expense.vendor}</Text>
-              <View style={styles.categoryColumn}>
-                <View style={styles.categoryPill}>
-                  <Text style={styles.categoryText}>{expense.category}</Text>
+            <View key={`${expense.date}-${expense.vendor}-${index}`} style={styles.expenseItem}>
+              <View style={styles.expenseRow}>
+                <Text style={[styles.expenseMeta, styles.dateColumn]}>{expense.date}</Text>
+                <Text style={[styles.expenseText, styles.vendorColumn]}>{expense.vendor}</Text>
+                <View style={styles.categoryColumn}>
+                  <View style={styles.categoryPill}>
+                    <Text style={styles.categoryText}>{expense.category}</Text>
+                  </View>
+                </View>
+                <Text style={[styles.expenseAmount, styles.amountColumn]}>${expense.amount}</Text>
+                <Text style={[styles.expenseMeta, styles.notesColumn]}>{expense.notes}</Text>
+                <Pressable style={styles.editButton} onPress={() => router.push(`/new-expense?id=${encodeURIComponent(expense.id ?? '')}`)}>
+                  <Text style={styles.editButtonText}>Edit</Text>
+                </Pressable>
+              </View>
+
+              <View style={styles.receiptSection}>
+                <View style={styles.receiptCopy}>
+                  <Text style={styles.receiptTitle}>Receipt</Text>
+                  <Text style={styles.receiptMeta}>Local file preview is temporary until cloud storage is added.</Text>
+                  <Text style={styles.receiptMeta}>
+                    {expense.receipt ? expense.receipt.name : 'No receipt attached yet. Use Attach Receipt to save receipt metadata locally.'}
+                  </Text>
+                  {expense.receipt && (
+                    <Text style={styles.receiptMeta}>
+                      {expense.receipt.type} • {formatFileSize(expense.receipt.size)} • Uploaded {formatUploadDate(expense.receipt.dateAdded)}
+                    </Text>
+                  )}
+                  {expense.receipt && !expense.receipt.objectUrl && (
+                    <Text style={styles.receiptNeedsText}>Preview unavailable after browser refresh.</Text>
+                  )}
+                </View>
+
+                <View style={styles.receiptActions}>
+                  {expense.receipt && (
+                    <>
+                      {expense.receipt.objectUrl ? (
+                        <Pressable
+                          style={styles.receiptActionButton}
+                          onPress={() => expense.receipt && viewReceipt(expense.receipt)}
+                        >
+                          <Text style={styles.receiptActionButtonText}>View</Text>
+                        </Pressable>
+                      ) : (
+                        <Pressable
+                          disabled={!expense.id}
+                          style={styles.receiptActionButton}
+                          onPress={() => expense.id && pickExpenseReceipt(expense.id, true)}
+                        >
+                          <Text style={styles.receiptActionButtonText}>Upload Again</Text>
+                        </Pressable>
+                      )}
+
+                      <Pressable
+                        disabled={!expense.id}
+                        style={styles.receiptActionButton}
+                        onPress={() => expense.id && deleteExpenseReceipt(expense.id)}
+                      >
+                        <Text style={styles.receiptActionButtonText}>Delete</Text>
+                      </Pressable>
+                    </>
+                  )}
+
+                  <Pressable
+                    disabled={!expense.id}
+                    style={styles.attachReceiptButton}
+                    onPress={() => expense.id && pickExpenseReceipt(expense.id)}
+                  >
+                    <Text style={styles.attachReceiptButtonText}>Attach Receipt</Text>
+                  </Pressable>
                 </View>
               </View>
-              <Text style={[styles.expenseAmount, styles.amountColumn]}>${expense.amount}</Text>
-              <Text style={[styles.expenseMeta, styles.notesColumn]}>{expense.notes}</Text>
-              <Pressable style={styles.editButton} onPress={() => router.push(`/new-expense?id=${encodeURIComponent(expense.id ?? '')}`)}>
-                <Text style={styles.editButtonText}>Edit</Text>
-              </Pressable>
             </View>
           ))}
         </View>
@@ -198,6 +314,9 @@ const styles = StyleSheet.create({
   filterChipActive: { backgroundColor: 'rgba(249,115,22,0.14)', borderColor: 'rgba(249,115,22,0.4)' },
   filterChipText: { color: '#d4d4d4', fontWeight: '800' },
   filterChipTextActive: { color: '#f97316' },
+  expenseItem: {
+    gap: 10,
+  },
   expenseRow: {
     alignItems: 'center',
     backgroundColor: '#252525',
@@ -268,6 +387,72 @@ const styles = StyleSheet.create({
   categoryText: {
     color: '#f97316',
     fontSize: 13,
+    fontWeight: '900',
+  },
+  receiptSection: {
+    alignItems: 'center',
+    backgroundColor: '#252525',
+    borderColor: '#353535',
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 16,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  receiptTitle: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  receiptCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  receiptMeta: {
+    color: '#a3a3a3',
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  receiptNeedsText: {
+    color: '#f97316',
+    fontSize: 12,
+    fontWeight: '900',
+    marginTop: 4,
+  },
+  attachReceiptButton: {
+    backgroundColor: 'rgba(249, 115, 22, 0.12)',
+    borderColor: 'rgba(249, 115, 22, 0.36)',
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  attachReceiptButtonText: {
+    color: '#fdba74',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  receiptActions: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'flex-end',
+  },
+  receiptActionButton: {
+    backgroundColor: '#252525',
+    borderColor: '#343434',
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  receiptActionButtonText: {
+    color: '#d4d4d4',
+    fontSize: 12,
     fontWeight: '900',
   },
 });
