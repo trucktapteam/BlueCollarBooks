@@ -4,12 +4,13 @@ import type { ReactNode } from 'react';
 import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 const defaultLogo = require('@/assets/images/blue-collar-books-logo.jpg');
 
-type AppRoute = '/' | '/invoices' | '/expenses' | '/customers' | '/reports' | '/settings';
-type ActiveNav = 'Dashboard' | 'Invoices' | 'Expenses' | 'Customers' | 'Reports' | 'Settings';
+type AppRoute = '/' | '/invoices' | '/payments' | '/expenses' | '/customers' | '/reports' | '/settings';
+type ActiveNav = 'Dashboard' | 'Invoices' | 'Payments' | 'Expenses' | 'Customers' | 'Reports' | 'Settings';
 
 const navItems: { label: string; route?: AppRoute }[] = [
   { label: 'Dashboard', route: '/' },
   { label: 'Invoices', route: '/invoices' },
+  { label: 'Payments', route: '/payments' },
   { label: 'Expenses', route: '/expenses' },
   { label: 'Customers', route: '/customers' },
   { label: 'Reports', route: '/reports' },
