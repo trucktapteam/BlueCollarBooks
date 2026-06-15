@@ -1,18 +1,21 @@
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { ReceivePaymentModal } from '@/components/ReceivePaymentModal';
+import { useBusinessProfile } from '@/data/mockBusiness';
+import { useCustomers } from '@/data/mockCustomers';
 import {
-  addInvoiceAttachment,
-  calculateInvoiceBalance,
-  deleteInvoiceAttachment,
-  formatInvoiceAmount,
-  type InvoiceAttachment,
-  type InvoiceStatus,
-  reattachInvoiceAttachment,
-  useInvoices,
+    addInvoiceAttachment,
+    calculateInvoiceBalance,
+    deleteInvoiceAttachment,
+    formatInvoiceAmount,
+    type Invoice,
+    type InvoiceAttachment,
+    type InvoiceStatus,
+    reattachInvoiceAttachment,
+    useInvoices,
 } from '@/data/mockInvoices';
 
 function formatFileSize(size?: number) {
@@ -87,8 +90,44 @@ function getStatusTextStyle(status: InvoiceStatus) {
   ];
 }
 
+function buildInvoiceDueDate(invoice: { invoiceDate: string; terms?: string }) {
+  const dt = Date.parse(invoice.invoiceDate);
+  if (Number.isFinite(dt)) {
+    const date = new Date(dt);
+    const m = (invoice.terms || '').match(/(\d+)/);
+    const days = m ? Number(m[1]) : 0;
+    date.setDate(date.getDate() + days);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+  return '';
+}
+
+function buildInvoiceMailto(invoice: Invoice, customerEmail: string, businessName: string) {
+  const amountDue = formatInvoiceAmount(calculateInvoiceBalance(invoice as any));
+  const dueDate = buildInvoiceDueDate(invoice);
+  const subject = `Invoice #${invoice.invoice} from ${businessName}`;
+  const bodyLines = [
+    `Hello ${invoice.customer},`,
+    '',
+    `Please find invoice #${invoice.invoice} for ${amountDue}.`,
+    `Due date: ${dueDate || invoice.invoiceDate}`,
+    '',
+    `Thank you for your business. Please let us know if you have any questions.`,
+  ];
+  const body = encodeURIComponent(bodyLines.join('\n'));
+  return `mailto:${encodeURIComponent(customerEmail)}?subject=${encodeURIComponent(subject)}&body=${body}`;
+}
+
+function openMailTo(href: string) {
+  Linking.openURL(href).catch(() => {
+    // swallow errors for unsupported environments
+  });
+}
+
 export default function InvoicesScreen() {
   const invoices = useInvoices();
+  const customers = useCustomers();
+  const profile = useBusinessProfile();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'All' | 'Draft' | 'Sent' | 'Paid' | 'Overdue'>('All');
   const [paymentInvoiceNumber, setPaymentInvoiceNumber] = useState('');
@@ -163,6 +202,7 @@ export default function InvoicesScreen() {
         <View style={styles.invoiceList}>
           {visibleInvoices.map((invoice, index) => {
             const balance = calculateInvoiceBalance(invoice);
+          const customerEmail = customers.find((customer) => customer.name === invoice.customer)?.email;
 
             return (
               <View key={`${invoice.invoice}-${index}`} style={styles.invoiceItem}>
@@ -196,6 +236,15 @@ export default function InvoicesScreen() {
                   <View style={styles.actionColumn}>
                     <Pressable style={styles.editButton} onPress={() => router.push(`/new-invoice?invoice=${encodeURIComponent(invoice.invoice)}`)}>
                       <Text style={styles.editButtonText}>Edit</Text>
+                    </Pressable>
+                    <Pressable
+                      disabled={!customerEmail}
+                      style={[styles.emailButton, !customerEmail && styles.emailButtonDisabled]}
+                      onPress={() => customerEmail && openMailTo(buildInvoiceMailto(invoice, customerEmail, profile.businessName))}
+                    >
+                      <Text style={[styles.emailButtonText, !customerEmail && styles.emailButtonTextDisabled]}>
+                        {customerEmail ? 'Email Invoice' : 'No email'}
+                      </Text>
                     </Pressable>
                     {balance > 0 && (
                       <Pressable style={styles.receivePaymentButton} onPress={() => setPaymentInvoiceNumber(invoice.invoice)}>
@@ -485,10 +534,31 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     marginBottom: 8,
   },
+  emailButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#252525',
+    borderColor: '#343434',
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  emailButtonDisabled: {
+    opacity: 0.45,
+  },
   editButtonText: {
     color: '#d4d4d4',
     fontSize: 13,
     fontWeight: '900',
+  },
+  emailButtonText: {
+    color: '#d4d4d4',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  emailButtonTextDisabled: {
+    color: '#8c8c8c',
   },
   attachmentSection: {
     backgroundColor: '#252525',

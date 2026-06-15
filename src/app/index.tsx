@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { useActivities } from '@/data/activityStore';
@@ -29,6 +29,7 @@ export default function HomeScreen() {
   const { width } = useWindowDimensions();
   const isCompact = width < 760;
   const isWideDesktop = width > 1400;
+  const [dashboardQuery, setDashboardQuery] = useState('');
   const [isBankCardHighlighted, setIsBankCardHighlighted] = useState(false);
   const profile = useBusinessProfile();
   const bankAccounts = useBankAccounts();
@@ -50,20 +51,109 @@ export default function HomeScreen() {
   const formattedProfitThisMonth = formatInvoiceAmount(profitThisMonth);
   const formattedWaitingToBePaid = formatInvoiceAmount(calculateWaitingToBePaidTotal(invoices));
   const formattedPaidThisMonth = formatInvoiceAmount(paidThisMonth);
+
+  const agingBuckets = (() => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const buckets = {
+      current: 0,
+      oneToThirty: 0,
+      thirtyOneToSixty: 0,
+      sixtyOneToNinety: 0,
+      overNinety: 0,
+    };
+
+    function parseDateStringToDate(dateString: string) {
+      const parsed = Date.parse(dateString);
+      if (Number.isFinite(parsed)) return new Date(parsed);
+      const parts = dateString.split('/').map((part) => Number(part));
+      if (parts.length === 3) {
+        return new Date(parts[2], parts[0] - 1, parts[1]);
+      }
+      return null;
+    }
+
+    function parseTermsToDays(terms?: string) {
+      if (!terms) return 0;
+      const match = terms.match(/(\d+)/);
+      return match ? Number(match[1]) : 0;
+    }
+
+    function getDueDate(invoice: { invoiceDate: string; terms?: string }) {
+      const invoiceDate = parseDateStringToDate(invoice.invoiceDate);
+      if (!invoiceDate) return null;
+      const dueDays = parseTermsToDays(invoice.terms);
+      const dueDate = new Date(invoiceDate.getTime());
+      dueDate.setDate(dueDate.getDate() + dueDays);
+      return new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+    }
+
+    invoices.forEach((invoice) => {
+      const balance = calculateInvoiceBalance(invoice);
+      if (balance <= 0) return;
+      const dueDate = getDueDate(invoice);
+      if (!dueDate) {
+        buckets.current += balance;
+        return;
+      }
+
+      const diff = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (diff <= 0) {
+        buckets.current += balance;
+      } else if (diff <= 30) {
+        buckets.oneToThirty += balance;
+      } else if (diff <= 60) {
+        buckets.thirtyOneToSixty += balance;
+      } else if (diff <= 90) {
+        buckets.sixtyOneToNinety += balance;
+      } else {
+        buckets.overNinety += balance;
+      }
+    });
+
+    return buckets;
+  })();
+
+  const totalOutstanding =
+    agingBuckets.current +
+    agingBuckets.oneToThirty +
+    agingBuckets.thirtyOneToSixty +
+    agingBuckets.sixtyOneToNinety +
+    agingBuckets.overNinety;
+
+  const invoicesOverThirtyPastDue = invoices.filter((invoice) => {
+    const balance = calculateInvoiceBalance(invoice);
+    if (balance <= 0) return false;
+    const parsed = Date.parse(invoice.invoiceDate);
+    if (!Number.isFinite(parsed)) return false;
+    const invoiceDate = new Date(parsed);
+    const dueDays = (() => {
+      const match = (invoice.terms ?? '').match(/(\d+)/);
+      return match ? Number(match[1]) : 0;
+    })();
+    const dueDate = new Date(invoiceDate.getTime());
+    dueDate.setDate(dueDate.getDate() + dueDays);
+    const today = new Date();
+    const diff = Math.floor((new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime() - new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate()).getTime()) / (1000 * 60 * 60 * 24));
+    return diff > 30;
+  }).length;
+
   const overdueInvoiceLabel = `${overdueInvoiceCount} overdue invoice${overdueInvoiceCount === 1 ? '' : 's'}`;
   const attentionItems = [
     overdueInvoiceLabel,
+    `Invoices over 30 days past due: ${invoicesOverThirtyPastDue}`,
     ...(missingPaperworkCount > 0 ? ['Invoices missing paperwork'] : []),
     '12 expenses need categories',
     '1 bank connection needs attention',
   ];
   const handleAttentionPress = (item: string) => {
-    if (item.toLowerCase().includes('overdue') || item.toLowerCase().includes('paperwork')) {
+    const lowerItem = item.toLowerCase();
+    if (lowerItem.includes('overdue') || lowerItem.includes('paperwork') || lowerItem.includes('past due')) {
       router.push('/invoices');
       return;
     }
 
-    if (item.toLowerCase().includes('expenses')) {
+    if (lowerItem.includes('expenses')) {
       router.push('/expenses');
       return;
     }
@@ -76,9 +166,22 @@ export default function HomeScreen() {
 
   return (
     <AppShell activeNav="Dashboard">
+      <View style={styles.dashboardHeader}>
+        <View>
+          <Text style={styles.dashboardEyebrow}>Dashboard</Text>
+          <Text style={styles.dashboardHeading}>Track cash flow, invoices, and payments at a glance.</Text>
+        </View>
+        <TextInput
+          style={styles.dashboardSearchInput}
+          placeholder="Search invoices, customers, expenses..."
+          placeholderTextColor="#6b6b6b"
+          value={dashboardQuery}
+          onChangeText={setDashboardQuery}
+        />
+      </View>
       {isWideDesktop ? (
         <View style={styles.desktopTopSection}>
-          <View style={[styles.heroCard, styles.desktopHeroCard]}>
+          <View style={[styles.heroCard, styles.desktopHeroCard, styles.heroCardDesktopCompact]}>
             <Text style={styles.heroLabel}>Profit This Month</Text>
             <Text style={styles.heroValue}>{formattedProfitThisMonth}</Text>
             {(profile.logoDataUrl || profile.logoModule) && (
@@ -94,7 +197,7 @@ export default function HomeScreen() {
 
             <View style={styles.attentionList}>
               {attentionItems.map((item) => {
-                const isActionable = item.toLowerCase().includes('overdue') || item.toLowerCase().includes('paperwork') || item.toLowerCase().includes('expenses') || item.toLowerCase().includes('bank');
+                const isActionable = item.toLowerCase().includes('overdue') || item.toLowerCase().includes('paperwork') || item.toLowerCase().includes('past due') || item.toLowerCase().includes('expenses') || item.toLowerCase().includes('bank');
 
                 return (
                   <Pressable
@@ -171,7 +274,7 @@ export default function HomeScreen() {
 
           <View style={styles.attentionList}>
             {attentionItems.map((item) => {
-              const isActionable = item.toLowerCase().includes('overdue') || item.toLowerCase().includes('paperwork') || item.toLowerCase().includes('expenses') || item.toLowerCase().includes('bank');
+              const isActionable = item.toLowerCase().includes('overdue') || item.toLowerCase().includes('paperwork') || item.toLowerCase().includes('past due') || item.toLowerCase().includes('expenses') || item.toLowerCase().includes('bank');
 
               return (
                 <Pressable
@@ -246,6 +349,48 @@ export default function HomeScreen() {
             ))}
           </View>
         </View>
+        <Pressable
+          style={[styles.detailCard, isCompact ? styles.fullWidthCard : isWideDesktop ? styles.quarterWidthCard : styles.halfWidthCard]}
+          onPress={() => router.push('/invoices')}
+        >
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Accounts Receivable Aging</Text>
+            <Text style={styles.sectionTotal}>Total Outstanding: {formatInvoiceAmount(totalOutstanding)}</Text>
+          </View>
+
+          <View style={styles.detailList}>
+            <View style={styles.detailRow}>
+              <View style={styles.detailPrimary}>
+                <Text style={styles.detailTitle}>Current</Text>
+              </View>
+              <Text style={styles.detailAmount}>{formatInvoiceAmount(agingBuckets.current)}</Text>
+            </View>
+            <View style={styles.detailRow}>
+              <View style={styles.detailPrimary}>
+                <Text style={styles.detailTitle}>1-30 Days Past Due</Text>
+              </View>
+              <Text style={styles.detailAmount}>{formatInvoiceAmount(agingBuckets.oneToThirty)}</Text>
+            </View>
+            <View style={styles.detailRow}>
+              <View style={styles.detailPrimary}>
+                <Text style={styles.detailTitle}>31-60 Days Past Due</Text>
+              </View>
+              <Text style={styles.detailAmount}>{formatInvoiceAmount(agingBuckets.thirtyOneToSixty)}</Text>
+            </View>
+            <View style={styles.detailRow}>
+              <View style={styles.detailPrimary}>
+                <Text style={styles.detailTitle}>61-90 Days Past Due</Text>
+              </View>
+              <Text style={styles.detailAmount}>{formatInvoiceAmount(agingBuckets.sixtyOneToNinety)}</Text>
+            </View>
+            <View style={styles.detailRow}>
+              <View style={styles.detailPrimary}>
+                <Text style={styles.detailTitle}>90+ Days Past Due</Text>
+              </View>
+              <Text style={styles.detailAmount}>{formatInvoiceAmount(agingBuckets.overNinety)}</Text>
+            </View>
+          </View>
+        </Pressable>
         <View style={[styles.detailCard, isCompact ? styles.fullWidthCard : isWideDesktop ? styles.quarterWidthCard : styles.halfWidthCard]}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Overdue Invoices</Text>
@@ -338,9 +483,10 @@ function RecentActivity() {
 
 const styles = StyleSheet.create({
   desktopTopSection: {
-    alignItems: 'stretch',
+    alignItems: 'flex-start',
     flexDirection: 'row',
     gap: 24,
+    justifyContent: 'space-between',
     marginBottom: 24,
   },
   heroCard: {
@@ -349,15 +495,21 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     borderWidth: 1,
     marginBottom: 24,
-    padding: 40,
+    minHeight: 220,
+    padding: 28,
     shadowColor: '#f97316',
     shadowOffset: { width: 0, height: 18 },
     shadowOpacity: 0.16,
     shadowRadius: 34,
+    position: 'relative',
   },
   desktopHeroCard: {
     flex: 2,
     marginBottom: 0,
+  },
+  heroCardDesktopCompact: {
+    minHeight: 170,
+    paddingVertical: 24,
   },
   heroLabel: {
     color: '#a3a3a3',
@@ -367,9 +519,10 @@ const styles = StyleSheet.create({
   },
   heroValue: {
     color: '#ffffff',
-    fontSize: 72,
+    fontSize: 56,
     fontWeight: '900',
     letterSpacing: 0,
+    lineHeight: 64,
   },
   grid: {
     flexDirection: 'row',
@@ -418,6 +571,36 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginTop: 24,
     padding: 24,
+  },
+  dashboardHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 20,
+    justifyContent: 'space-between',
+    marginBottom: 24,
+    width: '100%',
+  },
+  dashboardEyebrow: {
+    color: '#f97316',
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  dashboardHeading: {
+    color: '#ffffff',
+    fontSize: 24,
+    fontWeight: '900',
+    maxWidth: 620,
+  },
+  dashboardSearchInput: {
+    backgroundColor: '#252525',
+    borderColor: '#353535',
+    borderRadius: 12,
+    borderWidth: 1,
+    color: '#ffffff',
+    flex: 1,
+    minWidth: 260,
+    padding: 12,
   },
   desktopAttentionSection: {
     flex: 1,

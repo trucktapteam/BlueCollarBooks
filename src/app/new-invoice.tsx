@@ -3,6 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import type { KeyboardTypeOptions } from 'react-native';
 import {
+    Linking,
     Platform,
     Pressable,
     StyleSheet,
@@ -193,6 +194,111 @@ export default function NewInvoiceScreen() {
     }
   };
 
+  const downloadPdf = () => {
+    if (Platform.OS !== 'web') return;
+
+    const sanitizedCustomer = (customer || 'customer').replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-_]/g, '');
+    const filename = `invoice-${number}-${sanitizedCustomer}.pdf`;
+
+    const html = buildInvoiceTemplate({
+      businessLogoUri,
+      businessName: profile.businessName,
+      businessAddress: profile.address ?? '',
+      businessPhone: profile.phone ?? '',
+      businessEmail: profile.email ?? '',
+      number,
+      date,
+      terms,
+      customer,
+      poNumber,
+      bolNumber,
+      shipper,
+      consignee,
+      freightDescription,
+      lineItems,
+      invoiceTotal,
+      customerPhone: selectedCustomer?.phone ?? '',
+      customerEmail: selectedCustomer?.email ?? '',
+    });
+
+    // Create a temporary container to render HTML and generate PDF from it
+    try {
+      import('html2pdf.js/dist/html2pdf.bundle').then((mod) => {
+        const html2pdf = (mod as any).default || mod;
+        const container = document.createElement('div');
+        container.style.position = 'fixed';
+        container.style.left = '0';
+        container.style.top = '0';
+        container.style.width = '8.5in';
+        container.style.background = 'white';
+        container.style.zIndex = '999999';
+        container.style.padding = '0';
+        container.innerHTML = html;
+        document.body.appendChild(container);
+
+        const opt = {
+          margin: 0.5,
+          filename,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2 },
+          jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
+        } as any;
+
+        try {
+          html2pdf()
+            .set(opt)
+            .from(container)
+            .save()
+            .finally(() => {
+              container.remove();
+            });
+        } catch (e) {
+          container.remove();
+          console.error('PDF generation failed', e);
+        }
+      });
+    } catch (e) {
+      console.error('Failed to load pdf generator', e);
+    }
+  };
+
+  function buildInvoiceDueDate() {
+    const dt = Date.parse(date);
+    if (Number.isFinite(dt)) {
+      const dueDate = new Date(dt);
+      const m = (terms || '').match(/(\d+)/);
+      const days = m ? Number(m[1]) : 0;
+      dueDate.setDate(dueDate.getDate() + days);
+      return dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    return date;
+  }
+
+  function buildInvoiceMailto() {
+    const customerEmail = selectedCustomer?.email;
+    if (!customerEmail) return null;
+
+    const subject = `Invoice #${number} from ${profile.businessName}`;
+    const bodyLines = [
+      `Hello ${customer},`,
+      '',
+      `Please find invoice #${number} for ${invoiceTotal}.`,
+      `Due date: ${buildInvoiceDueDate()}`,
+      '',
+      'Thank you for your business. Please let us know if you have any questions.',
+    ];
+    const body = encodeURIComponent(bodyLines.join('\n'));
+    return `mailto:${encodeURIComponent(customerEmail)}?subject=${encodeURIComponent(subject)}&body=${body}`;
+  }
+
+  function emailInvoice() {
+    const href = buildInvoiceMailto();
+    if (!href) return;
+    Linking.openURL(href).catch(() => {
+      // ignore unsupported environments
+    });
+  }
+
   return (
     <AppShell activeNav="Invoices">
       <View style={styles.pageHeader}>
@@ -378,6 +484,16 @@ export default function NewInvoiceScreen() {
 
                   <Pressable style={styles.previewButton} onPress={previewPdf}>
                     <Text style={styles.previewButtonText}>Preview PDF</Text>
+                  </Pressable>
+
+                  <Pressable
+                    disabled={!selectedCustomer?.email}
+                    style={[styles.emailButton, !selectedCustomer?.email && styles.emailButtonDisabled]}
+                    onPress={emailInvoice}
+                  >
+                    <Text style={[styles.emailButtonText, !selectedCustomer?.email && styles.emailButtonTextDisabled]}>
+                      {selectedCustomer?.email ? 'Email Invoice' : 'No email'}
+                    </Text>
                   </Pressable>
 
                   <Pressable style={styles.primaryButton} onPress={previewPdf}>
@@ -1131,6 +1247,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 14,
     justifyContent: 'flex-end',
+  },
+  emailButton: {
+    backgroundColor: '#252525',
+    borderColor: '#343434',
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 22,
+    paddingVertical: 14,
+  },
+  emailButtonDisabled: {
+    opacity: 0.45,
+  },
+  emailButtonText: {
+    color: '#d4d4d4',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  emailButtonTextDisabled: {
+    color: '#8c8c8c',
   },
   secondaryButton: {
     backgroundColor: '#2b2b2b',
