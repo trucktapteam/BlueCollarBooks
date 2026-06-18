@@ -10,10 +10,11 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
-import { useBusinessProfile } from '@/data/mockBusiness';
+import { formatBusinessAddress, useBusinessProfile } from '@/data/mockBusiness';
 import { type Customer, useCustomers } from '@/data/mockCustomers';
 import {
   formatInvoiceAmount,
@@ -29,6 +30,8 @@ import {
   useInvoices,
 } from '@/data/mockInvoices';
 
+const blueCollarBooksLogo = require('@/assets/images/blue-collar-books-logo.jpg');
+
 function getNextInvoiceNumber(invoices: Invoice[]) {
     const numericValues = invoices
         .map((invoice) => Number(invoice.invoice.replace(/\D/g, '')))
@@ -39,16 +42,18 @@ function getNextInvoiceNumber(invoices: Invoice[]) {
 }
 
 export default function NewInvoiceScreen() {
+  const { width } = useWindowDimensions();
   const profile = useBusinessProfile();
   const businessLogoUri =
     profile.logoDataUrl ?? (profile.logoModule ? Asset.fromModule(profile.logoModule).uri : '');
+  const watermarkLogoUri = Asset.fromModule(blueCollarBooksLogo).uri;
   const searchParams = useLocalSearchParams();
   const customers = useCustomers();
   const invoices = useInvoices();
   const [originalInvoiceNumber, setOriginalInvoiceNumber] = useState<string | undefined>(undefined);
   const [number, setNumber] = useState(() => getNextInvoiceNumber(invoices));
   const [date, setDate] = useState(invoiceDraft.date);
-  const [terms, setTerms] = useState(invoiceDraft.terms);
+  const [terms, setTerms] = useState(() => profile.defaultPaymentTerms || invoiceDraft.terms);
   const [customer, setCustomer] = useState(invoiceDraft.customer);
   const [selectedCustomerName, setSelectedCustomerName] = useState('');
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
@@ -60,6 +65,7 @@ export default function NewInvoiceScreen() {
   const [status, setStatus] = useState<InvoiceStatus>('Draft');
   const [lineItems, setLineItems] = useState(invoiceLineItems);
   const [showSavedToast, setShowSavedToast] = useState(false);
+  const showSideActions = Platform.OS === 'web' && width >= 1100;
 
   useEffect(() => {
     if (showSavedToast) {
@@ -80,6 +86,10 @@ export default function NewInvoiceScreen() {
     setLineItems((items) => [...items, { description: '', amount: '$0' }]);
   }
 
+  function handleRemoveLineItem(index: number) {
+    setLineItems((items) => items.filter((_, itemIndex) => itemIndex !== index));
+  }
+
   const invoiceParam = typeof searchParams.invoice === 'string' ? searchParams.invoice : '';
   const preselectedCustomerName =
     typeof searchParams.customer === 'string' ? searchParams.customer : '';
@@ -97,7 +107,7 @@ export default function NewInvoiceScreen() {
         setOriginalInvoiceNumber(foundInvoice.invoice);
         setNumber(foundInvoice.invoice);
         setDate(foundInvoice.invoiceDate);
-        setTerms(foundInvoice.terms ?? invoiceDraft.terms);
+        setTerms(foundInvoice.terms ?? profile.defaultPaymentTerms ?? invoiceDraft.terms);
         setCustomer(foundInvoice.customer);
         setSelectedCustomerName(foundInvoice.customer);
         setPoNumber(foundInvoice.poNumber ?? invoiceDraft.poNumber);
@@ -120,7 +130,15 @@ export default function NewInvoiceScreen() {
     if (foundCustomer) {
       handleSelectCustomer(foundCustomer);
     }
-  }, [customers, invoices, invoiceParam, originalInvoiceNumber, preselectedCustomerName, selectedCustomerName]);
+  }, [
+    customers,
+    invoices,
+    invoiceParam,
+    originalInvoiceNumber,
+    preselectedCustomerName,
+    profile.defaultPaymentTerms,
+    selectedCustomerName,
+  ]);
 
   function handleSelectCustomer(selectedCustomer: Customer) {
     setSelectedCustomerName(selectedCustomer.name);
@@ -191,66 +209,66 @@ export default function NewInvoiceScreen() {
     router.replace('/invoices');
   }
 
-  function handleCancel() {
-    router.push('/invoices');
+  function buildCurrentInvoiceHtml() {
+    return buildInvoiceTemplate({
+      businessLogoUri,
+      watermarkLogoUri,
+      businessName: profile.businessName,
+      businessContactName: profile.contactName ?? '',
+      businessAddress: formatBusinessAddress(profile),
+      businessPhone: profile.phone ?? '',
+      businessEmail: profile.email ?? '',
+      businessWebsite: profile.website ?? '',
+      number,
+      date,
+      terms,
+      customer,
+      poNumber,
+      bolNumber,
+      shipper,
+      consignee,
+      freightDescription,
+      lineItems,
+      invoiceTotal,
+      customerEmail: selectedCustomer?.email ?? '',
+      invoiceNotes: profile.invoiceNotes ?? '',
+      paymentInstructions: profile.paymentInstructions ?? '',
+    });
   }
 
   const previewPdf = () => {
     if (Platform.OS !== 'web') return;
 
-    const html = buildInvoiceTemplate({
-      businessLogoUri,
-      businessName: profile.businessName,
-      businessAddress: profile.address ?? '',
-      businessPhone: profile.phone ?? '',
-      businessEmail: profile.email ?? '',
-      number,
-      date,
-      terms,
-      customer,
-      poNumber,
-      bolNumber,
-      shipper,
-      consignee,
-      freightDescription,
-      lineItems,
-      invoiceTotal,
-      customerPhone: selectedCustomer?.phone ?? '',
-      customerEmail: selectedCustomer?.email ?? '',
-    });
-
     // Open HTML invoice in a new tab
-    const blob = new Blob([html], { type: 'text/html' });
+    const blob = new Blob([buildCurrentInvoiceHtml()], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
+  };
+
+  const downloadPdf = async () => {
+    if (Platform.OS !== 'web') return;
+
+    const { default: html2pdf } = await import('html2pdf.js');
+    const container = document.createElement('div');
+    container.innerHTML = buildCurrentInvoiceHtml();
+    const page = container.querySelector('.page') ?? container;
+
+    await html2pdf()
+      .set({
+        filename: `invoice-${number || 'draft'}.pdf`,
+        html2canvas: { scale: 2 },
+        jsPDF: { format: 'letter', orientation: 'portrait', unit: 'in' },
+        margin: 0,
+      })
+      .from(page)
+      .save();
   };
 
   const printPdf = () => {
     if (Platform.OS !== 'web') return;
 
-    const html = buildInvoiceTemplate({
-      businessLogoUri,
-      businessName: profile.businessName,
-      businessAddress: profile.address ?? '',
-      businessPhone: profile.phone ?? '',
-      businessEmail: profile.email ?? '',
-      number,
-      date,
-      terms,
-      customer,
-      poNumber,
-      bolNumber,
-      shipper,
-      consignee,
-      freightDescription,
-      lineItems,
-      invoiceTotal,
-      customerPhone: selectedCustomer?.phone ?? '',
-      customerEmail: selectedCustomer?.email ?? '',
-    });
-
     // Open HTML invoice in a new tab and trigger print
-    const blob = new Blob([html], { type: 'text/html' });
+    const blob = new Blob([buildCurrentInvoiceHtml()], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const newWindow = window.open(url, '_blank');
     if (newWindow) {
@@ -282,8 +300,11 @@ export default function NewInvoiceScreen() {
       '',
       `Please find invoice #${number} for ${invoiceTotal}.`,
       `Due date: ${buildInvoiceDueDate()}`,
+      ...(profile.paymentInstructions ? ['', profile.paymentInstructions] : []),
+      ...(profile.invoiceNotes ? ['', profile.invoiceNotes] : []),
       '',
-      'Thank you for your business. Please let us know if you have any questions.',
+      `Thank you for your business.`,
+      profile.businessName,
     ];
     const body = encodeURIComponent(bodyLines.join('\n'));
     return `mailto:${encodeURIComponent(customerEmail)}?subject=${encodeURIComponent(subject)}&body=${body}`;
@@ -296,6 +317,47 @@ export default function NewInvoiceScreen() {
       // ignore unsupported environments
     });
   }
+
+  const invoiceActionsCard = (
+    <View style={[styles.actionsCard, showSideActions && styles.actionsCardSticky]}>
+      <View style={styles.actionsCardHeader}>
+        <Text style={styles.actionsCardTitle}>Invoice Actions</Text>
+        <Text style={styles.actionsCardMeta}>Total {invoiceTotal}</Text>
+      </View>
+
+      <View style={styles.actionGroup}>
+        <Text style={styles.actionGroupLabel}>Primary</Text>
+        <Pressable style={[styles.primaryButton, styles.panelActionButton]} onPress={handleSave}>
+          <Text style={styles.primaryButtonText}>Save</Text>
+        </Pressable>
+        <Pressable style={[styles.primaryButton, styles.panelActionButton]} onPress={handleSaveAndClose}>
+          <Text style={styles.primaryButtonText}>Save & Close</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.actionGroup}>
+        <Text style={styles.actionGroupLabel}>Secondary</Text>
+        <Pressable style={[styles.previewButton, styles.panelActionButton]} onPress={previewPdf}>
+          <Text style={styles.previewButtonText}>Preview PDF</Text>
+        </Pressable>
+        <Pressable style={[styles.previewButton, styles.panelActionButton]} onPress={downloadPdf}>
+          <Text style={styles.previewButtonText}>Download PDF</Text>
+        </Pressable>
+        <Pressable
+          disabled={!selectedCustomer?.email}
+          style={[styles.emailButton, styles.panelActionButton, !selectedCustomer?.email && styles.emailButtonDisabled]}
+          onPress={emailInvoice}
+        >
+          <Text style={[styles.emailButtonText, !selectedCustomer?.email && styles.emailButtonTextDisabled]}>
+            {selectedCustomer?.email ? 'Email Invoice' : 'Add customer email to send'}
+          </Text>
+        </Pressable>
+        <Pressable style={[styles.secondaryButton, styles.panelActionButton]} onPress={printPdf}>
+          <Text style={styles.secondaryButtonText}>Print Invoice</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
 
   return (
     <AppShell activeNav="Invoices">
@@ -315,7 +377,9 @@ export default function NewInvoiceScreen() {
         </Pressable>
       </View>
 
-              <View style={styles.formCard}>
+      <View style={[styles.invoiceLayout, showSideActions && styles.invoiceLayoutDesktop]}>
+        <View style={styles.invoiceFormColumn}>
+          <View style={styles.formCard}>
                 <View style={styles.compactRow}>
                 <Field label="Invoice #" value={number} onChangeText={setNumber} />
                 <Field label="Invoice Date" value={date} onChangeText={setDate} />
@@ -324,8 +388,6 @@ export default function NewInvoiceScreen() {
 
               <View style={styles.customerRow}>
                 <Field label="Customer" value={customer} onChangeText={handleCustomerNameChange} />
-                <Field label={invoiceLabels.po} value={poNumber} onChangeText={setPoNumber} />
-                <Field label={invoiceLabels.bol} value={bolNumber} onChangeText={setBolNumber} />
               </View>
 
               <View style={styles.customerSelectorSection}>
@@ -392,9 +454,18 @@ export default function NewInvoiceScreen() {
                 )}
               </View>
 
-              <View style={styles.addressGrid}>
-                <Field label={invoiceLabels.shipper} value={shipper} onChangeText={setShipper} multiline />
-                <Field label={invoiceLabels.consignee} value={consignee} onChangeText={setConsignee} multiline />
+              <View style={styles.loadInfoCard}>
+                <Text style={styles.sectionTitle}>Load Information</Text>
+
+                <View style={styles.loadInfoGrid}>
+                  <Field label={invoiceLabels.po} value={poNumber} onChangeText={setPoNumber} />
+                  <Field label={invoiceLabels.bol} value={bolNumber} onChangeText={setBolNumber} />
+                </View>
+
+                <View style={styles.loadAddressGrid}>
+                  <Field label={invoiceLabels.shipper} value={shipper} onChangeText={setShipper} multiline />
+                  <Field label={invoiceLabels.consignee} value={consignee} onChangeText={setConsignee} multiline />
+                </View>
               </View>
 
               <View style={styles.freightRow}>
@@ -454,6 +525,13 @@ export default function NewInvoiceScreen() {
                       style={[styles.lineItemAmount, styles.amountColumn]}
                       value={item.amount}
                     />
+                    <Pressable
+                      accessibilityLabel={`Remove line item ${index + 1}`}
+                      style={styles.removeLineButton}
+                      onPress={() => handleRemoveLineItem(index)}
+                    >
+                      <Text style={styles.removeLineButtonText}>Remove</Text>
+                    </Pressable>
                   </View>
                 ))}
               </View>
@@ -473,56 +551,25 @@ export default function NewInvoiceScreen() {
                 <Text style={styles.totalLabel}>Invoice Total</Text>
                 <Text style={styles.totalValue}>{invoiceTotal}</Text>
               </View>
-
-              <View style={[styles.bottomActionBar, Platform.OS === 'web' && styles.bottomActionBarSticky]}>
-                <View>
-                  <Text style={styles.actionLabel}>Ready when the paperwork is.</Text>
-                  <Text style={styles.actionSubtext}>Mock-only draft. No backend storage yet.</Text>
-                </View>
-
-                <View style={styles.actionRow}>
-                  <Pressable style={styles.secondaryButton} onPress={handleCancel}>
-                    <Text style={styles.secondaryButtonText}>Cancel</Text>
-                  </Pressable>
-
-                  <Pressable style={styles.primaryButton} onPress={handleSave}>
-                    <Text style={styles.primaryButtonText}>Save</Text>
-                  </Pressable>
-
-                  <Pressable style={styles.secondaryButton} onPress={handleSaveAndClose}>
-                    <Text style={styles.secondaryButtonText}>Save & Close</Text>
-                  </Pressable>
-
-                  <Pressable style={styles.previewButton} onPress={previewPdf}>
-                    <Text style={styles.previewButtonText}>Preview PDF</Text>
-                  </Pressable>
-
-                  <Pressable style={styles.previewButton} onPress={printPdf}>
-                    <Text style={styles.previewButtonText}>Print / Save PDF</Text>
-                  </Pressable>
-
-                  <Pressable
-                    disabled={!selectedCustomer?.email}
-                    style={[styles.emailButton, !selectedCustomer?.email && styles.emailButtonDisabled]}
-                    onPress={emailInvoice}
-                  >
-                    <Text style={[styles.emailButtonText, !selectedCustomer?.email && styles.emailButtonTextDisabled]}>
-                      {selectedCustomer?.email ? 'Email Invoice' : 'No email'}
-                    </Text>
-                  </Pressable>
-                </View>
-              </View>
             </View>
+          {!showSideActions && invoiceActionsCard}
+        </View>
+
+        {showSideActions && <View style={styles.actionsColumn}>{invoiceActionsCard}</View>}
+      </View>
     </AppShell>
   );
 }
 
 function buildInvoiceTemplate({
   businessLogoUri,
+  watermarkLogoUri,
   businessName,
+  businessContactName,
   businessAddress,
   businessPhone,
   businessEmail,
+  businessWebsite,
   number,
   date,
   terms,
@@ -534,14 +581,18 @@ function buildInvoiceTemplate({
   freightDescription,
   lineItems,
   invoiceTotal,
-  customerPhone,
   customerEmail,
+  invoiceNotes,
+  paymentInstructions,
 }: {
   businessLogoUri: string;
+  watermarkLogoUri: string;
   businessName: string;
+  businessContactName: string;
   businessAddress: string;
   businessPhone: string;
   businessEmail: string;
+  businessWebsite: string;
   number: string;
   date: string;
   terms: string;
@@ -553,10 +604,12 @@ function buildInvoiceTemplate({
   freightDescription: string;
   lineItems: InvoiceLineItem[];
   invoiceTotal: string;
-  customerPhone: string;
   customerEmail: string;
+  invoiceNotes: string;
+  paymentInstructions: string;
 }) {
   const rows = lineItems
+    .filter((item) => item.description.trim() || parseInvoiceAmount(item.amount) !== 0)
     .map(
       (item) => `
         <tr>
@@ -566,6 +619,31 @@ function buildInvoiceTemplate({
       `,
     )
     .join('');
+  const businessDetails = [
+    businessContactName,
+    businessAddress,
+    businessPhone,
+    businessEmail,
+    businessWebsite,
+  ].filter(Boolean).join('<br />');
+  const invoiceFooterSections = [
+    invoiceNotes
+      ? `
+          <section class="note-block">
+            <div class="label">Notes</div>
+            <div class="note-value">${invoiceNotes}</div>
+          </section>
+        `
+      : '',
+    paymentInstructions
+      ? `
+          <section class="note-block">
+            <div class="label">Payment Instructions</div>
+            <div class="note-value">${paymentInstructions}</div>
+          </section>
+        `
+      : '',
+  ].join('');
 
   return `
     <!doctype html>
@@ -583,11 +661,40 @@ function buildInvoiceTemplate({
             font-family: Arial, Helvetica, sans-serif;
           }
           .page {
+            isolation: isolate;
             width: 8.5in;
             min-height: 11in;
             margin: 0 auto;
             background: #ffffff;
             padding: 0.55in;
+            position: relative;
+          }
+          .watermark {
+            left: 50%;
+            max-height: 4.9in;
+            max-width: 4.9in;
+            opacity: 0.035;
+            pointer-events: none;
+            position: absolute;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 58%;
+            z-index: 0;
+          }
+          .powered-by {
+            bottom: 0.28in;
+            color: #71717a;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.2px;
+            opacity: 0.42;
+            position: absolute;
+            right: 0.42in;
+            z-index: 2;
+          }
+          .page-content {
+            position: relative;
+            z-index: 1;
           }
           .top {
             align-items: flex-start;
@@ -656,6 +763,14 @@ function buildInvoiceTemplate({
             font-weight: 800;
             line-height: 1.35;
           }
+          .customer-contact {
+            color: #52525b;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1.35;
+            margin-top: 6px;
+            overflow-wrap: anywhere;
+          }
           .address-grid {
             display: grid;
             gap: 18px;
@@ -683,23 +798,41 @@ function buildInvoiceTemplate({
             padding: 15px 13px;
           }
           .amount { text-align: right; }
+          .summary-row {
+            align-items: flex-start;
+            display: flex;
+            gap: 18px;
+            justify-content: space-between;
+            margin-top: 24px;
+          }
+          .summary-row-total-only {
+            justify-content: flex-end;
+          }
+          .notes-column {
+            display: flex;
+            flex: 1;
+            flex-direction: column;
+            gap: 12px;
+            min-width: 0;
+          }
           .total {
             align-items: flex-end;
             display: flex;
             flex-direction: column;
-            margin-top: 28px;
+            flex-shrink: 0;
+            width: 2.15in;
           }
           .total-label {
             color: #71717a;
-            font-size: 13px;
+            font-size: 11px;
             font-weight: 900;
             text-transform: uppercase;
           }
           .total-value {
             color: #f97316;
-            font-size: 42px;
+            font-size: 24px;
             font-weight: 900;
-            margin-top: 4px;
+            margin-top: 3px;
           }
           .footer {
             border-top: 1px solid #e4e4e7;
@@ -709,45 +842,56 @@ function buildInvoiceTemplate({
             margin-top: 42px;
             padding-top: 16px;
           }
+          .note-block {
+            border: 1px solid #e4e4e7;
+            border-radius: 14px;
+            min-height: 108px;
+            padding: 18px;
+          }
+          .note-value {
+            color: #3f3f46;
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.45;
+            white-space: pre-wrap;
+          }
         </style>
       </head>
       <body>
         <main class="page">
-          <section class="top">
-            <div>
-              <img class="logo" src="${businessLogoUri}" alt="${businessName}" />
-              <div class="business-name">${businessName}</div>
-              <div class="business-details">
-                ${businessAddress}<br />
-                ${businessPhone}<br />
-                ${businessEmail}
+          <img class="watermark" src="${watermarkLogoUri}" alt="" aria-hidden="true" />
+          <div class="page-content">
+            <section class="top">
+              <div>
+                <img class="logo" src="${businessLogoUri}" alt="${businessName}" />
+                <div class="business-name">${businessName}</div>
+                ${businessDetails ? `<div class="business-details">${businessDetails}</div>` : ''}
               </div>
-            </div>
-            <div>
-              <h1 class="invoice-title">INVOICE</h1>
-              <div class="invoice-meta">
-                Invoice #${number}<br />
-                Invoice Date: ${date}<br />
-                Terms: ${terms}
+              <div>
+                <h1 class="invoice-title">INVOICE</h1>
+                <div class="invoice-meta">
+                  Invoice #${number}<br />
+                  Invoice Date: ${date}<br />
+                  Terms: ${terms}
+                </div>
               </div>
-            </div>
-          </section>
+            </section>
 
-          <section class="grid">
-            <div class="block">
-              <div class="label">Customer</div>
-              <div class="value">${customer}</div>
-              ${customerPhone || customerEmail ? `<div class="customer-contact">${customerPhone ? `Phone: ${customerPhone}` : ''}${customerPhone && customerEmail ? ' &bull; ' : ''}${customerEmail ? `Email: ${customerEmail}` : ''}</div>` : ''}
-            </div>
-            <div class="block">
-              <div class="label">${invoiceLabels.po}</div>
-              <div class="value">${poNumber}</div>
-            </div>
-            <div class="block">
-              <div class="label">${invoiceLabels.bol}</div>
-              <div class="value">${bolNumber}</div>
-            </div>
-          </section>
+            <section class="grid">
+              <div class="block">
+                <div class="label">Customer</div>
+                <div class="value">${customer}</div>
+                ${customerEmail ? `<div class="customer-contact">${customerEmail}</div>` : ''}
+              </div>
+              <div class="block">
+                <div class="label">${invoiceLabels.po}</div>
+                <div class="value">${poNumber}</div>
+              </div>
+              <div class="block">
+                <div class="label">${invoiceLabels.bol}</div>
+                <div class="value">${bolNumber}</div>
+              </div>
+            </section>
 
           <section class="address-grid">
             <div class="block">
@@ -777,14 +921,19 @@ function buildInvoiceTemplate({
             <tbody>${rows}</tbody>
           </table>
 
-          <section class="total">
-            <div class="total-label">Invoice Total</div>
-            <div class="total-value">${invoiceTotal}</div>
+          <section class="summary-row${invoiceFooterSections ? '' : ' summary-row-total-only'}">
+            ${invoiceFooterSections ? `<div class="notes-column">${invoiceFooterSections}</div>` : ''}
+            <div class="total">
+              <div class="total-label">Invoice Total</div>
+              <div class="total-value">${invoiceTotal}</div>
+            </div>
           </section>
 
           <section class="footer">
-            ${businessName} invoice preview. Mock data only.
+            ${businessName}
           </section>
+          </div>
+          <div class="powered-by">Powered by Blue Collar Books</div>
         </main>
       </body>
     </html>
@@ -932,6 +1081,68 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
   },
+  invoiceLayout: {
+    gap: 24,
+    paddingBottom: 36,
+  },
+  invoiceLayoutDesktop: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+  },
+  invoiceFormColumn: {
+    flex: 1,
+    gap: 24,
+    minWidth: 0,
+  },
+  actionsColumn: {
+    flexBasis: 264,
+    flexShrink: 0,
+  },
+  actionsCard: {
+    backgroundColor: '#1e1e1e',
+    borderColor: '#323232',
+    borderRadius: 18,
+    borderWidth: 1,
+    gap: 18,
+    padding: 18,
+  },
+  actionsCardSticky: {
+    position: 'sticky',
+    top: 16,
+    zIndex: 20,
+  },
+  actionsCardHeader: {
+    borderBottomColor: '#323232',
+    borderBottomWidth: 1,
+    paddingBottom: 14,
+  },
+  actionsCardTitle: {
+    color: '#ffffff',
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  actionsCardMeta: {
+    color: '#f97316',
+    fontSize: 14,
+    fontWeight: '900',
+    marginTop: 5,
+  },
+  actionGroup: {
+    gap: 10,
+  },
+  actionGroupLabel: {
+    color: '#737373',
+    fontSize: 12,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  panelActionButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    width: '100%',
+  },
   formCard: {
     backgroundColor: '#1e1e1e',
     borderColor: '#323232',
@@ -1037,6 +1248,25 @@ const styles = StyleSheet.create({
     color: '#a3a3a3',
     fontSize: 13,
     fontWeight: '600',
+  },
+  loadInfoCard: {
+    backgroundColor: '#252525',
+    borderColor: '#383838',
+    borderRadius: 18,
+    borderWidth: 1,
+    gap: 18,
+    marginTop: 22,
+    padding: 18,
+  },
+  loadInfoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 18,
+  },
+  loadAddressGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 18,
   },
   addressGrid: {
     flexDirection: 'row',
@@ -1173,6 +1403,20 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '900',
   },
+  removeLineButton: {
+    backgroundColor: '#2b2b2b',
+    borderColor: '#3d3d3d',
+    borderRadius: 12,
+    borderWidth: 1,
+    marginLeft: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  removeLineButtonText: {
+    color: '#d4d4d4',
+    fontSize: 13,
+    fontWeight: '900',
+  },
   attachCard: {
     alignItems: 'center',
     backgroundColor: 'rgba(249, 115, 22, 0.08)',
@@ -1230,41 +1474,6 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 44,
     fontWeight: '900',
-  },
-  bottomActionBar: {
-    alignItems: 'center',
-    backgroundColor: '#252525',
-    borderColor: '#383838',
-    borderRadius: 18,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: 18,
-    justifyContent: 'space-between',
-    marginTop: 24,
-    padding: 16,
-  },
-  bottomActionBarSticky: {
-    position: 'fixed',
-    left: 48,
-    right: 48,
-    bottom: 24,
-    zIndex: 60,
-  },
-  actionLabel: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  actionSubtext: {
-    color: '#a3a3a3',
-    fontSize: 13,
-    fontWeight: '600',
-    marginTop: 3,
-  },
-  actionRow: {
-    flexDirection: 'row',
-    gap: 14,
-    justifyContent: 'flex-end',
   },
   emailButton: {
     backgroundColor: '#252525',

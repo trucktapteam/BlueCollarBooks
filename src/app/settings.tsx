@@ -1,20 +1,45 @@
 import { AppShell } from '@/components/AppShell';
 import { saveBusinessProfile, useBusinessProfile } from '@/data/mockBusiness';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+
+const termOptions = ['Net 15', 'Net 30', 'Due on Receipt', 'Custom'] as const;
+type TermOption = (typeof termOptions)[number];
+
+function getTermOption(value?: string): TermOption {
+  if (value === 'Net 15' || value === 'Net 30' || value === 'Due on Receipt') {
+    return value;
+  }
+  return 'Custom';
+}
 
 export default function SettingsScreen() {
   const profile = useBusinessProfile();
   const [businessName, setBusinessName] = useState(profile.businessName || '');
   const [contactName, setContactName] = useState(profile.contactName || '');
-  const [address, setAddress] = useState(profile.address || '');
   const [phone, setPhone] = useState(profile.phone || '');
   const [email, setEmail] = useState(profile.email || '');
   const [website, setWebsite] = useState(profile.website || '');
-  const [defaultPaymentTerms, setDefaultPaymentTerms] = useState(profile.defaultPaymentTerms || '');
-  const [startingInvoiceNumber, setStartingInvoiceNumber] = useState(profile.startingInvoiceNumber || '');
+  const [street, setStreet] = useState(profile.street || profile.address || '');
+  const [city, setCity] = useState(profile.city || '');
+  const [state, setState] = useState(profile.state || '');
+  const [zip, setZip] = useState(profile.zip || '');
+  const [selectedTerms, setSelectedTerms] = useState<TermOption>(() => getTermOption(profile.defaultPaymentTerms));
+  const [customTerms, setCustomTerms] = useState(
+    getTermOption(profile.defaultPaymentTerms) === 'Custom' ? profile.defaultPaymentTerms || '' : ''
+  );
+  const [invoiceNotes, setInvoiceNotes] = useState(profile.invoiceNotes || '');
+  const [paymentInstructions, setPaymentInstructions] = useState(profile.paymentInstructions || '');
   const [showSavedToast, setShowSavedToast] = useState(false);
+
+  const logoSource = useMemo(() => {
+    if (profile.logoDataUrl) {
+      return { uri: profile.logoDataUrl };
+    }
+    return profile.logoModule;
+  }, [profile.logoDataUrl, profile.logoModule]);
 
   useEffect(() => {
     if (showSavedToast) {
@@ -23,16 +48,27 @@ export default function SettingsScreen() {
     }
   }, [showSavedToast]);
 
+  function getDefaultTerms() {
+    return selectedTerms === 'Custom' ? customTerms.trim() : selectedTerms;
+  }
+
   function handleSave() {
+    const address = [street, [city, state, zip].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+
     saveBusinessProfile({
       businessName,
       contactName,
-      address,
       phone,
       email,
       website,
-      defaultPaymentTerms,
-      startingInvoiceNumber,
+      street,
+      city,
+      state,
+      zip,
+      address,
+      defaultPaymentTerms: getDefaultTerms(),
+      invoiceNotes,
+      paymentInstructions,
     });
     setShowSavedToast(true);
   }
@@ -61,6 +97,10 @@ export default function SettingsScreen() {
     reader.readAsDataURL(file);
   }
 
+  function handleRemoveLogo() {
+    saveBusinessProfile({ logoDataUrl: null });
+  }
+
   return (
     <AppShell activeNav="Settings">
       {showSavedToast && (
@@ -71,7 +111,7 @@ export default function SettingsScreen() {
       <View style={styles.pageHeader}>
         <View>
           <Text style={styles.eyebrow}>Settings</Text>
-          <Text style={styles.heading}>Business Settings</Text>
+          <Text style={styles.heading}>Business Profile</Text>
         </View>
 
         <Pressable style={styles.backButton} onPress={() => router.push('/')}>
@@ -79,86 +119,100 @@ export default function SettingsScreen() {
         </Pressable>
       </View>
 
-      <View style={styles.formCard}>
-        <View style={styles.logoRow}>
-          <View style={styles.logoPreviewCard}>
-            {profile.logoDataUrl ? (
-              // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-              // @ts-ignore allow web uri
-              <Image source={{ uri: profile.logoDataUrl }} style={styles.logoImage} />
-            ) : (
-              <Image source={profile.logoModule} style={styles.logoImage} />
-            )}
+      <View style={styles.settingsStack}>
+        <SettingsCard title="Business Information">
+          <View style={styles.fieldRow}>
+            <Field label="Business Name" value={businessName} onChangeText={setBusinessName} />
+            <Field label="Contact Name" value={contactName} onChangeText={setContactName} />
+          </View>
+          <View style={styles.fieldRow}>
+            <Field label="Phone Number" value={phone} onChangeText={setPhone} />
+            <Field label="Email Address" value={email} onChangeText={setEmail} />
+          </View>
+          <View style={styles.fieldRow}>
+            <Field label="Website (optional)" value={website} onChangeText={setWebsite} />
+          </View>
+        </SettingsCard>
+
+        <SettingsCard title="Address">
+          <View style={styles.fieldRow}>
+            <Field label="Street" value={street} onChangeText={setStreet} />
+          </View>
+          <View style={styles.fieldRow}>
+            <Field label="City" value={city} onChangeText={setCity} />
+            <Field label="State" value={state} onChangeText={setState} />
+            <Field label="ZIP" value={zip} onChangeText={setZip} />
+          </View>
+        </SettingsCard>
+
+        <SettingsCard title="Branding">
+          <View style={styles.logoRow}>
+            <View style={styles.logoPreviewCard}>
+              <Image source={logoSource} style={styles.logoImage} />
+            </View>
+
+            <View style={styles.logoControls}>
+              <Text style={styles.fieldLabel}>Upload Logo</Text>
+              {Platform.OS === 'web' ? (
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(event: any) => handleLogoUpload(event.target.files && event.target.files[0])}
+                />
+              ) : (
+                <Text style={styles.helperText}>Logo upload is available on web only.</Text>
+              )}
+
+              <Pressable
+                disabled={!profile.logoDataUrl}
+                style={[styles.secondaryButton, !profile.logoDataUrl && styles.disabledButton]}
+                onPress={handleRemoveLogo}
+              >
+                <Text style={[styles.secondaryButtonText, !profile.logoDataUrl && styles.disabledButtonText]}>
+                  Remove Logo
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </SettingsCard>
+
+        <SettingsCard title="Invoice Defaults">
+          <View style={styles.termsGrid}>
+            {termOptions.map((option) => {
+              const isActive = selectedTerms === option;
+              return (
+                <Pressable
+                  key={option}
+                  style={[styles.termChip, isActive && styles.termChipActive]}
+                  onPress={() => setSelectedTerms(option)}
+                >
+                  <Text style={[styles.termChipText, isActive && styles.termChipTextActive]}>{option}</Text>
+                </Pressable>
+              );
+            })}
           </View>
 
-          <View style={{ flex: 1 }}>
-            <Text style={styles.fieldLabel}>Logo</Text>
-            {Platform.OS === 'web' ? (
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e: any) => handleLogoUpload(e.target.files && e.target.files[0])}
-              />
-            ) : (
-              <Text style={styles.fieldLabel}>Logo upload is available on web only.</Text>
-            )}
-          </View>
-        </View>
+          {selectedTerms === 'Custom' && (
+            <View style={styles.singleFieldSpacing}>
+              <Field label="Custom Terms" value={customTerms} onChangeText={setCustomTerms} />
+            </View>
+          )}
 
-        <View style={styles.fieldRow}>
-          <View style={styles.fieldCol}>
-            <Text style={styles.fieldLabel}>Business Name</Text>
-            <TextInput style={styles.input} value={businessName} onChangeText={setBusinessName} />
+          <View style={styles.fieldRow}>
+            <Field label="Invoice Notes" value={invoiceNotes} onChangeText={setInvoiceNotes} multiline />
+            <Field
+              label="Payment Instructions"
+              value={paymentInstructions}
+              onChangeText={setPaymentInstructions}
+              multiline
+            />
           </View>
+        </SettingsCard>
 
-          <View style={styles.fieldCol}>
-            <Text style={styles.fieldLabel}>Contact Name</Text>
-            <TextInput style={styles.input} value={contactName} onChangeText={setContactName} />
-          </View>
-        </View>
-
-        <View style={styles.fieldRow}>
-          <View style={styles.fieldCol}>
-            <Text style={styles.fieldLabel}>Address</Text>
-            <TextInput style={styles.input} value={address} onChangeText={setAddress} />
-          </View>
-        </View>
-
-        <View style={styles.fieldRow}>
-          <View style={styles.fieldCol}>
-            <Text style={styles.fieldLabel}>Phone</Text>
-            <TextInput style={styles.input} value={phone} onChangeText={setPhone} />
-          </View>
-
-          <View style={styles.fieldCol}>
-            <Text style={styles.fieldLabel}>Email</Text>
-            <TextInput style={styles.input} value={email} onChangeText={setEmail} />
-          </View>
-        </View>
-
-        <View style={styles.fieldRow}>
-          <View style={styles.fieldCol}>
-            <Text style={styles.fieldLabel}>Website</Text>
-            <TextInput style={styles.input} value={website} onChangeText={setWebsite} />
-          </View>
-
-          <View style={styles.fieldCol}>
-            <Text style={styles.fieldLabel}>Default Payment Terms</Text>
-            <TextInput style={styles.input} value={defaultPaymentTerms} onChangeText={setDefaultPaymentTerms} />
-          </View>
-        </View>
-
-        <View style={styles.fieldRow}>
-          <View style={styles.fieldCol}>
-            <Text style={styles.fieldLabel}>Starting Invoice Number</Text>
-            <TextInput style={styles.input} value={startingInvoiceNumber} onChangeText={setStartingInvoiceNumber} />
-          </View>
-        </View>
-
-        <View style={[styles.bottomActionBar, Platform.OS === 'web' && styles.bottomActionBarSticky]}>
+        <View style={styles.actionBar}>
           <View>
-            <Text style={styles.actionLabel}>Business settings</Text>
-            <Text style={styles.actionSubtext}>Changes saved locally.</Text>
+            <Text style={styles.actionLabel}>Business profile</Text>
+            <Text style={styles.actionSubtext}>Changes save locally and flow into invoices.</Text>
           </View>
 
           <View style={styles.actionRow}>
@@ -172,6 +226,39 @@ export default function SettingsScreen() {
         </View>
       </View>
     </AppShell>
+  );
+}
+
+function SettingsCard({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <View style={styles.settingsCard}>
+      <Text style={styles.cardTitle}>{title}</Text>
+      <View style={styles.cardContent}>{children}</View>
+    </View>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChangeText,
+  multiline = false,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  multiline?: boolean;
+}) {
+  return (
+    <View style={styles.fieldCol}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <TextInput
+        multiline={multiline}
+        onChangeText={onChangeText}
+        style={[styles.input, multiline && styles.multilineInput]}
+        value={value}
+      />
+    </View>
   );
 }
 
@@ -208,76 +295,128 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
   },
-  formCard: {
+  settingsStack: {
+    gap: 22,
+    paddingBottom: 36,
+  },
+  settingsCard: {
     backgroundColor: '#1e1e1e',
     borderColor: '#323232',
     borderRadius: 22,
     borderWidth: 1,
     padding: 28,
   },
-  logoRow: {
-    flexDirection: 'row',
-    gap: 18,
-    alignItems: 'center',
-    marginBottom: 16,
+  cardTitle: {
+    color: '#ffffff',
+    fontSize: 20,
+    fontWeight: '900',
   },
-  logoPreviewCard: {
-    width: 120,
-    height: 120,
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'contain',
+  cardContent: {
+    gap: 14,
+    marginTop: 18,
   },
   fieldRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 12,
+    flexWrap: 'wrap',
+    gap: 14,
   },
-  fieldCol: { flex: 1 },
-  fieldLabel: { color: '#a3a3a3', fontSize: 13, fontWeight: '800', marginBottom: 6 },
+  fieldCol: {
+    flexBasis: '31%',
+    flexGrow: 1,
+    gap: 8,
+  },
+  fieldLabel: {
+    color: '#a3a3a3',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  helperText: {
+    color: '#a3a3a3',
+    fontSize: 13,
+    fontWeight: '600',
+  },
   input: {
     backgroundColor: '#252525',
-    borderColor: '#353535',
-    borderRadius: 10,
+    borderColor: '#383838',
+    borderRadius: 14,
     borderWidth: 1,
     color: '#ffffff',
-    padding: 12,
-  },
-  actionRow: { marginTop: 18, flexDirection: 'row', justifyContent: 'flex-end' },
-  primaryButton: {
-    backgroundColor: '#f97316',
-    borderRadius: 12,
-    paddingHorizontal: 18,
+    fontSize: 16,
+    fontWeight: '700',
+    minHeight: 50,
+    paddingHorizontal: 14,
     paddingVertical: 12,
   },
-  primaryButtonText: { color: '#fff', fontWeight: '800' },
-  signOutButton: {
-    marginLeft: 12,
-    backgroundColor: '#252525',
-    borderColor: '#353535',
+  multilineInput: {
+    minHeight: 118,
+    textAlignVertical: 'top',
+  },
+  logoRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 18,
+  },
+  logoPreviewCard: {
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderColor: 'rgba(249, 115, 22, 0.36)',
+    borderRadius: 14,
     borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
+    height: 120,
+    justifyContent: 'center',
+    overflow: 'hidden',
+    padding: 8,
+    width: 160,
   },
-  signOutText: { color: '#d4d4d4', fontWeight: '800' },
-  bottomActionBar: {
+  logoImage: {
+    height: '100%',
+    resizeMode: 'contain',
+    width: '100%',
+  },
+  logoControls: {
+    flex: 1,
+    gap: 12,
+    minWidth: 240,
+  },
+  termsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  termChip: {
+    backgroundColor: '#252525',
+    borderColor: '#383838',
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  termChipActive: {
+    backgroundColor: 'rgba(249, 115, 22, 0.14)',
+    borderColor: 'rgba(249, 115, 22, 0.45)',
+  },
+  termChipText: {
+    color: '#d4d4d4',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  termChipTextActive: {
+    color: '#f97316',
+  },
+  singleFieldSpacing: {
+    marginTop: 4,
+  },
+  actionBar: {
     alignItems: 'center',
     backgroundColor: '#252525',
     borderColor: '#323232',
     borderRadius: 18,
     borderWidth: 1,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 14,
     justifyContent: 'space-between',
-    marginTop: 24,
     padding: 16,
   },
   actionLabel: {
@@ -291,12 +430,55 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 3,
   },
-  bottomActionBarSticky: {
-    position: 'fixed',
-    left: 48,
-    right: 48,
-    bottom: 24,
-    zIndex: 60,
+  actionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    justifyContent: 'flex-end',
+  },
+  primaryButton: {
+    backgroundColor: '#f97316',
+    borderRadius: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 13,
+  },
+  primaryButtonText: {
+    color: '#111111',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  secondaryButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#252525',
+    borderColor: '#343434',
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+  },
+  secondaryButtonText: {
+    color: '#d4d4d4',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  disabledButton: {
+    opacity: 0.45,
+  },
+  disabledButtonText: {
+    color: '#8c8c8c',
+  },
+  signOutButton: {
+    backgroundColor: '#252525',
+    borderColor: '#353535',
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 13,
+  },
+  signOutText: {
+    color: '#d4d4d4',
+    fontSize: 15,
+    fontWeight: '900',
   },
   toast: {
     position: 'fixed',

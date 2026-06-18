@@ -5,10 +5,16 @@ export type BusinessSettings = {
   businessName: string;
   contactName?: string;
   address?: string;
+  street?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
   phone?: string;
   email?: string;
   website?: string;
   defaultPaymentTerms?: string;
+  invoiceNotes?: string;
+  paymentInstructions?: string;
   startingInvoiceNumber?: string;
   // persisted as data URL when uploaded from browser
   logoDataUrl?: string | null;
@@ -20,10 +26,16 @@ const defaultSettings: BusinessSettings & { logoModule: any } = {
   businessName: 'Blue Collar Books',
   contactName: undefined,
   address: 'Address',
+  street: 'Address',
+  city: '',
+  state: '',
+  zip: '',
   phone: '(555) 123-4567',
   email: 'billing@bluecollarbooks.com',
   website: undefined,
   defaultPaymentTerms: 'Net 30',
+  invoiceNotes: 'Thank you for your business.',
+  paymentInstructions: '',
   startingInvoiceNumber: '1000',
   logoDataUrl: null,
   logoModule: require('@/assets/images/blue-collar-books-logo.jpg'),
@@ -58,10 +70,16 @@ export function saveBusinessProfile(updates: Partial<BusinessSettings & { logoMo
     businessName: snapshot.businessName,
     contactName: snapshot.contactName,
     address: snapshot.address,
+    street: snapshot.street,
+    city: snapshot.city,
+    state: snapshot.state,
+    zip: snapshot.zip,
     phone: snapshot.phone,
     email: snapshot.email,
     website: snapshot.website,
     defaultPaymentTerms: snapshot.defaultPaymentTerms,
+    invoiceNotes: snapshot.invoiceNotes,
+    paymentInstructions: snapshot.paymentInstructions,
     startingInvoiceNumber: snapshot.startingInvoiceNumber,
     logoDataUrl: snapshot.logoDataUrl ?? null,
   };
@@ -70,5 +88,10 @@ export function saveBusinessProfile(updates: Partial<BusinessSettings & { logoMo
   emitChange();
 }
 
-export const startingCashBalance = 7850;
+export function formatBusinessAddress(profile: BusinessSettings) {
+  const cityLine = [profile.city, profile.state, profile.zip].filter(Boolean).join(' ');
+  const structuredAddress = [profile.street, cityLine].filter(Boolean).join('<br />');
+  return structuredAddress || profile.address || '';
+}
 
+export const startingCashBalance = 7850;

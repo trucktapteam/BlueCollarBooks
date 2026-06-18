@@ -112,7 +112,8 @@ function buildInvoiceMailto(invoice: Invoice, customerEmail: string, businessNam
     `Please find invoice #${invoice.invoice} for ${amountDue}.`,
     `Due date: ${dueDate || invoice.invoiceDate}`,
     '',
-    `Thank you for your business. Please let us know if you have any questions.`,
+    `Thank you for your business.`,
+    businessName,
   ];
   const body = encodeURIComponent(bodyLines.join('\n'));
   return `mailto:${encodeURIComponent(customerEmail)}?subject=${encodeURIComponent(subject)}&body=${body}`;

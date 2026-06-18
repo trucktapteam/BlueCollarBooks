@@ -1,8 +1,15 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
+import { useBusinessProfile } from '@/data/mockBusiness';
 import { calculateTotalMonthlyExpenses, type Expense, useExpenses } from '@/data/mockExpenses';
-import { calculateInvoiceTotal, formatInvoiceAmount, useInvoices } from '@/data/mockInvoices';
+import {
+  calculateInvoiceBalance,
+  calculateInvoiceTotal,
+  formatInvoiceAmount,
+  type Invoice,
+  useInvoices,
+} from '@/data/mockInvoices';
 
 type ExpenseCategoryTotal = {
   category: string;
@@ -20,7 +27,46 @@ function groupExpensesByCategory(expenses: Expense[]): ExpenseCategoryTotal[] {
     .sort((first, second) => second.amount - first.amount);
 }
 
+function escapeCsvValue(value: string | number | undefined) {
+  const stringValue = value === undefined ? '' : String(value);
+  return `"${stringValue.replace(/"/g, '""')}"`;
+}
+
+function buildCsv(rows: Array<Array<string | number | undefined>>) {
+  return rows.map((row) => row.map(escapeCsvValue).join(',')).join('\n');
+}
+
+function downloadCsv(filename: string, rows: Array<Array<string | number | undefined>>) {
+  if (Platform.OS !== 'web' || typeof document === 'undefined') {
+    return;
+  }
+
+  const blob = new Blob([buildCsv(rows)], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function buildInvoiceDueDate(invoice: Invoice) {
+  const parsedDate = Date.parse(invoice.invoiceDate);
+  if (!Number.isFinite(parsedDate)) {
+    return '';
+  }
+
+  const dueDate = new Date(parsedDate);
+  const match = (invoice.terms ?? '').match(/(\d+)/);
+  const days = match ? Number(match[1]) : 0;
+  dueDate.setDate(dueDate.getDate() + days);
+  return dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 export default function ReportsScreen() {
+  const profile = useBusinessProfile();
   const invoices = useInvoices();
   const expenses = useExpenses();
   const currentYear = new Date().getFullYear();
@@ -28,6 +74,52 @@ export default function ReportsScreen() {
   const totalExpenses = calculateTotalMonthlyExpenses(expenses);
   const netProfit = income - totalExpenses;
   const expensesByCategory = groupExpensesByCategory(expenses);
+
+  function exportProfitAndLossCsv() {
+    downloadCsv(`profit-and-loss-${currentYear}.csv`, [
+      ['section', 'label', 'amount'],
+      ['Income', 'Invoice income', income],
+      ...expensesByCategory.map((expense) => ['Expenses', expense.category, expense.amount]),
+      ['Expenses', 'Total expenses', totalExpenses],
+      ['Net Profit', 'Income minus expenses', netProfit],
+    ]);
+  }
+
+  function exportExpensesCsv() {
+    downloadCsv('expenses.csv', [
+      ['date', 'vendor', 'category', 'amount', 'notes'],
+      ...expenses.map((expense) => [expense.date, expense.vendor, expense.category, expense.amount, expense.notes]),
+    ]);
+  }
+
+  function exportInvoicesCsv() {
+    downloadCsv('invoices.csv', [
+      ['invoice number', 'customer', 'status', 'invoice date', 'due date', 'total', 'balance'],
+      ...invoices.map((invoice) => [
+        invoice.invoice,
+        invoice.customer,
+        invoice.status,
+        invoice.invoiceDate,
+        buildInvoiceDueDate(invoice),
+        invoice.amount,
+        formatInvoiceAmount(calculateInvoiceBalance(invoice)),
+      ]),
+    ]);
+  }
+
+  function exportPaymentsCsv() {
+    const paymentRows = invoices.flatMap((invoice) =>
+      (invoice.payments ?? []).map((payment) => [
+        payment.date,
+        invoice.customer,
+        invoice.invoice,
+        payment.amount,
+        payment.notes ?? '',
+      ])
+    );
+
+    downloadCsv('payments.csv', [['date received', 'customer', 'invoice number', 'amount', 'notes'], ...paymentRows]);
+  }
 
   return (
     <AppShell activeNav="Reports">
@@ -37,15 +129,26 @@ export default function ReportsScreen() {
           <Text style={styles.heading}>Profit & Loss</Text>
         </View>
 
-        <Pressable style={styles.exportButton}>
-          <Text style={styles.exportButtonText}>Export P&L PDF</Text>
-        </Pressable>
+        <View style={styles.exportGrid}>
+          <Pressable style={styles.exportButton} onPress={exportProfitAndLossCsv}>
+            <Text style={styles.exportButtonText}>Export P&L CSV</Text>
+          </Pressable>
+          <Pressable style={styles.exportButtonSecondary} onPress={exportExpensesCsv}>
+            <Text style={styles.exportButtonSecondaryText}>Export Expenses CSV</Text>
+          </Pressable>
+          <Pressable style={styles.exportButtonSecondary} onPress={exportInvoicesCsv}>
+            <Text style={styles.exportButtonSecondaryText}>Export Invoices CSV</Text>
+          </Pressable>
+          <Pressable style={styles.exportButtonSecondary} onPress={exportPaymentsCsv}>
+            <Text style={styles.exportButtonSecondaryText}>Export Payments CSV</Text>
+          </Pressable>
+        </View>
       </View>
 
       <View style={styles.heroCard}>
         <Text style={styles.heroLabel}>Current Year P&L</Text>
         <Text style={styles.heroValue}>{currentYear}</Text>
-        <Text style={styles.heroCopy}>For the tax guy, without the shoebox math.</Text>
+        <Text style={styles.heroCopy}>{profile.businessName}</Text>
       </View>
 
       <View style={styles.reportCard}>
@@ -118,9 +221,29 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 24,
   },
+  exportGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    justifyContent: 'flex-end',
+    maxWidth: 560,
+  },
   exportButtonText: {
     color: '#111111',
     fontSize: 16,
+    fontWeight: '900',
+  },
+  exportButtonSecondary: {
+    backgroundColor: '#252525',
+    borderColor: '#343434',
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+  },
+  exportButtonSecondaryText: {
+    color: '#d4d4d4',
+    fontSize: 15,
     fontWeight: '900',
   },
   heroCard: {
