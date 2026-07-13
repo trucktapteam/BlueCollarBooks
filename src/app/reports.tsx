@@ -2,11 +2,12 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { useBusinessProfile } from '@/data/mockBusiness';
-import { calculateTotalMonthlyExpenses, type Expense, useExpenses } from '@/data/mockExpenses';
+import { type Expense, useExpenses } from '@/data/mockExpenses';
 import {
   calculateInvoiceBalance,
   calculateInvoiceTotal,
   formatInvoiceAmount,
+  isSameYear,
   type Invoice,
   useInvoices,
 } from '@/data/mockInvoices';
@@ -69,11 +70,14 @@ export default function ReportsScreen() {
   const profile = useBusinessProfile();
   const invoices = useInvoices();
   const expenses = useExpenses();
-  const currentYear = new Date().getFullYear();
-  const income = calculateInvoiceTotal(invoices);
-  const totalExpenses = calculateTotalMonthlyExpenses(expenses);
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const invoicesThisYear = invoices.filter((invoice) => isSameYear(invoice.invoiceDate, now));
+  const expensesThisYear = expenses.filter((expense) => isSameYear(expense.date, now));
+  const income = calculateInvoiceTotal(invoicesThisYear);
+  const totalExpenses = expensesThisYear.reduce((total, expense) => total + expense.amount, 0);
   const netProfit = income - totalExpenses;
-  const expensesByCategory = groupExpensesByCategory(expenses);
+  const expensesByCategory = groupExpensesByCategory(expensesThisYear);
 
   function exportProfitAndLossCsv() {
     downloadCsv(`profit-and-loss-${currentYear}.csv`, [

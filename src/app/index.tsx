@@ -14,6 +14,7 @@ import {
   calculateWaitingToBePaidTotal,
   formatInvoiceAmount,
   isInvoiceWaitingToBePaid,
+  isSameMonth,
   useInvoices,
 } from '@/data/mockInvoices';
 
@@ -40,8 +41,10 @@ export default function HomeScreen() {
   const overdueInvoiceCount = overdueInvoices.length;
   const missingPaperworkCount = invoices.filter((invoice) => (invoice.attachments ?? []).length === 0).length;
   const totalOverdueAmount = overdueInvoices.reduce((sum, inv) => sum + calculateInvoiceBalance(inv), 0);
-  const moneyIn = calculateInvoiceTotal(invoices);
-  const moneyOut = calculateTotalMonthlyExpenses(expenses);
+  const now = new Date();
+  const invoicesThisMonth = invoices.filter((invoice) => isSameMonth(invoice.invoiceDate, now));
+  const moneyIn = calculateInvoiceTotal(invoicesThisMonth);
+  const moneyOut = calculateTotalMonthlyExpenses(expenses, now);
   const profitThisMonth = moneyIn - moneyOut;
   const paidThisMonth = calculatePaidInvoiceTotal(invoices);
   const cashAvailable = startingCashBalance + paidThisMonth - moneyOut;
