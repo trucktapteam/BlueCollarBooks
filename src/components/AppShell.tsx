@@ -2,19 +2,20 @@ import { useBusinessProfile } from '@/data/mockBusiness';
 import { router } from 'expo-router';
 import type { ReactNode } from 'react';
 import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { BrandColors } from '@/constants/theme';
 const defaultLogo = require('@/assets/images/blue-collar-books-logo.jpg');
 
 type AppRoute = '/' | '/invoices' | '/payments' | '/expenses' | '/customers' | '/reports' | '/settings';
 type ActiveNav = 'Dashboard' | 'Invoices' | 'Payments' | 'Expenses' | 'Customers' | 'Reports' | 'Settings';
 
-const navItems: { label: string; route?: AppRoute }[] = [
-  { label: 'Dashboard', route: '/' },
-  { label: 'Invoices', route: '/invoices' },
-  { label: 'Payments', route: '/payments' },
-  { label: 'Expenses', route: '/expenses' },
-  { label: 'Customers', route: '/customers' },
-  { label: 'Reports', route: '/reports' },
-  { label: 'Settings', route: '/settings' },
+const navItems: { label: string; icon: string; route?: AppRoute }[] = [
+  { label: 'Dashboard', icon: '💵', route: '/' },
+  { label: 'Invoices', icon: '📄', route: '/invoices' },
+  { label: 'Payments', icon: '✔', route: '/payments' },
+  { label: 'Expenses', icon: '🧾', route: '/expenses' },
+  { label: 'Customers', icon: '👤', route: '/customers' },
+  { label: 'Reports', icon: '📈', route: '/reports' },
+  { label: 'Settings', icon: '⚙', route: '/settings' },
 ];
 
 export function AppShell({ activeNav, children }: { activeNav: ActiveNav; children: ReactNode }) {
@@ -46,7 +47,7 @@ export function AppShell({ activeNav, children }: { activeNav: ActiveNav; childr
                     }}
                     style={[styles.navItem, isActive && styles.navItemActive]}
                   >
-                    <View style={[styles.navDot, isActive && styles.navDotActive]} />
+                    <Text style={[styles.navIcon, isActive && styles.navIconActive]}>{item.icon}</Text>
                     <Text style={[styles.navText, isActive && styles.navTextActive]}>{item.label}</Text>
                   </Pressable>
                 );
@@ -66,17 +67,17 @@ export function AppShell({ activeNav, children }: { activeNav: ActiveNav; childr
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: BrandColors.background,
   },
   appShell: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: BrandColors.background,
     flexDirection: 'row',
   },
   sidebar: {
     width: 280,
-    backgroundColor: '#181818',
-    borderRightColor: '#2f2f2f',
+    backgroundColor: '#151515',
+    borderRightColor: BrandColors.borderSubtle,
     borderRightWidth: 1,
     paddingHorizontal: 24,
     paddingVertical: 32,
@@ -85,8 +86,8 @@ const styles = StyleSheet.create({
   sidebarLogoCard: {
     alignItems: 'center',
     backgroundColor: '#ffffff',
-    borderColor: 'rgba(249, 115, 22, 0.36)',
-    borderRadius: 12,
+    borderColor: BrandColors.orangeBorder,
+    borderRadius: 18,
     borderWidth: 1,
     height: 78,
     justifyContent: 'center',
@@ -104,7 +105,7 @@ const styles = StyleSheet.create({
   navItem: {
     alignItems: 'center',
     borderColor: 'transparent',
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
     flexDirection: 'row',
     gap: 12,
@@ -112,25 +113,28 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   navItemActive: {
-    backgroundColor: '#242424',
-    borderColor: '#343434',
+    backgroundColor: BrandColors.cardRaised,
+    borderColor: BrandColors.orangeBorder,
+    shadowColor: BrandColors.orange,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
   },
-  navDot: {
-    backgroundColor: '#404040',
-    borderRadius: 4,
-    height: 8,
-    width: 8,
+  navIcon: {
+    color: BrandColors.muted,
+    fontSize: 18,
+    width: 24,
   },
-  navDotActive: {
-    backgroundColor: '#f97316',
+  navIconActive: {
+    color: BrandColors.orange,
   },
   navText: {
-    color: '#a3a3a3',
+    color: BrandColors.label,
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   navTextActive: {
-    color: '#ffffff',
+    color: BrandColors.white,
   },
   scrollContent: {
     flexGrow: 1,

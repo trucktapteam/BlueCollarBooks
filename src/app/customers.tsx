@@ -94,7 +94,7 @@ export default function CustomersScreen() {
         </View>
 
         <Pressable style={styles.newCustomerButton} onPress={() => router.push('/new-customer')}>
-          <Text style={styles.newCustomerText}>+ New Customer</Text>
+          <Text style={styles.newCustomerText}>+ Add Customer</Text>
         </Pressable>
       </View>
 
@@ -119,10 +119,10 @@ export default function CustomersScreen() {
       <View style={styles.customerCard}>
         <View style={styles.tableHeader}>
           <Text style={[styles.tableHeaderText, styles.customerColumn]}>Customer</Text>
-          <Text style={[styles.tableHeaderText, styles.revenueColumn]}>Total Revenue</Text>
+          <Text style={[styles.tableHeaderText, styles.revenueColumn]}>Money Made</Text>
           <Text style={[styles.tableHeaderText, styles.waitingColumn]}>Waiting To Be Paid</Text>
-          <Text style={[styles.tableHeaderText, styles.countColumn]}>Invoices</Text>
-          <Text style={[styles.tableHeaderText, styles.dateColumn]}>Last Invoice</Text>
+          <Text style={[styles.tableHeaderText, styles.countColumn]}>Jobs</Text>
+          <Text style={[styles.tableHeaderText, styles.dateColumn]}>Last Bill</Text>
         </View>
 
         <View style={styles.customerList}>
@@ -153,12 +153,12 @@ export default function CustomersScreen() {
         <View style={styles.detailCard}>
           <View style={styles.detailHeader}>
             <View>
-              <Text style={styles.detailEyebrow}>Customer Detail</Text>
+              <Text style={styles.detailEyebrow}>Customer</Text>
               <Text style={styles.detailTitle}>{selectedCustomer.name}</Text>
             </View>
 
             <View style={styles.detailTotals}>
-              <Text style={styles.detailTotalLabel}>Waiting</Text>
+              <Text style={styles.detailTotalLabel}>Owes You</Text>
               <Text style={styles.detailTotalValue}>{selectedCustomer.waitingToBePaid}</Text>
             </View>
           </View>
@@ -175,14 +175,14 @@ export default function CustomersScreen() {
               style={styles.secondaryActionButton}
               onPress={() => router.push(`/new-invoice?customer=${encodeURIComponent(selectedCustomer.name)}`)}
             >
-              <Text style={styles.secondaryActionButtonText}>Create Invoice</Text>
+              <Text style={styles.secondaryActionButtonText}>Make Invoice</Text>
             </Pressable>
 
             <Pressable
               style={styles.secondaryActionButton}
               onPress={() => setIsPaymentModalVisible(true)}
             >
-              <Text style={styles.secondaryActionButtonText}>Receive Payment</Text>
+              <Text style={styles.secondaryActionButtonText}>Record Payment</Text>
             </Pressable>
           </View>
 
@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   eyebrow: {
-    color: '#f97316',
+    color: '#ff7a00',
     fontSize: 15,
     fontWeight: '800',
     marginBottom: 8,
@@ -282,11 +282,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0,
   },
   newCustomerButton: {
-    backgroundColor: '#f97316',
+    backgroundColor: '#ff7a00',
     borderRadius: 16,
     paddingHorizontal: 22,
     paddingVertical: 14,
-    shadowColor: '#f97316',
+    shadowColor: '#ff7a00',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.2,
     shadowRadius: 24,
@@ -340,7 +340,7 @@ const styles = StyleSheet.create({
   },
   filterChipActive: { backgroundColor: 'rgba(249,115,22,0.14)', borderColor: 'rgba(249,115,22,0.4)' },
   filterChipText: { color: '#d4d4d4', fontWeight: '800' },
-  filterChipTextActive: { color: '#f97316' },
+  filterChipTextActive: { color: '#ff7a00' },
   customerRow: {
     alignItems: 'center',
     backgroundColor: '#252525',
@@ -353,7 +353,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   customerRowActive: {
-    borderColor: 'rgba(249, 115, 22, 0.52)',
+    borderColor: 'rgba(255, 122, 0, 0.52)',
   },
   customerColumn: {
     flex: 1.7,
@@ -409,7 +409,7 @@ const styles = StyleSheet.create({
     paddingBottom: 18,
   },
   detailEyebrow: {
-    color: '#f97316',
+    color: '#ff7a00',
     fontSize: 13,
     fontWeight: '900',
     marginBottom: 6,
@@ -429,11 +429,11 @@ const styles = StyleSheet.create({
     marginTop: 18,
   },
   primaryActionButton: {
-    backgroundColor: '#f97316',
+    backgroundColor: '#ff7a00',
     borderRadius: 16,
     paddingHorizontal: 20,
     paddingVertical: 14,
-    shadowColor: '#f97316',
+    shadowColor: '#ff7a00',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.2,
     shadowRadius: 24,
@@ -540,15 +540,15 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   statusPill: {
-    backgroundColor: 'rgba(249, 115, 22, 0.12)',
-    borderColor: 'rgba(249, 115, 22, 0.42)',
+    backgroundColor: 'rgba(255, 122, 0, 0.12)',
+    borderColor: 'rgba(255, 122, 0, 0.42)',
     borderRadius: 999,
     borderWidth: 1,
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
   statusText: {
-    color: '#f97316',
+    color: '#ff7a00',
     fontSize: 13,
     fontWeight: '900',
   },
@@ -561,15 +561,15 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   markPaidButton: {
-    backgroundColor: 'rgba(34, 197, 94, 0.12)',
-    borderColor: 'rgba(34, 197, 94, 0.36)',
+    backgroundColor: 'rgba(67, 160, 71, 0.12)',
+    borderColor: 'rgba(67, 160, 71, 0.36)',
     borderRadius: 12,
     borderWidth: 1,
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
   markPaidButtonText: {
-    color: '#86efac',
+    color: '#7fd884',
     fontSize: 13,
     fontWeight: '900',
   },

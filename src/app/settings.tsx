@@ -350,7 +350,7 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   eyebrow: {
-    color: '#f97316',
+    color: '#ff7a00',
     fontSize: 15,
     fontWeight: '800',
     marginBottom: 8,
@@ -439,7 +439,7 @@ const styles = StyleSheet.create({
   logoPreviewCard: {
     alignItems: 'center',
     backgroundColor: '#ffffff',
-    borderColor: 'rgba(249, 115, 22, 0.36)',
+    borderColor: 'rgba(255, 122, 0, 0.36)',
     borderRadius: 14,
     borderWidth: 1,
     height: 120,
@@ -472,8 +472,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   termChipActive: {
-    backgroundColor: 'rgba(249, 115, 22, 0.14)',
-    borderColor: 'rgba(249, 115, 22, 0.45)',
+    backgroundColor: 'rgba(255, 122, 0, 0.14)',
+    borderColor: 'rgba(255, 122, 0, 0.45)',
   },
   termChipText: {
     color: '#d4d4d4',
@@ -481,7 +481,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   termChipTextActive: {
-    color: '#f97316',
+    color: '#ff7a00',
   },
   singleFieldSpacing: {
     marginTop: 4,
@@ -516,7 +516,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   primaryButton: {
-    backgroundColor: '#f97316',
+    backgroundColor: '#ff7a00',
     borderRadius: 14,
     paddingHorizontal: 20,
     paddingVertical: 13,
@@ -564,7 +564,7 @@ const styles = StyleSheet.create({
     top: 20,
     left: '50%',
     marginLeft: -60,
-    backgroundColor: '#22c55e',
+    backgroundColor: '#43a047',
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,

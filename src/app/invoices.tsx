@@ -164,7 +164,7 @@ export default function InvoicesScreen() {
         </View>
 
         <Pressable style={styles.newInvoiceButton} onPress={() => router.push('/new-invoice')}>
-          <Text style={styles.newInvoiceText}>+ New Invoice</Text>
+          <Text style={styles.newInvoiceText}>+ Make Invoice</Text>
         </Pressable>
       </View>
       <View style={styles.searchRow}>
@@ -195,9 +195,9 @@ export default function InvoicesScreen() {
           <Text style={[styles.tableHeaderText, styles.customerColumn]}>Customer</Text>
           <Text style={[styles.tableHeaderText, styles.amountColumn]}>Amount</Text>
           <Text style={[styles.tableHeaderText, styles.statusColumn]}>Status</Text>
-          <Text style={[styles.tableHeaderText, styles.dateColumn]}>Invoice Date</Text>
+          <Text style={[styles.tableHeaderText, styles.dateColumn]}>Date Sent</Text>
           <Text style={[styles.tableHeaderText, styles.dateColumn]}>Due Date</Text>
-          <Text style={[styles.tableHeaderText, styles.actionColumn]}>Action</Text>
+          <Text style={[styles.tableHeaderText, styles.actionColumn]}>Tools</Text>
         </View>
 
         <View style={styles.invoiceList}>
@@ -249,7 +249,7 @@ export default function InvoicesScreen() {
                     </Pressable>
                     {balance > 0 && (
                       <Pressable style={styles.receivePaymentButton} onPress={() => setPaymentInvoiceNumber(invoice.invoice)}>
-                        <Text style={styles.receivePaymentButtonText}>Receive Payment</Text>
+                        <Text style={styles.receivePaymentButtonText}>Record Payment</Text>
                       </Pressable>
                     )}
                     {balance <= 0 && <Text style={styles.paidActionText}>Paid</Text>}
@@ -259,7 +259,7 @@ export default function InvoicesScreen() {
                 <View style={styles.attachmentSection}>
                   <View style={styles.attachmentHeader}>
                     <View>
-                      <Text style={styles.attachmentTitle}>Attachments</Text>
+                      <Text style={styles.attachmentTitle}>📎 Attachments</Text>
                       <Text style={styles.attachmentMeta}>Local file preview is temporary until cloud storage is added.</Text>
                     </View>
 
@@ -341,7 +341,7 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   eyebrow: {
-    color: '#f97316',
+    color: '#ff7a00',
     fontSize: 15,
     fontWeight: '800',
     marginBottom: 8,
@@ -353,11 +353,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0,
   },
   newInvoiceButton: {
-    backgroundColor: '#f97316',
+    backgroundColor: '#ff7a00',
     borderRadius: 16,
     paddingHorizontal: 22,
     paddingVertical: 14,
-    shadowColor: '#f97316',
+    shadowColor: '#ff7a00',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.2,
     shadowRadius: 24,
@@ -411,7 +411,7 @@ const styles = StyleSheet.create({
   },
   filterChipActive: { backgroundColor: 'rgba(249,115,22,0.14)', borderColor: 'rgba(249,115,22,0.4)' },
   filterChipText: { color: '#d4d4d4', fontWeight: '800' },
-  filterChipTextActive: { color: '#f97316' },
+  filterChipTextActive: { color: '#ff7a00' },
   invoiceItem: {
     gap: 10,
   },
@@ -475,12 +475,12 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(59, 130, 246, 0.42)',
   },
   statusPillPaid: {
-    backgroundColor: 'rgba(34, 197, 94, 0.12)',
-    borderColor: 'rgba(34, 197, 94, 0.36)',
+    backgroundColor: 'rgba(67, 160, 71, 0.12)',
+    borderColor: 'rgba(67, 160, 71, 0.36)',
   },
   statusPillOverdue: {
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    borderColor: 'rgba(239, 68, 68, 0.42)',
+    backgroundColor: 'rgba(198, 40, 40, 0.12)',
+    borderColor: 'rgba(198, 40, 40, 0.42)',
   },
   statusPillDueToday: {
     backgroundColor: 'rgba(250, 204, 21, 0.12)',
@@ -500,15 +500,15 @@ const styles = StyleSheet.create({
     color: '#93c5fd',
   },
   statusTextPaid: {
-    color: '#86efac',
+    color: '#7fd884',
   },
   statusTextOverdue: {
-    color: '#fca5a5',
+    color: '#e57373',
   },
   receivePaymentButton: {
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(249, 115, 22, 0.12)',
-    borderColor: 'rgba(249, 115, 22, 0.36)',
+    backgroundColor: 'rgba(255, 122, 0, 0.12)',
+    borderColor: 'rgba(255, 122, 0, 0.36)',
     borderRadius: 12,
     borderWidth: 1,
     marginBottom: 8,
@@ -516,7 +516,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   receivePaymentButtonText: {
-    color: '#fdba74',
+    color: '#ffb15c',
     fontSize: 13,
     fontWeight: '900',
   },
@@ -610,7 +610,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   attachmentNeedsText: {
-    color: '#f97316',
+    color: '#ff7a00',
     fontSize: 12,
     fontWeight: '900',
   },
@@ -620,15 +620,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   attachFileButton: {
-    backgroundColor: 'rgba(249, 115, 22, 0.12)',
-    borderColor: 'rgba(249, 115, 22, 0.36)',
+    backgroundColor: 'rgba(255, 122, 0, 0.12)',
+    borderColor: 'rgba(255, 122, 0, 0.36)',
     borderRadius: 12,
     borderWidth: 1,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   attachFileButtonText: {
-    color: '#fdba74',
+    color: '#ffb15c',
     fontSize: 13,
     fontWeight: '900',
   },

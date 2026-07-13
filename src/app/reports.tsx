@@ -82,10 +82,10 @@ export default function ReportsScreen() {
   function exportProfitAndLossCsv() {
     downloadCsv(`profit-and-loss-${currentYear}.csv`, [
       ['section', 'label', 'amount'],
-      ['Income', 'Invoice income', income],
-      ...expensesByCategory.map((expense) => ['Expenses', expense.category, expense.amount]),
-      ['Expenses', 'Total expenses', totalExpenses],
-      ['Net Profit', 'Income minus expenses', netProfit],
+      ['Money In', 'Invoice money', income],
+      ...expensesByCategory.map((expense) => ['Money Out', expense.category, expense.amount]),
+      ['Money Out', 'Total money out', totalExpenses],
+      ['Profit', 'Money in minus money out', netProfit],
     ]);
   }
 
@@ -130,12 +130,12 @@ export default function ReportsScreen() {
       <View style={styles.pageHeader}>
         <View>
           <Text style={styles.eyebrow}>Reports</Text>
-          <Text style={styles.heading}>Profit & Loss</Text>
+          <Text style={styles.heading}>Money Report</Text>
         </View>
 
         <View style={styles.exportGrid}>
           <Pressable style={styles.exportButton} onPress={exportProfitAndLossCsv}>
-            <Text style={styles.exportButtonText}>Export P&L CSV</Text>
+            <Text style={styles.exportButtonText}>Export Money CSV</Text>
           </Pressable>
           <Pressable style={styles.exportButtonSecondary} onPress={exportExpensesCsv}>
             <Text style={styles.exportButtonSecondaryText}>Export Expenses CSV</Text>
@@ -150,26 +150,26 @@ export default function ReportsScreen() {
       </View>
 
       <View style={styles.heroCard}>
-        <Text style={styles.heroLabel}>Current Year P&L</Text>
+        <Text style={styles.heroLabel}>📈 This Year</Text>
         <Text style={styles.heroValue}>{currentYear}</Text>
         <Text style={styles.heroCopy}>{profile.businessName}</Text>
       </View>
 
       <View style={styles.reportCard}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Income</Text>
+          <Text style={styles.sectionTitle}>💵 Money In</Text>
           <Text style={styles.sectionTotal}>{formatInvoiceAmount(income)}</Text>
         </View>
 
         <View style={styles.reportRow}>
-          <Text style={styles.reportLabel}>Invoice income</Text>
+          <Text style={styles.reportLabel}>Invoice money</Text>
           <Text style={styles.reportAmount}>{formatInvoiceAmount(income)}</Text>
         </View>
       </View>
 
       <View style={styles.reportCard}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Expenses by category</Text>
+          <Text style={styles.sectionTitle}>🧾 Money Out By Type</Text>
           <Text style={styles.sectionTotal}>{formatInvoiceAmount(totalExpenses)}</Text>
         </View>
 
@@ -185,8 +185,8 @@ export default function ReportsScreen() {
 
       <View style={styles.netProfitCard}>
         <View>
-          <Text style={styles.netProfitLabel}>Net Profit</Text>
-          <Text style={styles.netProfitSubtext}>Income minus expenses for {currentYear}</Text>
+          <Text style={styles.netProfitLabel}>Profit</Text>
+          <Text style={styles.netProfitSubtext}>Money in minus money out for {currentYear}</Text>
         </View>
 
         <Text style={styles.netProfitValue}>{formatInvoiceAmount(netProfit)}</Text>
@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   eyebrow: {
-    color: '#f97316',
+    color: '#ff7a00',
     fontSize: 15,
     fontWeight: '800',
     marginBottom: 8,
@@ -216,11 +216,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0,
   },
   exportButton: {
-    backgroundColor: '#f97316',
+    backgroundColor: '#ff7a00',
     borderRadius: 16,
     paddingHorizontal: 22,
     paddingVertical: 14,
-    shadowColor: '#f97316',
+    shadowColor: '#ff7a00',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.2,
     shadowRadius: 24,
@@ -252,12 +252,12 @@ const styles = StyleSheet.create({
   },
   heroCard: {
     backgroundColor: '#202020',
-    borderColor: 'rgba(249, 115, 22, 0.42)',
+    borderColor: 'rgba(255, 122, 0, 0.42)',
     borderRadius: 22,
     borderWidth: 1,
     marginBottom: 24,
     padding: 28,
-    shadowColor: '#f97316',
+    shadowColor: '#ff7a00',
     shadowOffset: { width: 0, height: 14 },
     shadowOpacity: 0.12,
     shadowRadius: 26,
@@ -274,7 +274,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   heroCopy: {
-    color: '#f97316',
+    color: '#ff7a00',
     fontSize: 16,
     fontWeight: '800',
     marginTop: 8,
@@ -302,7 +302,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   sectionTotal: {
-    color: '#f97316',
+    color: '#ff7a00',
     fontSize: 20,
     fontWeight: '900',
   },
@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
   netProfitCard: {
     alignItems: 'center',
     backgroundColor: '#202020',
-    borderColor: 'rgba(249, 115, 22, 0.42)',
+    borderColor: 'rgba(255, 122, 0, 0.42)',
     borderRadius: 22,
     borderWidth: 1,
     flexDirection: 'row',

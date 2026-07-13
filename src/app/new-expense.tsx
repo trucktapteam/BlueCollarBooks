@@ -108,11 +108,11 @@ export default function NewExpenseScreen() {
       <View style={styles.pageHeader}>
         <View>
           <Text style={styles.eyebrow}>Expenses</Text>
-          <Text style={styles.heading}>Add Expense</Text>
+          <Text style={styles.heading}>{originalId ? 'Edit Money Out' : 'Add Money Out'}</Text>
         </View>
 
         <Pressable style={styles.cancelTopButton} onPress={() => router.push('/expenses')}>
-          <Text style={styles.cancelTopButtonText}>Cancel</Text>
+          <Text style={styles.cancelTopButtonText}>Back to Expenses</Text>
         </Pressable>
       </View>
 
@@ -124,7 +124,7 @@ export default function NewExpenseScreen() {
         </View>
 
         <View style={styles.categorySection}>
-          <Text style={styles.fieldLabel}>Category</Text>
+          <Text style={styles.fieldLabel}>Type</Text>
           <View style={styles.categoryGrid}>
             {expenseCategories.map((categoryName) => {
               const isActive = categoryName === category;
@@ -161,8 +161,8 @@ export default function NewExpenseScreen() {
 
         <View style={[styles.bottomActionBar, Platform.OS === 'web' && styles.bottomActionBarSticky]}>
           <View>
-            <Text style={styles.actionLabel}>Expense draft ready.</Text>
-            <Text style={styles.actionSubtext}>Mock-only form. No backend storage yet.</Text>
+            <Text style={styles.actionLabel}>Money out ready.</Text>
+            <Text style={styles.actionSubtext}>Saved locally for your dashboard and reports.</Text>
           </View>
 
           <View style={styles.actionRow}>
@@ -175,7 +175,7 @@ export default function NewExpenseScreen() {
             </Pressable>
 
             <Pressable style={styles.secondaryButton} onPress={handleSaveAndClose}>
-              <Text style={styles.secondaryButtonText}>Save & Close</Text>
+              <Text style={styles.secondaryButtonText}>Save & Go Back</Text>
             </Pressable>
           </View>
         </View>
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   eyebrow: {
-    color: '#f97316',
+    color: '#ff7a00',
     fontSize: 15,
     fontWeight: '800',
     marginBottom: 8,
@@ -301,8 +301,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   categoryChipActive: {
-    backgroundColor: 'rgba(249, 115, 22, 0.14)',
-    borderColor: 'rgba(249, 115, 22, 0.45)',
+    backgroundColor: 'rgba(255, 122, 0, 0.14)',
+    borderColor: 'rgba(255, 122, 0, 0.45)',
   },
   categoryChipText: {
     color: '#d4d4d4',
@@ -310,15 +310,15 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   categoryChipTextActive: {
-    color: '#f97316',
+    color: '#ff7a00',
   },
   notesSection: {
     marginTop: 18,
   },
   receiptCard: {
     alignItems: 'center',
-    backgroundColor: 'rgba(249, 115, 22, 0.08)',
-    borderColor: 'rgba(249, 115, 22, 0.32)',
+    backgroundColor: 'rgba(255, 122, 0, 0.08)',
+    borderColor: 'rgba(255, 122, 0, 0.32)',
     borderRadius: 18,
     borderStyle: 'dashed',
     borderWidth: 1,
@@ -329,14 +329,14 @@ const styles = StyleSheet.create({
   },
   receiptIcon: {
     alignItems: 'center',
-    backgroundColor: 'rgba(249, 115, 22, 0.16)',
+    backgroundColor: 'rgba(255, 122, 0, 0.16)',
     borderRadius: 16,
     height: 46,
     justifyContent: 'center',
     width: 46,
   },
   receiptIconText: {
-    color: '#f97316',
+    color: '#ff7a00',
     fontSize: 26,
     fontWeight: '900',
     lineHeight: 28,
@@ -404,11 +404,11 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   primaryButton: {
-    backgroundColor: '#f97316',
+    backgroundColor: '#ff7a00',
     borderRadius: 16,
     paddingHorizontal: 22,
     paddingVertical: 14,
-    shadowColor: '#f97316',
+    shadowColor: '#ff7a00',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.2,
     shadowRadius: 24,
@@ -423,7 +423,7 @@ const styles = StyleSheet.create({
     top: 20,
     left: '50%',
     marginLeft: -60,
-    backgroundColor: '#22c55e',
+    backgroundColor: '#43a047',
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,

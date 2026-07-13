@@ -321,27 +321,27 @@ export default function NewInvoiceScreen() {
   const invoiceActionsCard = (
     <View style={[styles.actionsCard, showSideActions && styles.actionsCardSticky]}>
       <View style={styles.actionsCardHeader}>
-        <Text style={styles.actionsCardTitle}>Invoice Actions</Text>
+        <Text style={styles.actionsCardTitle}>Get Paid Tools</Text>
         <Text style={styles.actionsCardMeta}>Total {invoiceTotal}</Text>
       </View>
 
       <View style={styles.actionGroup}>
-        <Text style={styles.actionGroupLabel}>Primary</Text>
+        <Text style={styles.actionGroupLabel}>Save Work</Text>
         <Pressable style={[styles.primaryButton, styles.panelActionButton]} onPress={handleSave}>
           <Text style={styles.primaryButtonText}>Save</Text>
         </Pressable>
         <Pressable style={[styles.primaryButton, styles.panelActionButton]} onPress={handleSaveAndClose}>
-          <Text style={styles.primaryButtonText}>Save & Close</Text>
+          <Text style={styles.primaryButtonText}>Save & Go Back</Text>
         </Pressable>
       </View>
 
       <View style={styles.actionGroup}>
-        <Text style={styles.actionGroupLabel}>Secondary</Text>
+        <Text style={styles.actionGroupLabel}>Send / Print</Text>
         <Pressable style={[styles.previewButton, styles.panelActionButton]} onPress={previewPdf}>
-          <Text style={styles.previewButtonText}>Preview PDF</Text>
+          <Text style={styles.previewButtonText}>Preview Invoice</Text>
         </Pressable>
         <Pressable style={[styles.previewButton, styles.panelActionButton]} onPress={downloadPdf}>
-          <Text style={styles.previewButtonText}>Download PDF</Text>
+          <Text style={styles.previewButtonText}>Download Invoice</Text>
         </Pressable>
         <Pressable
           disabled={!selectedCustomer?.email}
@@ -349,11 +349,11 @@ export default function NewInvoiceScreen() {
           onPress={emailInvoice}
         >
           <Text style={[styles.emailButtonText, !selectedCustomer?.email && styles.emailButtonTextDisabled]}>
-            {selectedCustomer?.email ? 'Email Invoice' : 'Add customer email to send'}
+            {selectedCustomer?.email ? 'Email Invoice' : 'Add customer email first'}
           </Text>
         </Pressable>
         <Pressable style={[styles.secondaryButton, styles.panelActionButton]} onPress={printPdf}>
-          <Text style={styles.secondaryButtonText}>Print Invoice</Text>
+          <Text style={styles.secondaryButtonText}>Print</Text>
         </Pressable>
       </View>
     </View>
@@ -369,11 +369,11 @@ export default function NewInvoiceScreen() {
       <View style={styles.pageHeader}>
         <View>
           <Text style={styles.eyebrow}>Invoices</Text>
-          <Text style={styles.heading}>{originalInvoiceNumber ? 'Edit Invoice' : 'New Invoice'}</Text>
+          <Text style={styles.heading}>{originalInvoiceNumber ? 'Edit Invoice' : 'Make Invoice'}</Text>
         </View>
 
         <Pressable style={styles.backButton} onPress={() => router.push('/invoices')}>
-          <Text style={styles.backButtonText}>Back to invoices</Text>
+          <Text style={styles.backButtonText}>Back to Invoices</Text>
         </Pressable>
       </View>
 
@@ -391,10 +391,10 @@ export default function NewInvoiceScreen() {
               </View>
 
               <View style={styles.customerSelectorSection}>
-                <Text style={styles.fieldLabel}>Select existing customer</Text>
+                <Text style={styles.fieldLabel}>Saved customer</Text>
                 <Pressable style={styles.customerDropdown} onPress={() => setIsCustomerDropdownOpen((open) => !open)}>
                   <Text style={styles.customerDropdownText}>
-                    {selectedCustomerName || customer || 'Select existing customer or type manually'}
+                    {selectedCustomerName || customer || 'Pick a customer or type one in'}
                   </Text>
                   <Text style={styles.customerDropdownIcon}>{isCustomerDropdownOpen ? '˄' : '˅'}</Text>
                 </Pressable>
@@ -404,7 +404,7 @@ export default function NewInvoiceScreen() {
                     <Pressable style={styles.customerDropdownOption} onPress={handleSelectManualEntry}>
                       <Text style={styles.customerDropdownOptionText}>Manual Entry</Text>
                       <Text style={styles.customerDropdownOptionSubtext}>
-                        Type customer name and address manually.
+                        Type customer name and address yourself.
                       </Text>
                     </Pressable>
 
@@ -450,12 +450,12 @@ export default function NewInvoiceScreen() {
                     )}
                   </View>
                 ) : (
-                  <Text style={styles.selectedCustomerMeta}>Type a customer name manually if they are not saved yet.</Text>
+                  <Text style={styles.selectedCustomerMeta}>Type a customer name if they are not saved yet.</Text>
                 )}
               </View>
 
               <View style={styles.loadInfoCard}>
-                <Text style={styles.sectionTitle}>Load Information</Text>
+                <Text style={styles.sectionTitle}>🚛 Job / Load Info</Text>
 
                 <View style={styles.loadInfoGrid}>
                   <Field label={invoiceLabels.po} value={poNumber} onChangeText={setPoNumber} />
@@ -500,9 +500,9 @@ export default function NewInvoiceScreen() {
               <View style={styles.sectionDivider} />
 
               <View style={styles.lineItemsHeader}>
-                <Text style={styles.sectionTitle}>Line Items</Text>
+                <Text style={styles.sectionTitle}>Work & Charges</Text>
                 <Pressable style={styles.addLineButton} onPress={handleAddLineItem}>
-                  <Text style={styles.addLineButtonText}>+ Add Line Item</Text>
+                  <Text style={styles.addLineButtonText}>+ Add Charge</Text>
                 </Pressable>
               </View>
 
@@ -548,7 +548,7 @@ export default function NewInvoiceScreen() {
               </Pressable>
 
               <View style={styles.totalSection}>
-                <Text style={styles.totalLabel}>Invoice Total</Text>
+                <Text style={styles.totalLabel}>Customer Owes</Text>
                 <Text style={styles.totalValue}>{invoiceTotal}</Text>
               </View>
             </View>
@@ -698,7 +698,7 @@ function buildInvoiceTemplate({
           }
           .top {
             align-items: flex-start;
-            border-bottom: 3px solid #f97316;
+            border-bottom: 3px solid #ff7a00;
             display: flex;
             justify-content: space-between;
             padding-bottom: 24px;
@@ -721,7 +721,7 @@ function buildInvoiceTemplate({
             margin-top: 12px;
           }
           .invoice-title {
-            color: #f97316;
+            color: #ff7a00;
             font-size: 34px;
             font-weight: 900;
             letter-spacing: 1px;
@@ -829,7 +829,7 @@ function buildInvoiceTemplate({
             text-transform: uppercase;
           }
           .total-value {
-            color: #f97316;
+            color: #ff7a00;
             font-size: 24px;
             font-weight: 900;
             margin-top: 3px;
@@ -990,7 +990,7 @@ const styles = StyleSheet.create({
   sidebarLogoCard: {
     alignItems: 'center',
     backgroundColor: '#ffffff',
-    borderColor: 'rgba(249, 115, 22, 0.36)',
+    borderColor: 'rgba(255, 122, 0, 0.36)',
     borderRadius: 12,
     borderWidth: 1,
     height: 78,
@@ -1027,7 +1027,7 @@ const styles = StyleSheet.create({
     width: 8,
   },
   navDotActive: {
-    backgroundColor: '#f97316',
+    backgroundColor: '#ff7a00',
   },
   navText: {
     color: '#a3a3a3',
@@ -1057,7 +1057,7 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   eyebrow: {
-    color: '#f97316',
+    color: '#ff7a00',
     fontSize: 15,
     fontWeight: '800',
     marginBottom: 8,
@@ -1122,7 +1122,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   actionsCardMeta: {
-    color: '#f97316',
+    color: '#ff7a00',
     fontSize: 14,
     fontWeight: '900',
     marginTop: 5,
@@ -1179,8 +1179,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   customerChipActive: {
-    backgroundColor: 'rgba(249, 115, 22, 0.14)',
-    borderColor: 'rgba(249, 115, 22, 0.45)',
+    backgroundColor: 'rgba(255, 122, 0, 0.14)',
+    borderColor: 'rgba(255, 122, 0, 0.45)',
   },
   customerChipText: {
     color: '#d4d4d4',
@@ -1188,7 +1188,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   customerChipTextActive: {
-    color: '#f97316',
+    color: '#ff7a00',
   },
   customerDropdown: {
     alignItems: 'center',
@@ -1228,7 +1228,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   customerDropdownOptionActive: {
-    backgroundColor: 'rgba(249, 115, 22, 0.12)',
+    backgroundColor: 'rgba(255, 122, 0, 0.12)',
   },
   customerDropdownOptionText: {
     color: '#f5f5f5',
@@ -1236,7 +1236,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   customerDropdownOptionTextActive: {
-    color: '#f97316',
+    color: '#ff7a00',
   },
   customerDropdownOptionSubtext: {
     color: '#a3a3a3',
@@ -1295,8 +1295,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   statusChipActive: {
-    backgroundColor: 'rgba(249, 115, 22, 0.14)',
-    borderColor: 'rgba(249, 115, 22, 0.45)',
+    backgroundColor: 'rgba(255, 122, 0, 0.14)',
+    borderColor: 'rgba(255, 122, 0, 0.45)',
   },
   statusChipText: {
     color: '#d4d4d4',
@@ -1304,7 +1304,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   statusChipTextActive: {
-    color: '#f97316',
+    color: '#ff7a00',
   },
   field: {
     flexBasis: '31%',
@@ -1349,15 +1349,15 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   addLineButton: {
-    backgroundColor: 'rgba(249, 115, 22, 0.12)',
-    borderColor: 'rgba(249, 115, 22, 0.42)',
+    backgroundColor: 'rgba(255, 122, 0, 0.12)',
+    borderColor: 'rgba(255, 122, 0, 0.42)',
     borderRadius: 14,
     borderWidth: 1,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
   addLineButtonText: {
-    color: '#f97316',
+    color: '#ff7a00',
     fontSize: 14,
     fontWeight: '900',
   },
@@ -1419,8 +1419,8 @@ const styles = StyleSheet.create({
   },
   attachCard: {
     alignItems: 'center',
-    backgroundColor: 'rgba(249, 115, 22, 0.08)',
-    borderColor: 'rgba(249, 115, 22, 0.32)',
+    backgroundColor: 'rgba(255, 122, 0, 0.08)',
+    borderColor: 'rgba(255, 122, 0, 0.32)',
     borderRadius: 18,
     borderStyle: 'dashed',
     borderWidth: 1,
@@ -1431,14 +1431,14 @@ const styles = StyleSheet.create({
   },
   attachIcon: {
     alignItems: 'center',
-    backgroundColor: 'rgba(249, 115, 22, 0.16)',
+    backgroundColor: 'rgba(255, 122, 0, 0.16)',
     borderRadius: 16,
     height: 46,
     justifyContent: 'center',
     width: 46,
   },
   attachIconText: {
-    color: '#f97316',
+    color: '#ff7a00',
     fontSize: 26,
     fontWeight: '900',
     lineHeight: 28,
@@ -1508,24 +1508,24 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   previewButton: {
-    backgroundColor: 'rgba(249, 115, 22, 0.12)',
-    borderColor: 'rgba(249, 115, 22, 0.42)',
+    backgroundColor: 'rgba(255, 122, 0, 0.12)',
+    borderColor: 'rgba(255, 122, 0, 0.42)',
     borderRadius: 16,
     borderWidth: 1,
     paddingHorizontal: 22,
     paddingVertical: 14,
   },
   previewButtonText: {
-    color: '#f97316',
+    color: '#ff7a00',
     fontSize: 16,
     fontWeight: '900',
   },
   primaryButton: {
-    backgroundColor: '#f97316',
+    backgroundColor: '#ff7a00',
     borderRadius: 16,
     paddingHorizontal: 22,
     paddingVertical: 14,
-    shadowColor: '#f97316',
+    shadowColor: '#ff7a00',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.2,
     shadowRadius: 24,
@@ -1540,7 +1540,7 @@ const styles = StyleSheet.create({
     top: 20,
     left: '50%',
     marginLeft: -60,
-    backgroundColor: '#22c55e',
+    backgroundColor: '#43a047',
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,
