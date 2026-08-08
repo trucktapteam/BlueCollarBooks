@@ -13,6 +13,7 @@ function isSameMonth(dateString: string, comparisonDate: Date) {
 }
 
 type PaymentRow = InvoicePayment & {
+  invoiceId: string;
   invoiceNumber: string;
   customer: string;
 };
@@ -35,6 +36,7 @@ export default function PaymentsScreen() {
     return invoices.flatMap((invoice) =>
       (invoice.payments ?? []).map((payment) => ({
         ...payment,
+        invoiceId: invoice.id,
         invoiceNumber: invoice.invoice,
         customer: invoice.customer,
       }))
@@ -121,7 +123,7 @@ export default function PaymentsScreen() {
               <Pressable
                 key={payment.id}
                 style={styles.paymentRow}
-                onPress={() => router.push(`/new-invoice?invoice=${encodeURIComponent(payment.invoiceNumber)}`)}
+                onPress={() => router.push(`/new-invoice?invoiceId=${encodeURIComponent(payment.invoiceId)}`)}
               >
                 <Text style={[styles.paymentMeta, styles.dateColumn]}>{formatPaymentDate(payment.date)}</Text>
                 <Text style={[styles.paymentText, styles.customerColumn]}>{payment.customer}</Text>

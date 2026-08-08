@@ -6,6 +6,7 @@ import { generateId } from '@/utils/id';
 export type InvoiceStatus = 'Draft' | 'Sent' | 'Due Today' | 'Overdue' | 'Paid';
 
 export type Invoice = {
+  id: string;
   invoice: string;
   customer: string;
   customerId?: string;
@@ -84,6 +85,7 @@ export const invoiceLineItems = [{ description: 'Flatbed Freight', amount: '$625
 
 const initialInvoices: Invoice[] = [
   {
+    id: 'seed-invoice-26031',
     invoice: '26031',
     customer: 'Independent Steel',
     amount: '$625',
@@ -91,6 +93,7 @@ const initialInvoices: Invoice[] = [
     invoiceDate: 'Apr 1, 2026',
   },
   {
+    id: 'seed-invoice-26028',
     invoice: '26028',
     customer: 'Louisville Dryer',
     amount: '$850',
@@ -98,6 +101,7 @@ const initialInvoices: Invoice[] = [
     invoiceDate: 'Mar 18, 2026',
   },
   {
+    id: 'seed-invoice-26027',
     invoice: '26027',
     customer: 'ABC Steel',
     amount: '$275',
@@ -107,7 +111,16 @@ const initialInvoices: Invoice[] = [
 ];
 
 const LOCAL_STORAGE_KEY = 'bluecollarbooks_invoices';
-let invoicesSnapshot = loadPersistedData<Invoice[]>(LOCAL_STORAGE_KEY, initialInvoices).map(sanitizeInvoiceForPersistence);
+
+// Backfills a stable id for any invoice saved before ids existed, so
+// by-id lookups below don't silently fail to find pre-existing invoices.
+function migrateInvoice(invoice: Invoice): Invoice {
+  return invoice.id ? invoice : { ...invoice, id: generateId() };
+}
+
+let invoicesSnapshot = loadPersistedData<Invoice[]>(LOCAL_STORAGE_KEY, initialInvoices)
+  .map(migrateInvoice)
+  .map(sanitizeInvoiceForPersistence);
 const listeners = new Set<() => void>();
 
 function emitChange() {
@@ -225,9 +238,9 @@ export function calculateInvoiceBalance(invoice: Invoice) {
   return Math.max(parseInvoiceAmount(invoice.amount) - calculateInvoicePaymentTotal(invoice), 0);
 }
 
-export function saveInvoice(invoice: Invoice, originalInvoiceNumber?: string) {
-  const lookupInvoiceNumber = originalInvoiceNumber ?? invoice.invoice;
-  const existingInvoiceIndex = invoicesSnapshot.findIndex((item) => item.invoice === lookupInvoiceNumber);
+export function saveInvoice(invoice: Invoice, originalInvoiceId?: string) {
+  const lookupInvoiceId = originalInvoiceId ?? invoice.id;
+  const existingInvoiceIndex = invoicesSnapshot.findIndex((item) => item.id === lookupInvoiceId);
 
   if (existingInvoiceIndex >= 0) {
     const existingInvoice = invoicesSnapshot[existingInvoiceIndex];
@@ -251,8 +264,8 @@ export function saveInvoice(invoice: Invoice, originalInvoiceNumber?: string) {
   emitChange();
 }
 
-export function addInvoiceAttachment(invoiceNumber: string, attachmentInput?: InvoiceAttachmentInput) {
-  const invoice = invoicesSnapshot.find((item) => item.invoice === invoiceNumber);
+export function addInvoiceAttachment(invoiceId: string, attachmentInput?: InvoiceAttachmentInput) {
+  const invoice = invoicesSnapshot.find((item) => item.id === invoiceId);
 
   if (!invoice) {
     return;
@@ -261,7 +274,7 @@ export function addInvoiceAttachment(invoiceNumber: string, attachmentInput?: In
   const attachmentCount = (invoice.attachments ?? []).length + 1;
   const attachment: InvoiceAttachment = {
     id: generateId(),
-    name: attachmentInput?.name || `invoice-${invoiceNumber}-paperwork-${attachmentCount}.pdf`,
+    name: attachmentInput?.name || `invoice-${invoice.invoice}-paperwork-${attachmentCount}.pdf`,
     type: attachmentInput?.type || 'application/pdf',
     dateAdded: new Date().toISOString(),
     size: attachmentInput?.size,
@@ -269,22 +282,22 @@ export function addInvoiceAttachment(invoiceNumber: string, attachmentInput?: In
   };
 
   invoicesSnapshot = invoicesSnapshot.map((item) =>
-    item.invoice === invoiceNumber
+    item.id === invoiceId
       ? { ...item, attachments: [...(item.attachments ?? []), attachment] }
       : item
   );
 
   persistInvoices();
-  addActivity(`Attachment added to invoice #${invoiceNumber}: ${attachment.name}`);
+  addActivity(`Attachment added to invoice #${invoice.invoice}: ${attachment.name}`);
   emitChange();
 }
 
 export function reattachInvoiceAttachment(
-  invoiceNumber: string,
+  invoiceId: string,
   attachmentId: string,
   attachmentInput: InvoiceAttachmentInput
 ) {
-  const invoice = invoicesSnapshot.find((item) => item.invoice === invoiceNumber);
+  const invoice = invoicesSnapshot.find((item) => item.id === invoiceId);
   const attachment = invoice?.attachments?.find((item) => item.id === attachmentId);
 
   if (!invoice || !attachment) {
@@ -296,7 +309,7 @@ export function reattachInvoiceAttachment(
   }
 
   invoicesSnapshot = invoicesSnapshot.map((item) =>
-    item.invoice === invoiceNumber
+    item.id === invoiceId
       ? {
           ...item,
           attachments: (item.attachments ?? []).map((file) =>
@@ -315,12 +328,12 @@ export function reattachInvoiceAttachment(
   );
 
   persistInvoices();
-  addActivity(`Attachment reattached to invoice #${invoiceNumber}: ${attachmentInput.name}`);
+  addActivity(`Attachment reattached to invoice #${invoice.invoice}: ${attachmentInput.name}`);
   emitChange();
 }
 
-export function deleteInvoiceAttachment(invoiceNumber: string, attachmentId: string) {
-  const invoice = invoicesSnapshot.find((item) => item.invoice === invoiceNumber);
+export function deleteInvoiceAttachment(invoiceId: string, attachmentId: string) {
+  const invoice = invoicesSnapshot.find((item) => item.id === invoiceId);
   const attachment = invoice?.attachments?.find((item) => item.id === attachmentId);
 
   if (!invoice || !attachment) {
@@ -332,23 +345,28 @@ export function deleteInvoiceAttachment(invoiceNumber: string, attachmentId: str
   }
 
   invoicesSnapshot = invoicesSnapshot.map((item) =>
-    item.invoice === invoiceNumber
+    item.id === invoiceId
       ? { ...item, attachments: (item.attachments ?? []).filter((file) => file.id !== attachmentId) }
       : item
   );
 
   persistInvoices();
-  addActivity(`Attachment deleted from invoice #${invoiceNumber}: ${attachment.name}`);
+  addActivity(`Attachment deleted from invoice #${invoice.invoice}: ${attachment.name}`);
   emitChange();
 }
 
-export function updateInvoiceStatus(invoiceNumber: string, status: InvoiceStatus) {
-  if (status === 'Paid') {
-    const invoice = invoicesSnapshot.find((item) => item.invoice === invoiceNumber);
-    const balance = invoice ? calculateInvoiceBalance(invoice) : 0;
+export function updateInvoiceStatus(invoiceId: string, status: InvoiceStatus) {
+  const invoice = invoicesSnapshot.find((item) => item.id === invoiceId);
 
-    if (invoice && balance > 0) {
-      receiveInvoicePayment(invoiceNumber, {
+  if (!invoice) {
+    return;
+  }
+
+  if (status === 'Paid') {
+    const balance = calculateInvoiceBalance(invoice);
+
+    if (balance > 0) {
+      receiveInvoicePayment(invoiceId, {
         amount: balance,
         date: new Date().toISOString(),
       });
@@ -356,17 +374,17 @@ export function updateInvoiceStatus(invoiceNumber: string, status: InvoiceStatus
     }
   }
 
-  invoicesSnapshot = invoicesSnapshot.map((invoice) =>
-    invoice.invoice === invoiceNumber ? { ...invoice, status } : invoice
+  invoicesSnapshot = invoicesSnapshot.map((item) =>
+    item.id === invoiceId ? { ...item, status } : item
   );
   persistInvoices();
-  addActivity(`Invoice #${invoiceNumber} marked ${status}`);
+  addActivity(`Invoice #${invoice.invoice} marked ${status}`);
   refreshInvoiceStatuses();
   emitChange();
 }
 
-export function receiveInvoicePayment(invoiceNumber: string, paymentInput: ReceiveInvoicePaymentInput) {
-  const invoice = invoicesSnapshot.find((item) => item.invoice === invoiceNumber);
+export function receiveInvoicePayment(invoiceId: string, paymentInput: ReceiveInvoicePaymentInput) {
+  const invoice = invoicesSnapshot.find((item) => item.id === invoiceId);
 
   if (!invoice) {
     return;
@@ -387,7 +405,7 @@ export function receiveInvoicePayment(invoiceNumber: string, paymentInput: Recei
   };
 
   invoicesSnapshot = invoicesSnapshot.map((item) => {
-    if (item.invoice !== invoiceNumber) {
+    if (item.id !== invoiceId) {
       return item;
     }
 
@@ -402,7 +420,7 @@ export function receiveInvoicePayment(invoiceNumber: string, paymentInput: Recei
   });
 
   persistInvoices();
-  addActivity(`Payment received: ${formatInvoiceAmount(receivedAmount)} from ${invoice.customer} for invoice #${invoiceNumber}`);
+  addActivity(`Payment received: ${formatInvoiceAmount(receivedAmount)} from ${invoice.customer} for invoice #${invoice.invoice}`);
   refreshInvoiceStatuses();
   emitChange();
 }

@@ -341,9 +341,9 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.detailList}>
-            {waitingToBePaidInvoices.map((item, index) => (
+            {waitingToBePaidInvoices.map((item) => (
               <Pressable
-                key={`${item.invoice}-${index}`}
+                key={item.id}
                 onPress={() => router.push('/invoices')}
                 style={({ pressed }) => [styles.detailRow, pressed && styles.pressed]}
               >
@@ -408,8 +408,8 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.detailList}>
-            {overdueInvoices.map((item, index) => (
-              <Pressable key={`${item.invoice}-${index}`} style={styles.detailRow} onPress={() => router.push('/invoices')}>
+            {overdueInvoices.map((item) => (
+              <Pressable key={item.id} style={styles.detailRow} onPress={() => router.push('/invoices')}>
                 <View style={styles.detailPrimary}>
                   <Text style={styles.detailTitle}>#{item.invoice} {item.customer}</Text>
                   <Text style={styles.detailSubtitle}>{item.status}</Text>

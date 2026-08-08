@@ -29,6 +29,7 @@ import {
   saveInvoice,
   useInvoices,
 } from '@/data/mockInvoices';
+import { generateId } from '@/utils/id';
 
 const blueCollarBooksLogo = require('@/assets/images/blue-collar-books-logo.jpg');
 
@@ -50,7 +51,12 @@ export default function NewInvoiceScreen() {
   const searchParams = useLocalSearchParams();
   const customers = useCustomers();
   const invoices = useInvoices();
-  const [originalInvoiceNumber, setOriginalInvoiceNumber] = useState<string | undefined>(undefined);
+  const [originalInvoiceId, setOriginalInvoiceId] = useState<string | undefined>(undefined);
+  // Permanent identity for this invoice record, separate from the editable
+  // invoice number below. A brand-new invoice gets one right away; if this
+  // screen is editing an existing invoice, the effect below overwrites it
+  // with that invoice's real id once it's found.
+  const [recordId, setRecordId] = useState(() => generateId());
   const [number, setNumber] = useState(() => getNextInvoiceNumber(invoices));
   const [date, setDate] = useState(invoiceDraft.date);
   const [terms, setTerms] = useState(() => profile.defaultPaymentTerms || invoiceDraft.terms);
@@ -90,7 +96,7 @@ export default function NewInvoiceScreen() {
     setLineItems((items) => items.filter((_, itemIndex) => itemIndex !== index));
   }
 
-  const invoiceParam = typeof searchParams.invoice === 'string' ? searchParams.invoice : '';
+  const invoiceIdParam = typeof searchParams.invoiceId === 'string' ? searchParams.invoiceId : '';
   const preselectedCustomerId =
     typeof searchParams.customerId === 'string' ? searchParams.customerId : '';
 
@@ -100,11 +106,12 @@ export default function NewInvoiceScreen() {
   );
 
   useEffect(() => {
-    if (invoiceParam && !originalInvoiceNumber) {
-      const foundInvoice = invoices.find((item) => item.invoice === invoiceParam);
+    if (invoiceIdParam && !originalInvoiceId) {
+      const foundInvoice = invoices.find((item) => item.id === invoiceIdParam);
 
       if (foundInvoice) {
-        setOriginalInvoiceNumber(foundInvoice.invoice);
+        setOriginalInvoiceId(foundInvoice.id);
+        setRecordId(foundInvoice.id);
         setNumber(foundInvoice.invoice);
         setDate(foundInvoice.invoiceDate);
         setTerms(foundInvoice.terms ?? profile.defaultPaymentTerms ?? invoiceDraft.terms);
@@ -137,8 +144,8 @@ export default function NewInvoiceScreen() {
   }, [
     customers,
     invoices,
-    invoiceParam,
-    originalInvoiceNumber,
+    invoiceIdParam,
+    originalInvoiceId,
     preselectedCustomerId,
     profile.defaultPaymentTerms,
     selectedCustomerId,
@@ -175,6 +182,7 @@ export default function NewInvoiceScreen() {
   function handleSave() {
     saveInvoice(
       {
+        id: recordId,
         invoice: number,
         customer: customer.trim(),
         customerId: selectedCustomer?.id,
@@ -188,15 +196,16 @@ export default function NewInvoiceScreen() {
         freightDescription,
         lineItems,
       },
-      originalInvoiceNumber
+      originalInvoiceId
     );
-    setOriginalInvoiceNumber(number);
+    setOriginalInvoiceId(recordId);
     setShowSavedToast(true);
   }
 
   function handleSaveAndClose() {
     saveInvoice(
       {
+        id: recordId,
         invoice: number,
         customer: customer.trim(),
         customerId: selectedCustomer?.id,
@@ -210,7 +219,7 @@ export default function NewInvoiceScreen() {
         freightDescription,
         lineItems,
       },
-      originalInvoiceNumber
+      originalInvoiceId
     );
     router.replace('/invoices');
   }
@@ -353,7 +362,7 @@ export default function NewInvoiceScreen() {
       <View style={styles.pageHeader}>
         <View>
           <Text style={styles.eyebrow}>Invoices</Text>
-          <Text style={styles.heading}>{originalInvoiceNumber ? 'Edit Invoice' : 'Make Invoice'}</Text>
+          <Text style={styles.heading}>{originalInvoiceId ? 'Edit Invoice' : 'Make Invoice'}</Text>
         </View>
 
         <Pressable style={styles.backButton} onPress={() => router.push('/invoices')}>

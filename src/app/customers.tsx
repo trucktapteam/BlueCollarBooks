@@ -212,7 +212,7 @@ export default function CustomersScreen() {
                   const balance = calculateInvoiceBalance(invoice);
 
                   return (
-                    <View key={invoice.invoice} style={styles.invoiceRow}>
+                    <View key={invoice.id} style={styles.invoiceRow}>
                       <View style={styles.invoicePrimary}>
                         <Text style={styles.invoiceTitle}>#{invoice.invoice}</Text>
                         <Text style={styles.invoiceSubtitle}>{invoice.invoiceDate}</Text>
@@ -230,7 +230,7 @@ export default function CustomersScreen() {
                       {balance > 0 && (
                         <Pressable
                           style={styles.markPaidButton}
-                          onPress={() => updateInvoiceStatus(invoice.invoice, 'Paid')}
+                          onPress={() => updateInvoiceStatus(invoice.id, 'Paid')}
                         >
                           <Text style={styles.markPaidButtonText}>Mark Paid</Text>
                         </Pressable>

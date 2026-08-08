@@ -30,12 +30,12 @@ export function ReceivePaymentModal({
     () => invoices.filter((invoice) => calculateInvoiceBalance(invoice) > 0),
     [invoices]
   );
-  const [selectedInvoiceNumber, setSelectedInvoiceNumber] = useState('');
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState('');
   const [amount, setAmount] = useState('');
   const [dateReceived, setDateReceived] = useState(formatInputDate(new Date()));
   const [notes, setNotes] = useState('');
 
-  const selectedInvoice = payableInvoices.find((invoice) => invoice.invoice === selectedInvoiceNumber) ?? payableInvoices[0];
+  const selectedInvoice = payableInvoices.find((invoice) => invoice.id === selectedInvoiceId) ?? payableInvoices[0];
   const selectedBalance = selectedInvoice ? calculateInvoiceBalance(selectedInvoice) : 0;
   const amountReceived = parsePaymentAmount(amount);
   const hasValidDate = Number.isFinite(Date.parse(dateReceived));
@@ -47,14 +47,14 @@ export function ReceivePaymentModal({
     }
 
     const firstInvoice = payableInvoices[0];
-    setSelectedInvoiceNumber(firstInvoice?.invoice ?? '');
+    setSelectedInvoiceId(firstInvoice?.id ?? '');
     setAmount(firstInvoice ? String(calculateInvoiceBalance(firstInvoice)) : '');
     setDateReceived(formatInputDate(new Date()));
     setNotes('');
   }, [payableInvoices, visible]);
 
   function selectInvoice(invoice: Invoice) {
-    setSelectedInvoiceNumber(invoice.invoice);
+    setSelectedInvoiceId(invoice.id);
     setAmount(String(calculateInvoiceBalance(invoice)));
   }
 
@@ -63,7 +63,7 @@ export function ReceivePaymentModal({
       return;
     }
 
-    receiveInvoicePayment(selectedInvoice.invoice, {
+    receiveInvoicePayment(selectedInvoice.id, {
       amount: amountReceived,
       date: dateReceived,
       notes,
@@ -90,11 +90,11 @@ export function ReceivePaymentModal({
             <>
               <View style={styles.invoiceList}>
                 {payableInvoices.map((invoice) => {
-                  const isSelected = invoice.invoice === selectedInvoice?.invoice;
+                  const isSelected = invoice.id === selectedInvoice?.id;
 
                   return (
                     <Pressable
-                      key={invoice.invoice}
+                      key={invoice.id}
                       style={[styles.invoiceOption, isSelected && styles.invoiceOptionActive]}
                       onPress={() => selectInvoice(invoice)}
                     >

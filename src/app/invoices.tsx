@@ -30,10 +30,10 @@ function formatUploadDate(dateAdded: string) {
   return Number.isFinite(parsed) ? new Date(parsed).toLocaleDateString() : dateAdded;
 }
 
-function pickInvoiceAttachment(invoiceNumber: string, attachmentId?: string) {
+function pickInvoiceAttachment(invoiceId: string, attachmentId?: string) {
   if (typeof document === 'undefined' || typeof URL === 'undefined') {
     if (!attachmentId) {
-      addInvoiceAttachment(invoiceNumber);
+      addInvoiceAttachment(invoiceId);
     }
     return;
   }
@@ -52,9 +52,9 @@ function pickInvoiceAttachment(invoiceNumber: string, attachmentId?: string) {
     };
 
     if (attachmentId) {
-      reattachInvoiceAttachment(invoiceNumber, attachmentId, attachmentInput);
+      reattachInvoiceAttachment(invoiceId, attachmentId, attachmentInput);
     } else {
-      addInvoiceAttachment(invoiceNumber, attachmentInput);
+      addInvoiceAttachment(invoiceId, attachmentInput);
     }
   };
   input.click();
@@ -131,8 +131,8 @@ export default function InvoicesScreen() {
   const profile = useBusinessProfile();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'All' | 'Draft' | 'Sent' | 'Paid' | 'Overdue'>('All');
-  const [paymentInvoiceNumber, setPaymentInvoiceNumber] = useState('');
-  const paymentInvoice = invoices.find((invoice) => invoice.invoice === paymentInvoiceNumber);
+  const [paymentInvoiceId, setPaymentInvoiceId] = useState('');
+  const paymentInvoice = invoices.find((invoice) => invoice.id === paymentInvoiceId);
 
   const visibleInvoices = useMemo(() => {
     return invoices
@@ -201,14 +201,14 @@ export default function InvoicesScreen() {
         </View>
 
         <View style={styles.invoiceList}>
-          {visibleInvoices.map((invoice, index) => {
+          {visibleInvoices.map((invoice) => {
             const balance = calculateInvoiceBalance(invoice);
           const customerEmail = customers.find((customer) =>
             invoice.customerId ? customer.id === invoice.customerId : customer.name === invoice.customer
           )?.email;
 
             return (
-              <View key={`${invoice.invoice}-${index}`} style={styles.invoiceItem}>
+              <View key={invoice.id} style={styles.invoiceItem}>
                 <View style={styles.invoiceRow}>
                   <Text style={[styles.invoiceText, styles.invoiceColumn]}>#{invoice.invoice}</Text>
                   <Text style={[styles.invoiceText, styles.customerColumn]}>{invoice.customer}</Text>
@@ -237,7 +237,7 @@ export default function InvoicesScreen() {
                     return '';
                   })()}</Text>
                   <View style={styles.actionColumn}>
-                    <Pressable style={styles.editButton} onPress={() => router.push(`/new-invoice?invoice=${encodeURIComponent(invoice.invoice)}`)}>
+                    <Pressable style={styles.editButton} onPress={() => router.push(`/new-invoice?invoiceId=${encodeURIComponent(invoice.id)}`)}>
                       <Text style={styles.editButtonText}>Edit</Text>
                     </Pressable>
                     <Pressable
@@ -250,7 +250,7 @@ export default function InvoicesScreen() {
                       </Text>
                     </Pressable>
                     {balance > 0 && (
-                      <Pressable style={styles.receivePaymentButton} onPress={() => setPaymentInvoiceNumber(invoice.invoice)}>
+                      <Pressable style={styles.receivePaymentButton} onPress={() => setPaymentInvoiceId(invoice.id)}>
                         <Text style={styles.receivePaymentButtonText}>Record Payment</Text>
                       </Pressable>
                     )}
@@ -265,7 +265,7 @@ export default function InvoicesScreen() {
                       <Text style={styles.attachmentMeta}>Local file preview is temporary until cloud storage is added.</Text>
                     </View>
 
-                    <Pressable style={styles.attachFileButton} onPress={() => pickInvoiceAttachment(invoice.invoice)}>
+                    <Pressable style={styles.attachFileButton} onPress={() => pickInvoiceAttachment(invoice.id)}>
                       <Text style={styles.attachFileButtonText}>Attach File</Text>
                     </Pressable>
                   </View>
@@ -297,7 +297,7 @@ export default function InvoicesScreen() {
                             ) : (
                               <Pressable
                                 style={styles.attachmentActionButton}
-                                onPress={() => pickInvoiceAttachment(invoice.invoice, attachment.id)}
+                                onPress={() => pickInvoiceAttachment(invoice.id, attachment.id)}
                               >
                                 <Text style={styles.attachmentActionButtonText}>Upload Again</Text>
                               </Pressable>
@@ -305,7 +305,7 @@ export default function InvoicesScreen() {
 
                             <Pressable
                               style={styles.attachmentActionButton}
-                              onPress={() => deleteInvoiceAttachment(invoice.invoice, attachment.id)}
+                              onPress={() => deleteInvoiceAttachment(invoice.id, attachment.id)}
                             >
                               <Text style={styles.attachmentActionButtonText}>Delete</Text>
                             </Pressable>
@@ -328,7 +328,7 @@ export default function InvoicesScreen() {
       <ReceivePaymentModal
         invoices={paymentInvoice ? [paymentInvoice] : []}
         visible={!!paymentInvoice}
-        onClose={() => setPaymentInvoiceNumber('')}
+        onClose={() => setPaymentInvoiceId('')}
       />
     </AppShell>
   );
