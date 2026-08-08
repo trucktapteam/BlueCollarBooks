@@ -245,25 +245,6 @@ export default function NewInvoiceScreen() {
     window.open(url, '_blank');
   };
 
-  const downloadPdf = async () => {
-    if (Platform.OS !== 'web') return;
-
-    const { default: html2pdf } = await import('html2pdf.js');
-    const container = document.createElement('div');
-    container.innerHTML = buildCurrentInvoiceHtml();
-    const page = container.querySelector('.page') ?? container;
-
-    await html2pdf()
-      .set({
-        filename: `invoice-${number || 'draft'}.pdf`,
-        html2canvas: { scale: 2 },
-        jsPDF: { format: 'letter', orientation: 'portrait', unit: 'in' },
-        margin: 0,
-      })
-      .from(page)
-      .save();
-  };
-
   const printPdf = () => {
     if (Platform.OS !== 'web') return;
 
@@ -339,9 +320,6 @@ export default function NewInvoiceScreen() {
         <Text style={styles.actionGroupLabel}>Send / Print</Text>
         <Pressable style={[styles.previewButton, styles.panelActionButton]} onPress={previewPdf}>
           <Text style={styles.previewButtonText}>Preview Invoice</Text>
-        </Pressable>
-        <Pressable style={[styles.previewButton, styles.panelActionButton]} onPress={downloadPdf}>
-          <Text style={styles.previewButtonText}>Download Invoice</Text>
         </Pressable>
         <Pressable
           disabled={!selectedCustomer?.email}
