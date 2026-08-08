@@ -11,6 +11,7 @@ import {
   type Invoice,
   useInvoices,
 } from '@/data/mockInvoices';
+import { formatDueDateDisplay } from '@/utils/date';
 
 // CSV cells hold a plain dollar number (not cents, and not a "$"-prefixed
 // string) so a spreadsheet can sum the column directly.
@@ -60,16 +61,7 @@ function downloadCsv(filename: string, rows: Array<Array<string | number | undef
 }
 
 function buildInvoiceDueDate(invoice: Invoice) {
-  const parsedDate = Date.parse(invoice.invoiceDate);
-  if (!Number.isFinite(parsedDate)) {
-    return '';
-  }
-
-  const dueDate = new Date(parsedDate);
-  const match = (invoice.terms ?? '').match(/(\d+)/);
-  const days = match ? Number(match[1]) : 0;
-  dueDate.setDate(dueDate.getDate() + days);
-  return dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return formatDueDateDisplay(invoice.invoiceDate, invoice.terms);
 }
 
 export default function ReportsScreen() {

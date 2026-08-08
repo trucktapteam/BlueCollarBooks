@@ -29,6 +29,7 @@ import {
 } from '@/data/mockInvoices';
 import { generateId } from '@/utils/id';
 import { formatMoneyCents, parseMoneyInputToCents } from '@/utils/money';
+import { formatDateDisplay, formatDueDateDisplay, normalizeDateToISO } from '@/utils/date';
 
 const blueCollarBooksLogo = require('@/assets/images/blue-collar-books-logo.jpg');
 
@@ -123,7 +124,7 @@ export default function NewInvoiceScreen() {
         setOriginalInvoiceId(foundInvoice.id);
         setRecordId(foundInvoice.id);
         setNumber(foundInvoice.invoice);
-        setDate(foundInvoice.invoiceDate);
+        setDate(formatDateDisplay(foundInvoice.invoiceDate));
         setTerms(foundInvoice.terms ?? profile.defaultPaymentTerms ?? invoiceDraft.terms);
         setCustomer(foundInvoice.customer);
         // Prefer the durable link; fall back to a name match for invoices saved
@@ -205,7 +206,7 @@ export default function NewInvoiceScreen() {
         customerId: selectedCustomer?.id,
         amount: invoiceTotalCents,
         status,
-        invoiceDate: date,
+        invoiceDate: normalizeDateToISO(date),
         poNumber,
         bolNumber,
         shipper,
@@ -228,7 +229,7 @@ export default function NewInvoiceScreen() {
         customerId: selectedCustomer?.id,
         amount: invoiceTotalCents,
         status,
-        invoiceDate: date,
+        invoiceDate: normalizeDateToISO(date),
         poNumber,
         bolNumber,
         shipper,
@@ -292,15 +293,7 @@ export default function NewInvoiceScreen() {
   };
 
   function buildInvoiceDueDate() {
-    const dt = Date.parse(date);
-    if (Number.isFinite(dt)) {
-      const dueDate = new Date(dt);
-      const m = (terms || '').match(/(\d+)/);
-      const days = m ? Number(m[1]) : 0;
-      dueDate.setDate(dueDate.getDate() + days);
-      return dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    }
-    return date;
+    return formatDueDateDisplay(date, terms) || date;
   }
 
   function buildInvoiceMailto() {

@@ -14,6 +14,7 @@ import {
   updateInvoiceStatus,
   useInvoices,
 } from '@/data/mockInvoices';
+import { formatDateDisplay, parseFlexibleDate } from '@/utils/date';
 
 type CustomerSummary = Customer & {
   invoices: Invoice[];
@@ -24,8 +25,7 @@ type CustomerSummary = Customer & {
 };
 
 function getInvoiceTime(invoice: Invoice) {
-  const time = Date.parse(invoice.invoiceDate);
-  return Number.isFinite(time) ? time : 0;
+  return parseFlexibleDate(invoice.invoiceDate)?.getTime() ?? 0;
 }
 
 function getLastInvoiceDate(invoices: Invoice[]) {
@@ -33,8 +33,10 @@ function getLastInvoiceDate(invoices: Invoice[]) {
     return 'No invoices yet';
   }
 
-  return invoices.reduce((latest, invoice) => (getInvoiceTime(invoice) > getInvoiceTime(latest) ? invoice : latest))
-    .invoiceDate;
+  return formatDateDisplay(
+    invoices.reduce((latest, invoice) => (getInvoiceTime(invoice) > getInvoiceTime(latest) ? invoice : latest))
+      .invoiceDate
+  );
 }
 
 function buildCustomerSummaries(customers: Customer[], invoices: Invoice[]): CustomerSummary[] {
@@ -215,7 +217,7 @@ export default function CustomersScreen() {
                     <View key={invoice.id} style={styles.invoiceRow}>
                       <View style={styles.invoicePrimary}>
                         <Text style={styles.invoiceTitle}>#{invoice.invoice}</Text>
-                        <Text style={styles.invoiceSubtitle}>{invoice.invoiceDate}</Text>
+                        <Text style={styles.invoiceSubtitle}>{formatDateDisplay(invoice.invoiceDate)}</Text>
                       </View>
 
                       <View style={styles.statusPill}>

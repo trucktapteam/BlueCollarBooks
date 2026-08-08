@@ -3,6 +3,7 @@ import { addActivity } from './activityStore';
 import { loadPersistedData, persistData } from './persistentStore';
 import { generateId } from '@/utils/id';
 import { dollarsToCents, formatMoneyCents, parseMoneyInputToCents } from '@/utils/money';
+import { computeDueDate, isSameMonthAsDate, isSameYearAsDate, normalizeDateToISO } from '@/utils/date';
 
 export type InvoiceStatus = 'Draft' | 'Sent' | 'Due Today' | 'Overdue' | 'Paid';
 
@@ -150,12 +151,31 @@ function migrateInvoiceMoney(invoice: Invoice): Invoice {
   };
 }
 
+// One-time flag so existing local dates (invoiceDate stored in mixed
+// "Apr 1, 2026" / "06/09/2026" formats, payment dates as loose strings) get
+// normalized to ISO 'YYYY-MM-DD' exactly once.
+const DATE_VERSION_KEY = 'bluecollarbooks_invoices_date_v';
+const dateVersion = loadPersistedData<number>(DATE_VERSION_KEY, 0);
+
+function migrateInvoiceDates(invoice: Invoice): Invoice {
+  if (dateVersion >= 1) return invoice;
+  return {
+    ...invoice,
+    invoiceDate: normalizeDateToISO(invoice.invoiceDate),
+    payments: invoice.payments?.map((payment) => ({ ...payment, date: normalizeDateToISO(payment.date) })),
+  };
+}
+
 let invoicesSnapshot = loadPersistedData<Invoice[]>(LOCAL_STORAGE_KEY, initialInvoices)
   .map(migrateInvoice)
   .map(migrateInvoiceMoney)
+  .map(migrateInvoiceDates)
   .map(sanitizeInvoiceForPersistence);
 if (moneyVersion < 1) {
   persistData(MONEY_VERSION_KEY, 1);
+}
+if (dateVersion < 1) {
+  persistData(DATE_VERSION_KEY, 1);
 }
 const listeners = new Set<() => void>();
 
@@ -176,45 +196,12 @@ function persistInvoices() {
 
 persistInvoices();
 
-function parseTermsToDays(terms?: string) {
-  if (!terms) return 0;
-  const m = terms.match(/(\d+)/);
-  if (m) return Number(m[1]);
-  return 0;
-}
-
-function parseDateStringToDate(d?: string) {
-  if (!d) return null;
-  const parsed = Date.parse(d);
-  if (!isNaN(parsed)) return new Date(parsed);
-  // try MM/DD/YYYY
-  const parts = d.split('/').map((p) => Number(p));
-  if (parts.length === 3) {
-    const [m, day, y] = parts;
-    return new Date(y, m - 1, day);
-  }
-  return null;
-}
-
-function formatDateShort(date: Date) {
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-function computeDueDate(invoice: Invoice) {
-  const invoiceDt = parseDateStringToDate(invoice.invoiceDate);
-  if (!invoiceDt) return undefined;
-  const days = parseTermsToDays(invoice.terms);
-  const due = new Date(invoiceDt.getTime());
-  due.setDate(due.getDate() + days);
-  return due;
-}
-
 function refreshInvoiceStatuses() {
   const now = new Date();
   invoicesSnapshot = invoicesSnapshot.map((inv) => {
     if (inv.status === 'Paid' || inv.status === 'Draft') return inv;
 
-    const due = computeDueDate(inv);
+    const due = computeDueDate(inv.invoiceDate, inv.terms);
     if (!due) return { ...inv, status: 'Sent' };
 
     const dueDateOnly = new Date(due.getFullYear(), due.getMonth(), due.getDate());
@@ -238,19 +225,12 @@ function refreshInvoiceStatuses() {
 // implementation.
 export const formatInvoiceAmount = formatMoneyCents;
 
-export function isSameMonth(dateString: string, comparisonDate: Date) {
-  const parsed = parseDateStringToDate(dateString);
-  return (
-    !!parsed &&
-    parsed.getFullYear() === comparisonDate.getFullYear() &&
-    parsed.getMonth() === comparisonDate.getMonth()
-  );
-}
-
-export function isSameYear(dateString: string, comparisonDate: Date) {
-  const parsed = parseDateStringToDate(dateString);
-  return !!parsed && parsed.getFullYear() === comparisonDate.getFullYear();
-}
+// Kept under their original names for the same reason as formatInvoiceAmount
+// above - both now delegate to the single shared implementation in
+// src/utils/date.ts instead of the locally-duplicated parser this file used
+// to have.
+export const isSameMonth = isSameMonthAsDate;
+export const isSameYear = isSameYearAsDate;
 
 export function calculateInvoicePaymentTotal(invoice: Invoice) {
   const explicitPaymentTotal = (invoice.payments ?? []).reduce((total, payment) => total + payment.amount, 0);

@@ -17,6 +17,7 @@ import {
     reattachInvoiceAttachment,
     useInvoices,
 } from '@/data/mockInvoices';
+import { formatDateDisplay, formatDueDateDisplay } from '@/utils/date';
 
 function formatFileSize(size?: number) {
   if (!size) return 'Size unknown';
@@ -26,8 +27,7 @@ function formatFileSize(size?: number) {
 }
 
 function formatUploadDate(dateAdded: string) {
-  const parsed = Date.parse(dateAdded);
-  return Number.isFinite(parsed) ? new Date(parsed).toLocaleDateString() : dateAdded;
+  return formatDateDisplay(dateAdded);
 }
 
 function pickInvoiceAttachment(invoiceId: string, attachmentId?: string) {
@@ -91,15 +91,7 @@ function getStatusTextStyle(status: InvoiceStatus) {
 }
 
 function buildInvoiceDueDate(invoice: { invoiceDate: string; terms?: string }) {
-  const dt = Date.parse(invoice.invoiceDate);
-  if (Number.isFinite(dt)) {
-    const date = new Date(dt);
-    const m = (invoice.terms || '').match(/(\d+)/);
-    const days = m ? Number(m[1]) : 0;
-    date.setDate(date.getDate() + days);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  }
-  return '';
+  return formatDueDateDisplay(invoice.invoiceDate, invoice.terms);
 }
 
 function buildInvoiceMailto(invoice: Invoice, customerEmail: string, businessName: string) {
@@ -110,7 +102,7 @@ function buildInvoiceMailto(invoice: Invoice, customerEmail: string, businessNam
     `Hello ${invoice.customer},`,
     '',
     `Please find invoice #${invoice.invoice} for ${amountDue}.`,
-    `Due date: ${dueDate || invoice.invoiceDate}`,
+    `Due date: ${dueDate || formatDateDisplay(invoice.invoiceDate)}`,
     '',
     `Thank you for your business.`,
     businessName,
@@ -221,21 +213,8 @@ export default function InvoicesScreen() {
                       <Text style={getStatusTextStyle(invoice.status)}>{invoice.status}</Text>
                     </View>
                   </View>
-                  <Text style={[styles.invoiceMeta, styles.dateColumn]}>{invoice.invoiceDate}</Text>
-                  <Text style={[styles.invoiceMeta, styles.dateColumn]}>{(function () {
-                    // compute due date
-                    try {
-                      const dt = Date.parse(invoice.invoiceDate);
-                      if (!isNaN(dt)) {
-                        const date = new Date(dt);
-                        const m = (invoice.terms || '').match(/(\d+)/);
-                        const days = m ? Number(m[1]) : 0;
-                        date.setDate(date.getDate() + days);
-                        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                      }
-                    } catch {}
-                    return '';
-                  })()}</Text>
+                  <Text style={[styles.invoiceMeta, styles.dateColumn]}>{formatDateDisplay(invoice.invoiceDate)}</Text>
+                  <Text style={[styles.invoiceMeta, styles.dateColumn]}>{buildInvoiceDueDate(invoice)}</Text>
                   <View style={styles.actionColumn}>
                     <Pressable style={styles.editButton} onPress={() => router.push(`/new-invoice?invoiceId=${encodeURIComponent(invoice.id)}`)}>
                       <Text style={styles.editButtonText}>Edit</Text>

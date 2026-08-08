@@ -18,6 +18,7 @@ import {
   isSameMonth,
   useInvoices,
 } from '@/data/mockInvoices';
+import { computeDueDate } from '@/utils/date';
 
 const metrics = [
   { label: 'Cash Available', icon: '💵', accent: BrandColors.green, value: '$7,850', helper: 'Updated today' },
@@ -67,35 +68,11 @@ export default function HomeScreen() {
       overNinety: 0,
     };
 
-    function parseDateStringToDate(dateString: string) {
-      const parsed = Date.parse(dateString);
-      if (Number.isFinite(parsed)) return new Date(parsed);
-      const parts = dateString.split('/').map((part) => Number(part));
-      if (parts.length === 3) {
-        return new Date(parts[2], parts[0] - 1, parts[1]);
-      }
-      return null;
-    }
-
-    function parseTermsToDays(terms?: string) {
-      if (!terms) return 0;
-      const match = terms.match(/(\d+)/);
-      return match ? Number(match[1]) : 0;
-    }
-
-    function getDueDate(invoice: { invoiceDate: string; terms?: string }) {
-      const invoiceDate = parseDateStringToDate(invoice.invoiceDate);
-      if (!invoiceDate) return null;
-      const dueDays = parseTermsToDays(invoice.terms);
-      const dueDate = new Date(invoiceDate.getTime());
-      dueDate.setDate(dueDate.getDate() + dueDays);
-      return new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
-    }
-
     invoices.forEach((invoice) => {
       const balance = calculateInvoiceBalance(invoice);
       if (balance <= 0) return;
-      const dueDate = getDueDate(invoice);
+      const rawDueDate = computeDueDate(invoice.invoiceDate, invoice.terms);
+      const dueDate = rawDueDate && new Date(rawDueDate.getFullYear(), rawDueDate.getMonth(), rawDueDate.getDate());
       if (!dueDate) {
         buckets.current += balance;
         return;
@@ -128,15 +105,8 @@ export default function HomeScreen() {
   const invoicesOverThirtyPastDue = invoices.filter((invoice) => {
     const balance = calculateInvoiceBalance(invoice);
     if (balance <= 0) return false;
-    const parsed = Date.parse(invoice.invoiceDate);
-    if (!Number.isFinite(parsed)) return false;
-    const invoiceDate = new Date(parsed);
-    const dueDays = (() => {
-      const match = (invoice.terms ?? '').match(/(\d+)/);
-      return match ? Number(match[1]) : 0;
-    })();
-    const dueDate = new Date(invoiceDate.getTime());
-    dueDate.setDate(dueDate.getDate() + dueDays);
+    const dueDate = computeDueDate(invoice.invoiceDate, invoice.terms);
+    if (!dueDate) return false;
     const today = new Date();
     const diff = Math.floor((new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime() - new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate()).getTime()) / (1000 * 60 * 60 * 24));
     return diff > 30;
@@ -426,9 +396,9 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.detailList}>
-            {expenses.map((item, index) => (
+            {expenses.map((item) => (
               <Pressable
-                key={`${item.date}-${item.vendor}-${index}`}
+                key={item.id}
                 onPress={() => router.push('/expenses')}
                 style={({ pressed }) => [styles.detailRow, pressed && styles.pressed]}
               >

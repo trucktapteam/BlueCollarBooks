@@ -6,6 +6,7 @@ import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-na
 import { AppShell } from '@/components/AppShell';
 import { expenseCategories, expenseDraft, saveExpense, useExpenses } from '@/data/mockExpenses';
 import { formatMoneyCents, parseMoneyInputToCents } from '@/utils/money';
+import { formatDateDisplay, normalizeDateToISO } from '@/utils/date';
 
 export default function NewExpenseScreen() {
   const searchParams = useLocalSearchParams();
@@ -35,7 +36,7 @@ export default function NewExpenseScreen() {
     const foundExpense = expenses.find((expense) => expense.id === idParam);
     if (foundExpense) {
       setOriginalId(foundExpense.id);
-      setDate(foundExpense.date);
+      setDate(formatDateDisplay(foundExpense.date));
       setVendor(foundExpense.vendor);
       setAmount(formatMoneyCents(foundExpense.amount));
       setCategory(foundExpense.category);
@@ -47,7 +48,7 @@ export default function NewExpenseScreen() {
     saveExpense(
       {
         id: originalId,
-        date,
+        date: normalizeDateToISO(date),
         vendor,
         category,
         amount: parseMoneyInputToCents(amount),
@@ -63,7 +64,7 @@ export default function NewExpenseScreen() {
     saveExpense(
       {
         id: originalId,
-        date,
+        date: normalizeDateToISO(date),
         vendor,
         category,
         amount: parseMoneyInputToCents(amount),
@@ -79,7 +80,7 @@ export default function NewExpenseScreen() {
     saveExpense(
       {
         id: originalId,
-        date,
+        date: normalizeDateToISO(date),
         vendor,
         category,
         amount: parseMoneyInputToCents(amount),

@@ -4,6 +4,7 @@ import { isSameMonth } from './mockInvoices';
 import { loadPersistedData, persistData } from './persistentStore';
 import { generateId } from '@/utils/id';
 import { dollarsToCents, formatMoneyCents } from '@/utils/money';
+import { normalizeDateToISO } from '@/utils/date';
 
 export type Expense = {
   id?: string;
@@ -70,16 +71,30 @@ function migrateExpenseMoney(expense: Expense): Expense {
   return moneyVersion >= 1 ? expense : { ...expense, amount: dollarsToCents(expense.amount) };
 }
 
+// One-time flag so existing local dates (stored in mixed "MM/DD/YYYY" /
+// other formats) get normalized to ISO 'YYYY-MM-DD' exactly once.
+const DATE_VERSION_KEY = 'bluecollarbooks_expenses_date_v';
+const dateVersion = loadPersistedData<number>(DATE_VERSION_KEY, 0);
+
+function migrateExpenseDate(expense: Expense): Expense {
+  return dateVersion >= 1 ? expense : { ...expense, date: normalizeDateToISO(expense.date) };
+}
+
 let expensesSnapshot = loadPersistedData<Expense[]>(LOCAL_STORAGE_KEY, initialExpenses).map((expense) =>
   sanitizeExpenseForPersistence(
-    migrateExpenseMoney({
-      ...expense,
-      id: expense.id ?? generateId(),
-    })
+    migrateExpenseDate(
+      migrateExpenseMoney({
+        ...expense,
+        id: expense.id ?? generateId(),
+      })
+    )
   )
 );
 if (moneyVersion < 1) {
   persistData(MONEY_VERSION_KEY, 1);
+}
+if (dateVersion < 1) {
+  persistData(DATE_VERSION_KEY, 1);
 }
 const listeners = new Set<() => void>();
 

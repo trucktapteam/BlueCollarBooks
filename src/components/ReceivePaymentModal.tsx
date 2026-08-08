@@ -8,6 +8,7 @@ import {
   receiveInvoicePayment,
 } from '@/data/mockInvoices';
 import { formatMoneyCents, parseMoneyInputToCents } from '@/utils/money';
+import { normalizeDateToISO, parseFlexibleDate } from '@/utils/date';
 
 function formatInputDate(date: Date) {
   return date.toISOString().slice(0, 10);
@@ -34,7 +35,7 @@ export function ReceivePaymentModal({
   const selectedInvoice = payableInvoices.find((invoice) => invoice.id === selectedInvoiceId) ?? payableInvoices[0];
   const selectedBalance = selectedInvoice ? calculateInvoiceBalance(selectedInvoice) : 0;
   const amountReceived = parseMoneyInputToCents(amount);
-  const hasValidDate = Number.isFinite(Date.parse(dateReceived));
+  const hasValidDate = !!parseFlexibleDate(dateReceived);
   const canSubmit = !!selectedInvoice && amountReceived > 0 && amountReceived <= selectedBalance && hasValidDate;
 
   useEffect(() => {
@@ -61,7 +62,7 @@ export function ReceivePaymentModal({
 
     receiveInvoicePayment(selectedInvoice.id, {
       amount: amountReceived,
-      date: dateReceived,
+      date: normalizeDateToISO(dateReceived),
       notes,
     });
     onClose();

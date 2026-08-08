@@ -4,13 +4,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { formatInvoiceAmount, type InvoicePayment, useInvoices } from '@/data/mockInvoices';
-
-function isSameMonth(dateString: string, comparisonDate: Date) {
-  const parsed = Date.parse(dateString);
-  if (!Number.isFinite(parsed)) return false;
-  const date = new Date(parsed);
-  return date.getFullYear() === comparisonDate.getFullYear() && date.getMonth() === comparisonDate.getMonth();
-}
+import { formatDateDisplay, isSameMonthAsDate } from '@/utils/date';
 
 type PaymentRow = InvoicePayment & {
   invoiceId: string;
@@ -19,13 +13,7 @@ type PaymentRow = InvoicePayment & {
 };
 
 function formatPaymentDate(date: string) {
-  const parsed = Date.parse(date);
-  if (!Number.isFinite(parsed)) return date;
-  return new Date(parsed).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  return formatDateDisplay(date);
 }
 
 export default function PaymentsScreen() {
@@ -68,7 +56,7 @@ export default function PaymentsScreen() {
 
   const paymentsThisMonth = useMemo(() => {
     const now = new Date();
-    return payments.filter((payment) => isSameMonth(payment.date, now)).length;
+    return payments.filter((payment) => isSameMonthAsDate(payment.date, now)).length;
   }, [payments]);
 
   const totalPaymentsReceived = useMemo(() => {

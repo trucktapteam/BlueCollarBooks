@@ -12,6 +12,7 @@ import {
   useExpenses,
 } from '@/data/mockExpenses';
 import { formatMoneyCents } from '@/utils/money';
+import { formatDateDisplay } from '@/utils/date';
 
 function formatFileSize(size?: number) {
   if (!size) return 'Size unknown';
@@ -21,8 +22,7 @@ function formatFileSize(size?: number) {
 }
 
 function formatUploadDate(dateAdded: string) {
-  const parsed = Date.parse(dateAdded);
-  return Number.isFinite(parsed) ? new Date(parsed).toLocaleDateString() : dateAdded;
+  return formatDateDisplay(dateAdded);
 }
 
 function pickExpenseReceipt(expenseId: string, reattach = false) {
@@ -131,10 +131,10 @@ export default function ExpensesScreen() {
         </View>
 
         <View style={styles.expenseList}>
-          {visibleExpenses.map((expense, index) => (
-            <View key={`${expense.date}-${expense.vendor}-${index}`} style={styles.expenseItem}>
+          {visibleExpenses.map((expense) => (
+            <View key={expense.id} style={styles.expenseItem}>
               <View style={styles.expenseRow}>
-                <Text style={[styles.expenseMeta, styles.dateColumn]}>{expense.date}</Text>
+                <Text style={[styles.expenseMeta, styles.dateColumn]}>{formatDateDisplay(expense.date)}</Text>
                 <Text style={[styles.expenseText, styles.vendorColumn]}>{expense.vendor}</Text>
                 <View style={styles.categoryColumn}>
                   <View style={styles.categoryPill}>
