@@ -78,19 +78,19 @@ export default function PaymentsScreen() {
       <View style={styles.pageHeader}>
         <View>
           <Text style={styles.eyebrow}>Payments</Text>
-          <Text style={styles.heading}>Keep all invoice payments visible in one place.</Text>
+          <Text style={styles.heading}>See every dollar that came in.</Text>
         </View>
       </View>
 
       <View style={styles.summaryCard}>
         <View style={styles.summaryRow}>
           <View>
-            <Text style={styles.summaryLabel}>Payments This Month</Text>
+            <Text style={styles.summaryLabel}>✔ Payments This Month</Text>
             <Text style={styles.summaryValue}>{paymentsThisMonth}</Text>
           </View>
 
           <View>
-            <Text style={styles.summaryLabel}>Total Payments Received</Text>
+            <Text style={styles.summaryLabel}>💵 Money Collected</Text>
             <Text style={styles.summaryValue}>{formatInvoiceAmount(totalPaymentsReceived)}</Text>
           </View>
         </View>
@@ -110,7 +110,7 @@ export default function PaymentsScreen() {
         <View style={styles.tableHeader}>
           <Text style={[styles.tableHeaderText, styles.dateColumn]}>Date Received</Text>
           <Text style={[styles.tableHeaderText, styles.customerColumn]}>Customer</Text>
-          <Text style={[styles.tableHeaderText, styles.invoiceColumn]}>Invoice Number</Text>
+          <Text style={[styles.tableHeaderText, styles.invoiceColumn]}>Invoice #</Text>
           <Text style={[styles.tableHeaderText, styles.amountColumn]}>Amount</Text>
           <Text style={[styles.tableHeaderText, styles.notesColumn]}>Notes</Text>
         </View>
@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   eyebrow: {
-    color: '#f97316',
+    color: '#ff7a00',
     fontSize: 15,
     fontWeight: '800',
     marginBottom: 8,
@@ -163,12 +163,12 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     backgroundColor: '#202020',
-    borderColor: 'rgba(249, 115, 22, 0.42)',
+    borderColor: 'rgba(255, 122, 0, 0.42)',
     borderRadius: 22,
     borderWidth: 1,
     marginBottom: 24,
     padding: 28,
-    shadowColor: '#f97316',
+    shadowColor: '#ff7a00',
     shadowOffset: { width: 0, height: 14 },
     shadowOpacity: 0.12,
     shadowRadius: 26,

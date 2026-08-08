@@ -92,12 +92,12 @@ export default function ExpensesScreen() {
         </View>
 
         <Pressable style={styles.addExpenseButton} onPress={() => router.push('/new-expense')}>
-          <Text style={styles.addExpenseText}>+ Add Expense</Text>
+          <Text style={styles.addExpenseText}>+ Add Money Out</Text>
         </Pressable>
       </View>
 
       <View style={styles.summaryCard}>
-        <Text style={styles.summaryLabel}>Total Monthly Expenses</Text>
+        <Text style={styles.summaryLabel}>🧾 Money Out This Month</Text>
         <Text style={styles.summaryValue}>${totalMonthlyExpenses.toLocaleString()}</Text>
       </View>
 
@@ -123,10 +123,10 @@ export default function ExpensesScreen() {
         <View style={styles.tableHeader}>
           <Text style={[styles.tableHeaderText, styles.dateColumn]}>Date</Text>
           <Text style={[styles.tableHeaderText, styles.vendorColumn]}>Vendor</Text>
-          <Text style={[styles.tableHeaderText, styles.categoryColumn]}>Category</Text>
+          <Text style={[styles.tableHeaderText, styles.categoryColumn]}>Type</Text>
           <Text style={[styles.tableHeaderText, styles.amountColumn]}>Amount</Text>
           <Text style={[styles.tableHeaderText, styles.notesColumn]}>Notes</Text>
-          <Text style={[styles.tableHeaderText, styles.actionColumn]}>Action</Text>
+          <Text style={[styles.tableHeaderText, styles.actionColumn]}>Tools</Text>
         </View>
 
         <View style={styles.expenseList}>
@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   eyebrow: {
-    color: '#f97316',
+    color: '#ff7a00',
     fontSize: 15,
     fontWeight: '800',
     marginBottom: 8,
@@ -232,11 +232,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0,
   },
   addExpenseButton: {
-    backgroundColor: '#f97316',
+    backgroundColor: '#ff7a00',
     borderRadius: 16,
     paddingHorizontal: 22,
     paddingVertical: 14,
-    shadowColor: '#f97316',
+    shadowColor: '#ff7a00',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.2,
     shadowRadius: 24,
@@ -248,12 +248,12 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     backgroundColor: '#202020',
-    borderColor: 'rgba(249, 115, 22, 0.42)',
+    borderColor: 'rgba(255, 122, 0, 0.42)',
     borderRadius: 22,
     borderWidth: 1,
     marginBottom: 24,
     padding: 28,
-    shadowColor: '#f97316',
+    shadowColor: '#ff7a00',
     shadowOffset: { width: 0, height: 14 },
     shadowOpacity: 0.12,
     shadowRadius: 26,
@@ -313,7 +313,7 @@ const styles = StyleSheet.create({
   },
   filterChipActive: { backgroundColor: 'rgba(249,115,22,0.14)', borderColor: 'rgba(249,115,22,0.4)' },
   filterChipText: { color: '#d4d4d4', fontWeight: '800' },
-  filterChipTextActive: { color: '#f97316' },
+  filterChipTextActive: { color: '#ff7a00' },
   expenseItem: {
     gap: 10,
   },
@@ -377,15 +377,15 @@ const styles = StyleSheet.create({
   },
   categoryPill: {
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(249, 115, 22, 0.12)',
-    borderColor: 'rgba(249, 115, 22, 0.42)',
+    backgroundColor: 'rgba(255, 122, 0, 0.12)',
+    borderColor: 'rgba(255, 122, 0, 0.42)',
     borderRadius: 999,
     borderWidth: 1,
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
   categoryText: {
-    color: '#f97316',
+    color: '#ff7a00',
     fontSize: 13,
     fontWeight: '900',
   },
@@ -417,21 +417,21 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   receiptNeedsText: {
-    color: '#f97316',
+    color: '#ff7a00',
     fontSize: 12,
     fontWeight: '900',
     marginTop: 4,
   },
   attachReceiptButton: {
-    backgroundColor: 'rgba(249, 115, 22, 0.12)',
-    borderColor: 'rgba(249, 115, 22, 0.36)',
+    backgroundColor: 'rgba(255, 122, 0, 0.12)',
+    borderColor: 'rgba(255, 122, 0, 0.36)',
     borderRadius: 12,
     borderWidth: 1,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   attachReceiptButtonText: {
-    color: '#fdba74',
+    color: '#ffb15c',
     fontSize: 13,
     fontWeight: '900',
   },

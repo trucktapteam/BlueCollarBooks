@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
+import { BrandColors } from '@/constants/theme';
 import { useActivities } from '@/data/activityStore';
 import { useBankAccounts } from '@/data/mockBankAccounts';
 import { startingCashBalance, useBusinessProfile } from '@/data/mockBusiness';
@@ -14,15 +15,16 @@ import {
   calculateWaitingToBePaidTotal,
   formatInvoiceAmount,
   isInvoiceWaitingToBePaid,
+  isSameMonth,
   useInvoices,
 } from '@/data/mockInvoices';
 
 const metrics = [
-  { label: 'Cash Available', value: '$7,850' },
-  { label: 'Waiting To Be Paid', value: '$1,750' },
-  { label: 'Money In', value: '$8,500' },
-  { label: 'Money Out', value: '$4,180' },
-  { label: 'Paid This Month', value: '$0' },
+  { label: 'Cash Available', icon: '💵', accent: BrandColors.green, value: '$7,850', helper: 'Updated today' },
+  { label: 'Waiting To Be Paid', icon: '💰', accent: BrandColors.orange, value: '$1,750', helper: 'Open invoices' },
+  { label: 'Money In', icon: '📈', accent: BrandColors.green, value: '$8,500', helper: 'This month' },
+  { label: 'Money Out', icon: '🧾', accent: BrandColors.orange, value: '$4,180', helper: 'This month' },
+  { label: 'Paid This Month', icon: '✔', accent: BrandColors.green, value: '$0', helper: 'Collected cash' },
 ];
 
 export default function HomeScreen() {
@@ -40,8 +42,10 @@ export default function HomeScreen() {
   const overdueInvoiceCount = overdueInvoices.length;
   const missingPaperworkCount = invoices.filter((invoice) => (invoice.attachments ?? []).length === 0).length;
   const totalOverdueAmount = overdueInvoices.reduce((sum, inv) => sum + calculateInvoiceBalance(inv), 0);
-  const moneyIn = calculateInvoiceTotal(invoices);
-  const moneyOut = calculateTotalMonthlyExpenses(expenses);
+  const now = new Date();
+  const invoicesThisMonth = invoices.filter((invoice) => isSameMonth(invoice.invoiceDate, now));
+  const moneyIn = calculateInvoiceTotal(invoicesThisMonth);
+  const moneyOut = calculateTotalMonthlyExpenses(expenses, now);
   const profitThisMonth = moneyIn - moneyOut;
   const paidThisMonth = calculatePaidInvoiceTotal(invoices);
   const cashAvailable = startingCashBalance + paidThisMonth - moneyOut;
@@ -168,8 +172,8 @@ export default function HomeScreen() {
     <AppShell activeNav="Dashboard">
       <View style={styles.dashboardHeader}>
         <View>
-          <Text style={styles.dashboardEyebrow}>Dashboard</Text>
-          <Text style={styles.dashboardHeading}>Track cash flow, invoices, and payments at a glance.</Text>
+          <Text style={styles.dashboardEyebrow}>Shop Dashboard</Text>
+          <Text style={styles.dashboardHeading}>Know your cash, who owes you, and what needs attention today.</Text>
         </View>
         <TextInput
           style={styles.dashboardSearchInput}
@@ -182,7 +186,7 @@ export default function HomeScreen() {
       {isWideDesktop ? (
         <View style={styles.desktopTopSection}>
           <View style={[styles.heroCard, styles.desktopHeroCard, styles.heroCardDesktopCompact]}>
-            <Text style={styles.heroLabel}>Profit This Month</Text>
+            <Text style={styles.heroLabel}>📈 Profit This Month</Text>
             <Text style={styles.heroValue}>{formattedProfitThisMonth}</Text>
             {(profile.logoDataUrl || profile.logoModule) && (
               <Image
@@ -193,7 +197,7 @@ export default function HomeScreen() {
           </View>
 
           <View style={[styles.attentionSection, styles.desktopAttentionSection]}>
-            <Text style={styles.attentionHeading}>Needs Attention</Text>
+            <Text style={styles.attentionHeading}>⚠ Needs Attention</Text>
 
             <View style={styles.attentionList}>
               {attentionItems.map((item) => {
@@ -216,7 +220,7 @@ export default function HomeScreen() {
         </View>
       ) : (
         <View style={styles.heroCard}>
-          <Text style={styles.heroLabel}>Profit This Month</Text>
+          <Text style={styles.heroLabel}>📈 Profit This Month</Text>
           <Text style={styles.heroValue}>{formattedProfitThisMonth}</Text>
           {(profile.logoDataUrl || profile.logoModule) && (
             <Image
@@ -249,7 +253,12 @@ export default function HomeScreen() {
                 pressed && styles.pressed,
               ]}
             >
-              <Text style={styles.metricLabel}>{metric.label}</Text>
+              <View style={styles.metricTopRow}>
+                <View style={[styles.metricIcon, { backgroundColor: `${metric.accent}22`, borderColor: `${metric.accent}66` }]}>
+                  <Text style={styles.metricIconText}>{metric.icon}</Text>
+                </View>
+                <Text style={styles.metricLabel}>{metric.label}</Text>
+              </View>
               <Text style={styles.metricValue}>
                 {metric.label === 'Cash Available'
                   ? formattedCashAvailable
@@ -263,6 +272,7 @@ export default function HomeScreen() {
                           ? formattedPaidThisMonth
                           : metric.value}
               </Text>
+              <Text style={styles.metricHelper}>{metric.helper}</Text>
             </Pressable>
           );
         })}
@@ -270,7 +280,7 @@ export default function HomeScreen() {
 
       {!isWideDesktop && (
         <View style={styles.attentionSection}>
-          <Text style={styles.attentionHeading}>Needs Attention</Text>
+          <Text style={styles.attentionHeading}>⚠ Needs Attention</Text>
 
           <View style={styles.attentionList}>
             {attentionItems.map((item) => {
@@ -301,7 +311,7 @@ export default function HomeScreen() {
           ]}
         >
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Bank Accounts</Text>
+            <Text style={styles.sectionTitle}>🏦 Bank Accounts</Text>
             <Text style={styles.sectionTotal}>Connection needs attention</Text>
           </View>
 
@@ -326,7 +336,7 @@ export default function HomeScreen() {
 
         <View style={[styles.detailCard, isCompact ? styles.fullWidthCard : isWideDesktop ? styles.quarterWidthCard : styles.halfWidthCard]}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Waiting To Be Paid</Text>
+            <Text style={styles.sectionTitle}>💰 Waiting To Be Paid</Text>
             <Text style={styles.sectionTotal}>Total: {formattedWaitingToBePaid}</Text>
           </View>
 
@@ -354,14 +364,14 @@ export default function HomeScreen() {
           onPress={() => router.push('/invoices')}
         >
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Accounts Receivable Aging</Text>
-            <Text style={styles.sectionTotal}>Total Outstanding: {formatInvoiceAmount(totalOutstanding)}</Text>
+            <Text style={styles.sectionTitle}>🚨 Who Is Late</Text>
+            <Text style={styles.sectionTotal}>Still owed: {formatInvoiceAmount(totalOutstanding)}</Text>
           </View>
 
           <View style={styles.detailList}>
             <View style={styles.detailRow}>
               <View style={styles.detailPrimary}>
-                <Text style={styles.detailTitle}>Current</Text>
+                <Text style={styles.detailTitle}>Not late yet</Text>
               </View>
               <Text style={styles.detailAmount}>{formatInvoiceAmount(agingBuckets.current)}</Text>
             </View>
@@ -393,7 +403,7 @@ export default function HomeScreen() {
         </Pressable>
         <View style={[styles.detailCard, isCompact ? styles.fullWidthCard : isWideDesktop ? styles.quarterWidthCard : styles.halfWidthCard]}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Overdue Invoices</Text>
+            <Text style={styles.sectionTitle}>❌ Late Payments</Text>
             <Text style={styles.sectionTotal}>Count: {overdueInvoiceCount} • Total: ${totalOverdueAmount.toLocaleString()}</Text>
           </View>
 
@@ -412,7 +422,7 @@ export default function HomeScreen() {
         </View>
         <View style={[styles.detailCard, isCompact ? styles.fullWidthCard : isWideDesktop ? styles.quarterWidthCard : styles.halfWidthCard]}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Expenses</Text>
+            <Text style={styles.sectionTitle}>🧾 Recent Expenses</Text>
           </View>
 
           <View style={styles.detailList}>
@@ -490,14 +500,14 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   heroCard: {
-    backgroundColor: '#202020',
-    borderColor: 'rgba(249, 115, 22, 0.42)',
+    backgroundColor: BrandColors.cardRaised,
+    borderColor: BrandColors.orangeBorder,
     borderRadius: 28,
     borderWidth: 1,
     marginBottom: 24,
     minHeight: 220,
     padding: 28,
-    shadowColor: '#f97316',
+    shadowColor: BrandColors.orange,
     shadowOffset: { width: 0, height: 18 },
     shadowOpacity: 0.16,
     shadowRadius: 34,
@@ -512,7 +522,7 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
   },
   heroLabel: {
-    color: '#a3a3a3',
+    color: BrandColors.label,
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 14,
@@ -530,13 +540,17 @@ const styles = StyleSheet.create({
     gap: 24,
   },
   metricCard: {
-    backgroundColor: '#1e1e1e',
-    borderColor: '#323232',
-    borderRadius: 22,
+    backgroundColor: BrandColors.card,
+    borderColor: BrandColors.border,
+    borderRadius: 24,
     borderWidth: 1,
     justifyContent: 'space-between',
-    minHeight: 170,
+    minHeight: 190,
     padding: 28,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.22,
+    shadowRadius: 22,
   },
   halfWidthCard: {
     flexBasis: '48%',
@@ -554,20 +568,43 @@ const styles = StyleSheet.create({
     flexBasis: '100%',
   },
   metricLabel: {
-    color: '#a3a3a3',
+    color: BrandColors.label,
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: '800',
+    flex: 1,
+  },
+  metricTopRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+  },
+  metricIcon: {
+    alignItems: 'center',
+    borderRadius: 16,
+    borderWidth: 1,
+    height: 46,
+    justifyContent: 'center',
+    width: 46,
+  },
+  metricIconText: {
+    fontSize: 24,
+    lineHeight: 28,
   },
   metricValue: {
-    color: '#ffffff',
-    fontSize: 40,
-    fontWeight: '800',
+    color: BrandColors.white,
+    fontSize: 44,
+    fontWeight: '900',
     letterSpacing: 0,
   },
+  metricHelper: {
+    color: BrandColors.muted,
+    fontSize: 14,
+    fontWeight: '800',
+  },
   attentionSection: {
-    backgroundColor: '#1e1e1e',
-    borderColor: '#323232',
-    borderRadius: 22,
+    backgroundColor: BrandColors.card,
+    borderColor: BrandColors.orangeBorder,
+    borderRadius: 24,
     borderWidth: 1,
     marginTop: 24,
     padding: 24,
@@ -581,7 +618,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   dashboardEyebrow: {
-    color: '#f97316',
+    color: BrandColors.orange,
     fontSize: 15,
     fontWeight: '800',
     marginBottom: 8,
@@ -593,8 +630,8 @@ const styles = StyleSheet.create({
     maxWidth: 620,
   },
   dashboardSearchInput: {
-    backgroundColor: '#252525',
-    borderColor: '#353535',
+    backgroundColor: BrandColors.field,
+    borderColor: BrandColors.border,
     borderRadius: 12,
     borderWidth: 1,
     color: '#ffffff',
@@ -617,8 +654,8 @@ const styles = StyleSheet.create({
   },
   attentionRow: {
     alignItems: 'center',
-    backgroundColor: '#252525',
-    borderColor: '#353535',
+    backgroundColor: BrandColors.field,
+    borderColor: BrandColors.border,
     borderRadius: 14,
     borderWidth: 1,
     flexDirection: 'row',
@@ -627,7 +664,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   attentionDot: {
-    backgroundColor: '#f97316',
+    backgroundColor: BrandColors.orange,
     borderRadius: 5,
     height: 10,
     width: 10,
@@ -644,14 +681,14 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   detailCard: {
-    backgroundColor: '#1e1e1e',
-    borderColor: '#323232',
-    borderRadius: 22,
+    backgroundColor: BrandColors.card,
+    borderColor: BrandColors.border,
+    borderRadius: 24,
     borderWidth: 1,
     padding: 24,
   },
   highlightedDetailCard: {
-    borderColor: 'rgba(249, 115, 22, 0.72)',
+    borderColor: 'rgba(255, 122, 0, 0.72)',
   },
   recentActivityCard: {
     alignSelf: 'flex-start',
@@ -668,15 +705,15 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   sectionTotal: {
-    color: '#f97316',
+    color: BrandColors.orange,
     fontSize: 15,
     fontWeight: '800',
     marginTop: 6,
   },
   connectBankButton: {
     alignItems: 'center',
-    backgroundColor: 'rgba(249, 115, 22, 0.12)',
-    borderColor: 'rgba(249, 115, 22, 0.36)',
+    backgroundColor: BrandColors.orangeSoft,
+    borderColor: BrandColors.orangeBorder,
     borderRadius: 12,
     borderWidth: 1,
     marginTop: 16,
@@ -685,7 +722,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   connectBankButtonText: {
-    color: '#fdba74',
+    color: BrandColors.orange,
     fontSize: 13,
     fontWeight: '900',
   },
@@ -694,8 +731,8 @@ const styles = StyleSheet.create({
   },
   detailRow: {
     alignItems: 'center',
-    backgroundColor: '#252525',
-    borderColor: '#353535',
+    backgroundColor: BrandColors.field,
+    borderColor: BrandColors.border,
     borderRadius: 14,
     borderWidth: 1,
     flexDirection: 'row',

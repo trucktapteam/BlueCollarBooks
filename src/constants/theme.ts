@@ -9,19 +9,38 @@ import { Platform } from 'react-native';
 
 export const Colors = {
   light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
+    text: '#ffffff',
+    background: '#111111',
+    backgroundElement: '#1d1d1d',
+    backgroundSelected: '#262626',
+    textSecondary: '#b8b8b8',
   },
   dark: {
     text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
+    background: '#111111',
+    backgroundElement: '#1d1d1d',
+    backgroundSelected: '#262626',
+    textSecondary: '#b8b8b8',
   },
+} as const;
+
+export const BrandColors = {
+  background: '#111111',
+  card: '#1d1d1d',
+  cardRaised: '#242424',
+  field: '#252525',
+  border: '#343434',
+  borderSubtle: '#2b2b2b',
+  orange: '#ff7a00',
+  orangeSoft: 'rgba(255, 122, 0, 0.14)',
+  orangeBorder: 'rgba(255, 122, 0, 0.42)',
+  blue: '#1e88e5',
+  green: '#43a047',
+  red: '#c62828',
+  white: '#ffffff',
+  label: '#c7c7c7',
+  muted: '#8f8f8f',
+  black: '#111111',
 } as const;
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;

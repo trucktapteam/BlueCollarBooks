@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     padding: 12,
   },
-  primaryButton: { marginTop: 12, backgroundColor: '#f97316', borderRadius: 10, padding: 12, alignItems: 'center' },
+  primaryButton: { marginTop: 12, backgroundColor: '#ff7a00', borderRadius: 10, padding: 12, alignItems: 'center' },
   primaryButtonText: { color: '#fff', fontWeight: '800' },
   cardLogo: {
     position: 'absolute',

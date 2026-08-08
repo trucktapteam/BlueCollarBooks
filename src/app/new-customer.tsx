@@ -103,11 +103,11 @@ export default function NewCustomerScreen() {
       <View style={styles.pageHeader}>
         <View>
           <Text style={styles.eyebrow}>Customers</Text>
-          <Text style={styles.heading}>{originalName ? 'Edit Customer' : 'New Customer'}</Text>
+          <Text style={styles.heading}>{originalName ? 'Edit Customer' : 'Add Customer'}</Text>
         </View>
 
         <Pressable style={styles.cancelTopButton} onPress={() => router.push('/customers')}>
-          <Text style={styles.cancelTopButtonText}>Back to customers</Text>
+          <Text style={styles.cancelTopButtonText}>Back to Customers</Text>
         </Pressable>
       </View>
 
@@ -129,8 +129,8 @@ export default function NewCustomerScreen() {
 
         <View style={[styles.bottomActionBar, Platform.OS === 'web' && styles.bottomActionBarSticky]}>
           <View>
-            <Text style={styles.actionLabel}>Customer draft ready.</Text>
-            <Text style={styles.actionSubtext}>Mock-only customer list. No backend storage yet.</Text>
+            <Text style={styles.actionLabel}>Customer ready.</Text>
+            <Text style={styles.actionSubtext}>Saved locally for invoices and payment tracking.</Text>
           </View>
 
           <View style={styles.actionRow}>
@@ -143,7 +143,7 @@ export default function NewCustomerScreen() {
             </Pressable>
 
             <Pressable style={styles.secondaryButton} onPress={handleSaveAndClose}>
-              <Text style={styles.secondaryButtonText}>Save & Close</Text>
+              <Text style={styles.secondaryButtonText}>Save & Go Back</Text>
             </Pressable>
           </View>
         </View>
@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   eyebrow: {
-    color: '#f97316',
+    color: '#ff7a00',
     fontSize: 15,
     fontWeight: '800',
     marginBottom: 8,
@@ -303,11 +303,11 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   primaryButton: {
-    backgroundColor: '#f97316',
+    backgroundColor: '#ff7a00',
     borderRadius: 16,
     paddingHorizontal: 22,
     paddingVertical: 14,
-    shadowColor: '#f97316',
+    shadowColor: '#ff7a00',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.2,
     shadowRadius: 24,
@@ -322,7 +322,7 @@ const styles = StyleSheet.create({
     top: 20,
     left: '50%',
     marginLeft: -60,
-    backgroundColor: '#22c55e',
+    backgroundColor: '#43a047',
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,

@@ -1,9 +1,34 @@
 import { AppShell } from '@/components/AppShell';
-import { saveBusinessProfile, useBusinessProfile } from '@/data/mockBusiness';
+import { useActivities } from '@/data/activityStore';
+import { useBankAccounts } from '@/data/mockBankAccounts';
+import { type BusinessSettings, saveBusinessProfile, useBusinessProfile } from '@/data/mockBusiness';
+import { useCustomers } from '@/data/mockCustomers';
+import { useExpenses } from '@/data/mockExpenses';
+import { useInvoices } from '@/data/mockInvoices';
 import { router } from 'expo-router';
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+
+function stripObjectUrl<T extends { objectUrl?: string }>({ objectUrl, ...rest }: T) {
+  return rest;
+}
+
+function downloadJson(filename: string, data: unknown) {
+  if (Platform.OS !== 'web' || typeof document === 'undefined') {
+    return;
+  }
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
 
 const termOptions = ['Net 15', 'Net 30', 'Due on Receipt', 'Custom'] as const;
 type TermOption = (typeof termOptions)[number];
@@ -17,6 +42,11 @@ function getTermOption(value?: string): TermOption {
 
 export default function SettingsScreen() {
   const profile = useBusinessProfile();
+  const customers = useCustomers();
+  const invoices = useInvoices();
+  const expenses = useExpenses();
+  const bankAccounts = useBankAccounts();
+  const activities = useActivities();
   const [businessName, setBusinessName] = useState(profile.businessName || '');
   const [contactName, setContactName] = useState(profile.contactName || '');
   const [phone, setPhone] = useState(profile.phone || '');
@@ -71,6 +101,45 @@ export default function SettingsScreen() {
       paymentInstructions,
     });
     setShowSavedToast(true);
+  }
+
+  function handleBackupAllData() {
+    const businessSettings: BusinessSettings = {
+      businessName: profile.businessName,
+      contactName: profile.contactName,
+      address: profile.address,
+      street: profile.street,
+      city: profile.city,
+      state: profile.state,
+      zip: profile.zip,
+      phone: profile.phone,
+      email: profile.email,
+      website: profile.website,
+      defaultPaymentTerms: profile.defaultPaymentTerms,
+      invoiceNotes: profile.invoiceNotes,
+      paymentInstructions: profile.paymentInstructions,
+      startingInvoiceNumber: profile.startingInvoiceNumber,
+      logoDataUrl: profile.logoDataUrl ?? null,
+    };
+
+    const backup = {
+      exportedAt: new Date().toISOString(),
+      version: 1,
+      businessSettings,
+      customers,
+      // line items and payments are nested inside each invoice, matching how they're actually stored
+      invoices: invoices.map((invoice) => ({
+        ...invoice,
+        attachments: invoice.attachments?.map(stripObjectUrl),
+      })),
+      expenses: expenses.map((expense) =>
+        expense.receipt ? { ...expense, receipt: stripObjectUrl(expense.receipt) } : expense
+      ),
+      bankAccounts,
+      activityLog: activities,
+    };
+
+    downloadJson(`bcb-backup-${new Date().toISOString().slice(0, 10)}.json`, backup);
   }
 
   function handleSignOut() {
@@ -209,6 +278,16 @@ export default function SettingsScreen() {
           </View>
         </SettingsCard>
 
+        <SettingsCard title="Backup">
+          <Text style={styles.helperText}>
+            Download every customer, invoice, line item, payment, expense, and business setting as one JSON file you
+            can keep as a safety copy.
+          </Text>
+          <Pressable style={styles.secondaryButton} onPress={handleBackupAllData}>
+            <Text style={styles.secondaryButtonText}>Backup All Data</Text>
+          </Pressable>
+        </SettingsCard>
+
         <View style={styles.actionBar}>
           <View>
             <Text style={styles.actionLabel}>Business profile</Text>
@@ -271,7 +350,7 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   eyebrow: {
-    color: '#f97316',
+    color: '#ff7a00',
     fontSize: 15,
     fontWeight: '800',
     marginBottom: 8,
@@ -360,7 +439,7 @@ const styles = StyleSheet.create({
   logoPreviewCard: {
     alignItems: 'center',
     backgroundColor: '#ffffff',
-    borderColor: 'rgba(249, 115, 22, 0.36)',
+    borderColor: 'rgba(255, 122, 0, 0.36)',
     borderRadius: 14,
     borderWidth: 1,
     height: 120,
@@ -393,8 +472,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   termChipActive: {
-    backgroundColor: 'rgba(249, 115, 22, 0.14)',
-    borderColor: 'rgba(249, 115, 22, 0.45)',
+    backgroundColor: 'rgba(255, 122, 0, 0.14)',
+    borderColor: 'rgba(255, 122, 0, 0.45)',
   },
   termChipText: {
     color: '#d4d4d4',
@@ -402,7 +481,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   termChipTextActive: {
-    color: '#f97316',
+    color: '#ff7a00',
   },
   singleFieldSpacing: {
     marginTop: 4,
@@ -437,7 +516,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   primaryButton: {
-    backgroundColor: '#f97316',
+    backgroundColor: '#ff7a00',
     borderRadius: 14,
     paddingHorizontal: 20,
     paddingVertical: 13,
@@ -485,7 +564,7 @@ const styles = StyleSheet.create({
     top: 20,
     left: '50%',
     marginLeft: -60,
-    backgroundColor: '#22c55e',
+    backgroundColor: '#43a047',
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,

@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { addActivity } from './activityStore';
+import { isSameMonth } from './mockInvoices';
 import { loadPersistedData, persistData } from './persistentStore';
 
 export type Expense = {
@@ -193,8 +194,10 @@ export function deleteExpenseReceipt(expenseId: string) {
   emitChange();
 }
 
-export function calculateTotalMonthlyExpenses(expenses: Expense[]) {
-  return expenses.reduce((total, expense) => total + expense.amount, 0);
+export function calculateTotalMonthlyExpenses(expenses: Expense[], comparisonDate = new Date()) {
+  return expenses
+    .filter((expense) => isSameMonth(expense.date, comparisonDate))
+    .reduce((total, expense) => total + expense.amount, 0);
 }
 
 export function useExpenses() {

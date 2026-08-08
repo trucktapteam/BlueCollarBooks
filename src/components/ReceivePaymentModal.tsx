@@ -77,8 +77,8 @@ export function ReceivePaymentModal({
         <View style={styles.card}>
           <View style={styles.header}>
             <View>
-              <Text style={styles.eyebrow}>Receive Payment</Text>
-              <Text style={styles.title}>Record money received.</Text>
+              <Text style={styles.eyebrow}>Record Payment</Text>
+              <Text style={styles.title}>Log money that came in.</Text>
             </View>
 
             <Pressable style={styles.closeButton} onPress={onClose}>
@@ -100,7 +100,7 @@ export function ReceivePaymentModal({
                     >
                       <View>
                         <Text style={styles.invoiceTitle}>#{invoice.invoice} {invoice.customer}</Text>
-                        <Text style={styles.invoiceMeta}>Balance {formatInvoiceAmount(calculateInvoiceBalance(invoice))}</Text>
+                        <Text style={styles.invoiceMeta}>Still owed {formatInvoiceAmount(calculateInvoiceBalance(invoice))}</Text>
                       </View>
                     </Pressable>
                   );
@@ -109,7 +109,7 @@ export function ReceivePaymentModal({
 
               <View style={styles.fieldGrid}>
                 <View style={styles.field}>
-                  <Text style={styles.fieldLabel}>Amount Received</Text>
+                  <Text style={styles.fieldLabel}>Amount Paid</Text>
                   <TextInput
                     style={styles.input}
                     keyboardType="decimal-pad"
@@ -121,7 +121,7 @@ export function ReceivePaymentModal({
                 </View>
 
                 <View style={styles.field}>
-                  <Text style={styles.fieldLabel}>Date Received</Text>
+                  <Text style={styles.fieldLabel}>Date Paid</Text>
                   <TextInput
                     style={styles.input}
                     placeholder="YYYY-MM-DD"
@@ -145,7 +145,7 @@ export function ReceivePaymentModal({
               </View>
 
               <View style={styles.footer}>
-                <Text style={styles.helperText}>Remaining balance: {formatInvoiceAmount(Math.max(selectedBalance - amountReceived, 0))}</Text>
+                <Text style={styles.helperText}>Still owed after this: {formatInvoiceAmount(Math.max(selectedBalance - amountReceived, 0))}</Text>
                 <Pressable
                   disabled={!canSubmit}
                   style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
@@ -157,7 +157,7 @@ export function ReceivePaymentModal({
             </>
           ) : (
             <View style={styles.emptyRow}>
-              <Text style={styles.emptyText}>No open invoice balance to receive.</Text>
+              <Text style={styles.emptyText}>Nobody owes money on these invoices.</Text>
             </View>
           )}
         </View>
@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
     paddingBottom: 18,
   },
   eyebrow: {
-    color: '#f97316',
+    color: '#ff7a00',
     fontSize: 13,
     fontWeight: '900',
     marginBottom: 6,
@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   invoiceOptionActive: {
-    borderColor: 'rgba(249, 115, 22, 0.52)',
+    borderColor: 'rgba(255, 122, 0, 0.52)',
   },
   invoiceTitle: {
     color: '#f5f5f5',
@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   submitButton: {
-    backgroundColor: '#f97316',
+    backgroundColor: '#ff7a00',
     borderRadius: 14,
     paddingHorizontal: 18,
     paddingVertical: 12,

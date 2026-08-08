@@ -199,13 +199,18 @@ export function formatInvoiceAmount(amount: number) {
   });
 }
 
-function isSameMonth(dateString: string, comparisonDate: Date) {
+export function isSameMonth(dateString: string, comparisonDate: Date) {
   const parsed = parseDateStringToDate(dateString);
   return (
     !!parsed &&
     parsed.getFullYear() === comparisonDate.getFullYear() &&
     parsed.getMonth() === comparisonDate.getMonth()
   );
+}
+
+export function isSameYear(dateString: string, comparisonDate: Date) {
+  const parsed = parseDateStringToDate(dateString);
+  return !!parsed && parsed.getFullYear() === comparisonDate.getFullYear();
 }
 
 export function calculateInvoicePaymentTotal(invoice: Invoice) {
