@@ -7,14 +7,10 @@ import {
   formatInvoiceAmount,
   receiveInvoicePayment,
 } from '@/data/mockInvoices';
+import { formatMoneyCents, parseMoneyInputToCents } from '@/utils/money';
 
 function formatInputDate(date: Date) {
   return date.toISOString().slice(0, 10);
-}
-
-function parsePaymentAmount(amount: string) {
-  const parsedAmount = Number(amount.replace(/[$,]/g, '').trim());
-  return Number.isFinite(parsedAmount) ? parsedAmount : 0;
 }
 
 export function ReceivePaymentModal({
@@ -37,7 +33,7 @@ export function ReceivePaymentModal({
 
   const selectedInvoice = payableInvoices.find((invoice) => invoice.id === selectedInvoiceId) ?? payableInvoices[0];
   const selectedBalance = selectedInvoice ? calculateInvoiceBalance(selectedInvoice) : 0;
-  const amountReceived = parsePaymentAmount(amount);
+  const amountReceived = parseMoneyInputToCents(amount);
   const hasValidDate = Number.isFinite(Date.parse(dateReceived));
   const canSubmit = !!selectedInvoice && amountReceived > 0 && amountReceived <= selectedBalance && hasValidDate;
 
@@ -48,14 +44,14 @@ export function ReceivePaymentModal({
 
     const firstInvoice = payableInvoices[0];
     setSelectedInvoiceId(firstInvoice?.id ?? '');
-    setAmount(firstInvoice ? String(calculateInvoiceBalance(firstInvoice)) : '');
+    setAmount(firstInvoice ? formatMoneyCents(calculateInvoiceBalance(firstInvoice)) : '');
     setDateReceived(formatInputDate(new Date()));
     setNotes('');
   }, [payableInvoices, visible]);
 
   function selectInvoice(invoice: Invoice) {
     setSelectedInvoiceId(invoice.id);
-    setAmount(String(calculateInvoiceBalance(invoice)));
+    setAmount(formatMoneyCents(calculateInvoiceBalance(invoice)));
   }
 
   function submitPayment() {

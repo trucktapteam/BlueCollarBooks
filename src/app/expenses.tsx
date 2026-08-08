@@ -11,6 +11,7 @@ import {
   reattachExpenseReceipt,
   useExpenses,
 } from '@/data/mockExpenses';
+import { formatMoneyCents } from '@/utils/money';
 
 function formatFileSize(size?: number) {
   if (!size) return 'Size unknown';
@@ -98,7 +99,7 @@ export default function ExpensesScreen() {
 
       <View style={styles.summaryCard}>
         <Text style={styles.summaryLabel}>🧾 Money Out This Month</Text>
-        <Text style={styles.summaryValue}>${totalMonthlyExpenses.toLocaleString()}</Text>
+        <Text style={styles.summaryValue}>{formatMoneyCents(totalMonthlyExpenses)}</Text>
       </View>
 
       <View style={styles.searchRow}>
@@ -140,7 +141,7 @@ export default function ExpensesScreen() {
                     <Text style={styles.categoryText}>{expense.category}</Text>
                   </View>
                 </View>
-                <Text style={[styles.expenseAmount, styles.amountColumn]}>${expense.amount}</Text>
+                <Text style={[styles.expenseAmount, styles.amountColumn]}>{formatMoneyCents(expense.amount)}</Text>
                 <Text style={[styles.expenseMeta, styles.notesColumn]}>{expense.notes}</Text>
                 <Pressable style={styles.editButton} onPress={() => router.push(`/new-expense?id=${encodeURIComponent(expense.id ?? '')}`)}>
                   <Text style={styles.editButtonText}>Edit</Text>

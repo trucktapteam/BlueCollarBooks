@@ -17,7 +17,6 @@ import { AppShell } from '@/components/AppShell';
 import { formatBusinessAddress, useBusinessProfile } from '@/data/mockBusiness';
 import { type Customer, useCustomers } from '@/data/mockCustomers';
 import {
-  formatInvoiceAmount,
   type Invoice,
   invoiceDraft,
   invoiceLabels,
@@ -25,13 +24,23 @@ import {
   invoiceLineItems,
   type InvoiceStatus,
   invoiceStatuses,
-  parseInvoiceAmount,
   saveInvoice,
   useInvoices,
 } from '@/data/mockInvoices';
 import { generateId } from '@/utils/id';
+import { formatMoneyCents, parseMoneyInputToCents } from '@/utils/money';
 
 const blueCollarBooksLogo = require('@/assets/images/blue-collar-books-logo.jpg');
+
+// The line-item form fields bind to raw typed text (e.g. "$625" or "625.50")
+// rather than the stored cents number, so someone can type freely without the
+// field reformatting itself on every keystroke. Amounts convert to/from cents
+// only at the form boundary (loading an existing invoice, and saving).
+type LineItemDraft = { description: string; amount: string };
+
+function toLineItemDrafts(items: InvoiceLineItem[]): LineItemDraft[] {
+  return items.map((item) => ({ description: item.description, amount: formatMoneyCents(item.amount) }));
+}
 
 function getNextInvoiceNumber(invoices: Invoice[]) {
     const numericValues = invoices
@@ -69,7 +78,7 @@ export default function NewInvoiceScreen() {
   const [consignee, setConsignee] = useState(invoiceDraft.consignee);
   const [freightDescription, setFreightDescription] = useState(invoiceDraft.freightDescription);
   const [status, setStatus] = useState<InvoiceStatus>('Draft');
-  const [lineItems, setLineItems] = useState(invoiceLineItems);
+  const [lineItems, setLineItems] = useState<LineItemDraft[]>(() => toLineItemDrafts(invoiceLineItems));
   const [showSavedToast, setShowSavedToast] = useState(false);
   const showSideActions = Platform.OS === 'web' && width >= 1100;
 
@@ -79,10 +88,11 @@ export default function NewInvoiceScreen() {
       return () => clearTimeout(timer);
     }
   }, [showSavedToast]);
-  const invoiceTotal = useMemo(
-    () => formatInvoiceAmount(lineItems.reduce((total, item) => total + parseInvoiceAmount(item.amount), 0)),
+  const invoiceTotalCents = useMemo(
+    () => lineItems.reduce((total, item) => total + parseMoneyInputToCents(item.amount), 0),
     [lineItems]
   );
+  const invoiceTotalDisplay = formatMoneyCents(invoiceTotalCents);
 
   function updateLineItem(index: number, field: 'description' | 'amount', value: string) {
     setLineItems((items) => items.map((item, itemIndex) => (itemIndex === index ? { ...item, [field]: value } : item)));
@@ -127,7 +137,7 @@ export default function NewInvoiceScreen() {
         setConsignee(foundInvoice.consignee ?? invoiceDraft.consignee);
         setFreightDescription(foundInvoice.freightDescription ?? invoiceDraft.freightDescription);
         setStatus(foundInvoice.status);
-        setLineItems(foundInvoice.lineItems ?? invoiceLineItems);
+        setLineItems(toLineItemDrafts(foundInvoice.lineItems ?? invoiceLineItems));
       }
       return;
     }
@@ -179,6 +189,13 @@ export default function NewInvoiceScreen() {
     setSelectedCustomerId('');
   }
 
+  function buildLineItemsForSave(): InvoiceLineItem[] {
+    return lineItems.map((item) => ({
+      description: item.description,
+      amount: parseMoneyInputToCents(item.amount),
+    }));
+  }
+
   function handleSave() {
     saveInvoice(
       {
@@ -186,7 +203,7 @@ export default function NewInvoiceScreen() {
         invoice: number,
         customer: customer.trim(),
         customerId: selectedCustomer?.id,
-        amount: invoiceTotal,
+        amount: invoiceTotalCents,
         status,
         invoiceDate: date,
         poNumber,
@@ -194,7 +211,7 @@ export default function NewInvoiceScreen() {
         shipper,
         consignee,
         freightDescription,
-        lineItems,
+        lineItems: buildLineItemsForSave(),
       },
       originalInvoiceId
     );
@@ -209,7 +226,7 @@ export default function NewInvoiceScreen() {
         invoice: number,
         customer: customer.trim(),
         customerId: selectedCustomer?.id,
-        amount: invoiceTotal,
+        amount: invoiceTotalCents,
         status,
         invoiceDate: date,
         poNumber,
@@ -217,7 +234,7 @@ export default function NewInvoiceScreen() {
         shipper,
         consignee,
         freightDescription,
-        lineItems,
+        lineItems: buildLineItemsForSave(),
       },
       originalInvoiceId
     );
@@ -244,7 +261,7 @@ export default function NewInvoiceScreen() {
       consignee,
       freightDescription,
       lineItems,
-      invoiceTotal,
+      invoiceTotal: invoiceTotalDisplay,
       customerEmail: selectedCustomer?.email ?? '',
       invoiceNotes: profile.invoiceNotes ?? '',
       paymentInstructions: profile.paymentInstructions ?? '',
@@ -294,7 +311,7 @@ export default function NewInvoiceScreen() {
     const bodyLines = [
       `Hello ${customer},`,
       '',
-      `Please find invoice #${number} for ${invoiceTotal}.`,
+      `Please find invoice #${number} for ${invoiceTotalDisplay}.`,
       `Due date: ${buildInvoiceDueDate()}`,
       ...(profile.paymentInstructions ? ['', profile.paymentInstructions] : []),
       ...(profile.invoiceNotes ? ['', profile.invoiceNotes] : []),
@@ -318,7 +335,7 @@ export default function NewInvoiceScreen() {
     <View style={[styles.actionsCard, showSideActions && styles.actionsCardSticky]}>
       <View style={styles.actionsCardHeader}>
         <Text style={styles.actionsCardTitle}>Get Paid Tools</Text>
-        <Text style={styles.actionsCardMeta}>Total {invoiceTotal}</Text>
+        <Text style={styles.actionsCardMeta}>Total {invoiceTotalDisplay}</Text>
       </View>
 
       <View style={styles.actionGroup}>
@@ -542,7 +559,7 @@ export default function NewInvoiceScreen() {
 
               <View style={styles.totalSection}>
                 <Text style={styles.totalLabel}>Customer Owes</Text>
-                <Text style={styles.totalValue}>{invoiceTotal}</Text>
+                <Text style={styles.totalValue}>{invoiceTotalDisplay}</Text>
               </View>
             </View>
           {!showSideActions && invoiceActionsCard}
@@ -595,14 +612,14 @@ function buildInvoiceTemplate({
   shipper: string;
   consignee: string;
   freightDescription: string;
-  lineItems: InvoiceLineItem[];
+  lineItems: LineItemDraft[];
   invoiceTotal: string;
   customerEmail: string;
   invoiceNotes: string;
   paymentInstructions: string;
 }) {
   const rows = lineItems
-    .filter((item) => item.description.trim() || parseInvoiceAmount(item.amount) !== 0)
+    .filter((item) => item.description.trim() || parseMoneyInputToCents(item.amount) !== 0)
     .map(
       (item) => `
         <tr>

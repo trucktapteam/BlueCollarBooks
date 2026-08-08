@@ -5,11 +5,7 @@ import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-na
 
 import { AppShell } from '@/components/AppShell';
 import { expenseCategories, expenseDraft, saveExpense, useExpenses } from '@/data/mockExpenses';
-
-function parseAmount(value: string) {
-  const amount = Number(value.replace(/[$,]/g, '').trim());
-  return Number.isFinite(amount) ? amount : 0;
-}
+import { formatMoneyCents, parseMoneyInputToCents } from '@/utils/money';
 
 export default function NewExpenseScreen() {
   const searchParams = useLocalSearchParams();
@@ -41,7 +37,7 @@ export default function NewExpenseScreen() {
       setOriginalId(foundExpense.id);
       setDate(foundExpense.date);
       setVendor(foundExpense.vendor);
-      setAmount(String(foundExpense.amount));
+      setAmount(formatMoneyCents(foundExpense.amount));
       setCategory(foundExpense.category);
       setNotes(foundExpense.notes);
     }
@@ -54,7 +50,7 @@ export default function NewExpenseScreen() {
         date,
         vendor,
         category,
-        amount: parseAmount(amount),
+        amount: parseMoneyInputToCents(amount),
         notes,
       },
       originalId
@@ -70,7 +66,7 @@ export default function NewExpenseScreen() {
         date,
         vendor,
         category,
-        amount: parseAmount(amount),
+        amount: parseMoneyInputToCents(amount),
         notes,
       },
       originalId
@@ -86,7 +82,7 @@ export default function NewExpenseScreen() {
         date,
         vendor,
         category,
-        amount: parseAmount(amount),
+        amount: parseMoneyInputToCents(amount),
         notes,
       },
       originalId

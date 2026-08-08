@@ -224,7 +224,7 @@ export default function CustomersScreen() {
 
                       <View style={styles.invoiceAmountBlock}>
                         <Text style={styles.invoiceAmount}>{formatInvoiceAmount(balance)}</Text>
-                        <Text style={styles.invoiceSubtitle}>of {invoice.amount}</Text>
+                        <Text style={styles.invoiceSubtitle}>of {formatInvoiceAmount(invoice.amount)}</Text>
                       </View>
 
                       {balance > 0 && (

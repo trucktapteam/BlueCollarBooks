@@ -94,4 +94,5 @@ export function formatBusinessAddress(profile: BusinessSettings) {
   return structuredAddress || profile.address || '';
 }
 
-export const startingCashBalance = 7850;
+// Cents, like every other money value in the app (see src/utils/money.ts).
+export const startingCashBalanceCents = 785000;

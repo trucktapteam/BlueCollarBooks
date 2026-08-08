@@ -12,6 +12,12 @@ import {
   useInvoices,
 } from '@/data/mockInvoices';
 
+// CSV cells hold a plain dollar number (not cents, and not a "$"-prefixed
+// string) so a spreadsheet can sum the column directly.
+function centsToCsvDollars(cents: number) {
+  return Math.round(cents) / 100;
+}
+
 type ExpenseCategoryTotal = {
   category: string;
   amount: number;
@@ -82,17 +88,23 @@ export default function ReportsScreen() {
   function exportProfitAndLossCsv() {
     downloadCsv(`profit-and-loss-${currentYear}.csv`, [
       ['section', 'label', 'amount'],
-      ['Money In', 'Invoice money', income],
-      ...expensesByCategory.map((expense) => ['Money Out', expense.category, expense.amount]),
-      ['Money Out', 'Total money out', totalExpenses],
-      ['Profit', 'Money in minus money out', netProfit],
+      ['Money In', 'Invoice money', centsToCsvDollars(income)],
+      ...expensesByCategory.map((expense) => ['Money Out', expense.category, centsToCsvDollars(expense.amount)]),
+      ['Money Out', 'Total money out', centsToCsvDollars(totalExpenses)],
+      ['Profit', 'Money in minus money out', centsToCsvDollars(netProfit)],
     ]);
   }
 
   function exportExpensesCsv() {
     downloadCsv('expenses.csv', [
       ['date', 'vendor', 'category', 'amount', 'notes'],
-      ...expenses.map((expense) => [expense.date, expense.vendor, expense.category, expense.amount, expense.notes]),
+      ...expenses.map((expense) => [
+        expense.date,
+        expense.vendor,
+        expense.category,
+        centsToCsvDollars(expense.amount),
+        expense.notes,
+      ]),
     ]);
   }
 
@@ -105,8 +117,8 @@ export default function ReportsScreen() {
         invoice.status,
         invoice.invoiceDate,
         buildInvoiceDueDate(invoice),
-        invoice.amount,
-        formatInvoiceAmount(calculateInvoiceBalance(invoice)),
+        centsToCsvDollars(invoice.amount),
+        centsToCsvDollars(calculateInvoiceBalance(invoice)),
       ]),
     ]);
   }
@@ -117,7 +129,7 @@ export default function ReportsScreen() {
         payment.date,
         invoice.customer,
         invoice.invoice,
-        payment.amount,
+        centsToCsvDollars(payment.amount),
         payment.notes ?? '',
       ])
     );

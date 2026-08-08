@@ -214,7 +214,7 @@ export default function InvoicesScreen() {
                   <Text style={[styles.invoiceText, styles.customerColumn]}>{invoice.customer}</Text>
                   <View style={styles.amountColumn}>
                     <Text style={styles.invoiceAmount}>{formatInvoiceAmount(balance)}</Text>
-                    <Text style={styles.invoiceMeta}>of {invoice.amount}</Text>
+                    <Text style={styles.invoiceMeta}>of {formatInvoiceAmount(invoice.amount)}</Text>
                   </View>
                   <View style={styles.statusColumn}>
                     <View style={getStatusPillStyle(invoice.status)}>

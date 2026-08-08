@@ -3,12 +3,14 @@ import { addActivity } from './activityStore';
 import { isSameMonth } from './mockInvoices';
 import { loadPersistedData, persistData } from './persistentStore';
 import { generateId } from '@/utils/id';
+import { dollarsToCents, formatMoneyCents } from '@/utils/money';
 
 export type Expense = {
   id?: string;
   date: string;
   vendor: string;
   category: string;
+  // Cents, like every other money value in the app (see src/utils/money.ts).
   amount: number;
   notes: string;
   receipt?: ExpenseReceipt;
@@ -51,19 +53,34 @@ export const expenseDraft = {
 };
 
 const initialExpenses: Expense[] = [
-  { date: '06/09/2026', vendor: 'Loves Travel Stop', category: 'Fuel', amount: 324, notes: 'Diesel fill-up' },
-  { date: '06/08/2026', vendor: 'NAPA Auto Parts', category: 'Repairs', amount: 89, notes: 'Replacement parts' },
-  { date: '06/07/2026', vendor: 'Supabase', category: 'Software', amount: 25, notes: 'Monthly tools' },
-  { date: '06/06/2026', vendor: 'Google Play', category: 'Software', amount: 25, notes: 'App publishing' },
+  { date: '06/09/2026', vendor: 'Loves Travel Stop', category: 'Fuel', amount: 32400, notes: 'Diesel fill-up' },
+  { date: '06/08/2026', vendor: 'NAPA Auto Parts', category: 'Repairs', amount: 8900, notes: 'Replacement parts' },
+  { date: '06/07/2026', vendor: 'Supabase', category: 'Software', amount: 2500, notes: 'Monthly tools' },
+  { date: '06/06/2026', vendor: 'Google Play', category: 'Software', amount: 2500, notes: 'App publishing' },
 ];
 
 const LOCAL_STORAGE_KEY = 'bluecollarbooks_expenses';
+// One-time flag so existing local amounts (stored as whole dollars) get
+// multiplied into cents exactly once, instead of being reinterpreted as
+// cents (which would silently divide every expense by 100).
+const MONEY_VERSION_KEY = 'bluecollarbooks_expenses_money_v';
+const moneyVersion = loadPersistedData<number>(MONEY_VERSION_KEY, 0);
+
+function migrateExpenseMoney(expense: Expense): Expense {
+  return moneyVersion >= 1 ? expense : { ...expense, amount: dollarsToCents(expense.amount) };
+}
+
 let expensesSnapshot = loadPersistedData<Expense[]>(LOCAL_STORAGE_KEY, initialExpenses).map((expense) =>
-  sanitizeExpenseForPersistence({
-    ...expense,
-    id: expense.id ?? generateId(),
-  })
+  sanitizeExpenseForPersistence(
+    migrateExpenseMoney({
+      ...expense,
+      id: expense.id ?? generateId(),
+    })
+  )
 );
+if (moneyVersion < 1) {
+  persistData(MONEY_VERSION_KEY, 1);
+}
 const listeners = new Set<() => void>();
 
 function emitChange() {
@@ -103,10 +120,10 @@ export function saveExpense(expense: Expense, originalId?: string) {
     expensesSnapshot = expensesSnapshot.map((item, index) =>
       index === existingExpenseIndex ? expenseToSave : item
     );
-    addActivity(`Expense updated: ${expenseToSave.vendor} $${expenseToSave.amount}`);
+    addActivity(`Expense updated: ${expenseToSave.vendor} ${formatMoneyCents(expenseToSave.amount)}`);
   } else {
     expensesSnapshot = [expenseToSave, ...expensesSnapshot];
-    addActivity(`Expense added: ${expenseToSave.vendor} $${expenseToSave.amount}`);
+    addActivity(`Expense added: ${expenseToSave.vendor} ${formatMoneyCents(expenseToSave.amount)}`);
   }
 
   persistExpenses();

@@ -6,7 +6,7 @@ import { AppShell } from '@/components/AppShell';
 import { BrandColors } from '@/constants/theme';
 import { useActivities } from '@/data/activityStore';
 import { useBankAccounts } from '@/data/mockBankAccounts';
-import { startingCashBalance, useBusinessProfile } from '@/data/mockBusiness';
+import { startingCashBalanceCents, useBusinessProfile } from '@/data/mockBusiness';
 import { calculateTotalMonthlyExpenses, useExpenses } from '@/data/mockExpenses';
 import {
   calculateInvoiceBalance,
@@ -48,8 +48,8 @@ export default function HomeScreen() {
   const moneyOut = calculateTotalMonthlyExpenses(expenses, now);
   const profitThisMonth = moneyIn - moneyOut;
   const paidThisMonth = calculatePaidInvoiceTotal(invoices);
-  const cashAvailable = startingCashBalance + paidThisMonth - moneyOut;
-  const formattedTotalMonthlyExpenses = `$${moneyOut.toLocaleString()}`;
+  const cashAvailable = startingCashBalanceCents + paidThisMonth - moneyOut;
+  const formattedTotalMonthlyExpenses = formatInvoiceAmount(moneyOut);
   const formattedCashAvailable = formatInvoiceAmount(cashAvailable);
   const formattedMoneyIn = formatInvoiceAmount(moneyIn);
   const formattedProfitThisMonth = formatInvoiceAmount(profitThisMonth);
@@ -404,7 +404,7 @@ export default function HomeScreen() {
         <View style={[styles.detailCard, isCompact ? styles.fullWidthCard : isWideDesktop ? styles.quarterWidthCard : styles.halfWidthCard]}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>❌ Late Payments</Text>
-            <Text style={styles.sectionTotal}>Count: {overdueInvoiceCount} • Total: ${totalOverdueAmount.toLocaleString()}</Text>
+            <Text style={styles.sectionTotal}>Count: {overdueInvoiceCount} • Total: {formatInvoiceAmount(totalOverdueAmount)}</Text>
           </View>
 
           <View style={styles.detailList}>
@@ -437,7 +437,7 @@ export default function HomeScreen() {
                   <Text style={styles.detailSubtitle}>{item.category}</Text>
                 </View>
 
-                <Text style={styles.detailAmount}>${item.amount}</Text>
+                <Text style={styles.detailAmount}>{formatInvoiceAmount(item.amount)}</Text>
               </Pressable>
             ))}
           </View>

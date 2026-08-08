@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { addActivity } from './activityStore';
 import { loadPersistedData, persistData } from './persistentStore';
 import { generateId } from '@/utils/id';
+import { dollarsToCents, formatMoneyCents, parseMoneyInputToCents } from '@/utils/money';
 
 export type InvoiceStatus = 'Draft' | 'Sent' | 'Due Today' | 'Overdue' | 'Paid';
 
@@ -10,7 +11,8 @@ export type Invoice = {
   invoice: string;
   customer: string;
   customerId?: string;
-  amount: string;
+  // Cents, like every other money value in the app (see src/utils/money.ts).
+  amount: number;
   status: InvoiceStatus;
   invoiceDate: string;
   terms?: string;
@@ -26,11 +28,13 @@ export type Invoice = {
 
 export type InvoiceLineItem = {
   description: string;
-  amount: string;
+  // Cents, like every other money value in the app (see src/utils/money.ts).
+  amount: number;
 };
 
 export type InvoicePayment = {
   id: string;
+  // Cents, like every other money value in the app (see src/utils/money.ts).
   amount: number;
   date: string;
   notes?: string;
@@ -53,6 +57,7 @@ export type InvoiceAttachmentInput = {
 };
 
 export type ReceiveInvoicePaymentInput = {
+  // Cents, like every other money value in the app (see src/utils/money.ts).
   amount: number;
   date: string;
   notes?: string;
@@ -81,14 +86,14 @@ export const invoiceDraft = {
   total: '$625',
 };
 
-export const invoiceLineItems = [{ description: 'Flatbed Freight', amount: '$625' }];
+export const invoiceLineItems: InvoiceLineItem[] = [{ description: 'Flatbed Freight', amount: 62500 }];
 
 const initialInvoices: Invoice[] = [
   {
     id: 'seed-invoice-26031',
     invoice: '26031',
     customer: 'Independent Steel',
-    amount: '$625',
+    amount: 62500,
     status: 'Sent',
     invoiceDate: 'Apr 1, 2026',
   },
@@ -96,7 +101,7 @@ const initialInvoices: Invoice[] = [
     id: 'seed-invoice-26028',
     invoice: '26028',
     customer: 'Louisville Dryer',
-    amount: '$850',
+    amount: 85000,
     status: 'Overdue',
     invoiceDate: 'Mar 18, 2026',
   },
@@ -104,7 +109,7 @@ const initialInvoices: Invoice[] = [
     id: 'seed-invoice-26027',
     invoice: '26027',
     customer: 'ABC Steel',
-    amount: '$275',
+    amount: 27500,
     status: 'Paid',
     invoiceDate: 'Apr 10, 2026',
   },
@@ -118,9 +123,40 @@ function migrateInvoice(invoice: Invoice): Invoice {
   return invoice.id ? invoice : { ...invoice, id: generateId() };
 }
 
+// One-time flag so existing local invoices (amount/line-item amounts stored
+// as formatted "$625" strings, payments stored as whole dollars) get
+// converted to cents exactly once. Without this, re-running the conversion
+// on every load would corrupt the numbers further each time.
+const MONEY_VERSION_KEY = 'bluecollarbooks_invoices_money_v';
+const moneyVersion = loadPersistedData<number>(MONEY_VERSION_KEY, 0);
+
+function migrateInvoiceMoney(invoice: Invoice): Invoice {
+  if (moneyVersion >= 1) return invoice;
+
+  const rawAmount = invoice.amount as unknown;
+  const rawLineItems = invoice.lineItems as unknown as Array<{ description: string; amount: unknown }> | undefined;
+  const rawPayments = invoice.payments as unknown as
+    | Array<{ id: string; amount: number; date: string; notes?: string }>
+    | undefined;
+
+  return {
+    ...invoice,
+    amount: typeof rawAmount === 'string' ? parseMoneyInputToCents(rawAmount) : (rawAmount as number),
+    lineItems: rawLineItems?.map((item) => ({
+      description: item.description,
+      amount: typeof item.amount === 'string' ? parseMoneyInputToCents(item.amount) : (item.amount as number),
+    })),
+    payments: rawPayments?.map((payment) => ({ ...payment, amount: dollarsToCents(payment.amount) })),
+  };
+}
+
 let invoicesSnapshot = loadPersistedData<Invoice[]>(LOCAL_STORAGE_KEY, initialInvoices)
   .map(migrateInvoice)
+  .map(migrateInvoiceMoney)
   .map(sanitizeInvoiceForPersistence);
+if (moneyVersion < 1) {
+  persistData(MONEY_VERSION_KEY, 1);
+}
 const listeners = new Set<() => void>();
 
 function emitChange() {
@@ -196,19 +232,11 @@ function refreshInvoiceStatuses() {
   });
 }
 
-export function parseInvoiceAmount(amount: string) {
-  const parsedAmount = Number(amount.replace(/[$,]/g, '').trim());
-  return Number.isFinite(parsedAmount) ? parsedAmount : 0;
-}
-
-export function formatInvoiceAmount(amount: number) {
-  return amount.toLocaleString('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
-    maximumFractionDigits: 2,
-  });
-}
+// Kept under its original name so the ~20 existing call sites across the app
+// don't all need touching - it now formats cents, like every other money
+// value, instead of dollars. See src/utils/money.ts for the single canonical
+// implementation.
+export const formatInvoiceAmount = formatMoneyCents;
 
 export function isSameMonth(dateString: string, comparisonDate: Date) {
   const parsed = parseDateStringToDate(dateString);
@@ -228,14 +256,14 @@ export function calculateInvoicePaymentTotal(invoice: Invoice) {
   const explicitPaymentTotal = (invoice.payments ?? []).reduce((total, payment) => total + payment.amount, 0);
 
   if (explicitPaymentTotal > 0) {
-    return Math.min(explicitPaymentTotal, parseInvoiceAmount(invoice.amount));
+    return Math.min(explicitPaymentTotal, invoice.amount);
   }
 
-  return invoice.status === 'Paid' ? parseInvoiceAmount(invoice.amount) : 0;
+  return invoice.status === 'Paid' ? invoice.amount : 0;
 }
 
 export function calculateInvoiceBalance(invoice: Invoice) {
-  return Math.max(parseInvoiceAmount(invoice.amount) - calculateInvoicePaymentTotal(invoice), 0);
+  return Math.max(invoice.amount - calculateInvoicePaymentTotal(invoice), 0);
 }
 
 export function saveInvoice(invoice: Invoice, originalInvoiceId?: string) {
@@ -426,7 +454,7 @@ export function receiveInvoicePayment(invoiceId: string, paymentInput: ReceiveIn
 }
 
 export function calculateInvoiceTotal(invoices: Invoice[]) {
-  return invoices.reduce((total, invoice) => total + parseInvoiceAmount(invoice.amount), 0);
+  return invoices.reduce((total, invoice) => total + invoice.amount, 0);
 }
 
 export function isInvoiceWaitingToBePaid(invoice: Invoice) {
@@ -448,7 +476,7 @@ export function calculatePaidInvoiceTotal(invoices: Invoice[], comparisonDate = 
     }
 
     if (invoice.status === 'Paid' && !invoice.payments?.length && isSameMonth(invoice.invoiceDate, comparisonDate)) {
-      return total + parseInvoiceAmount(invoice.amount);
+      return total + invoice.amount;
     }
 
     return total;
