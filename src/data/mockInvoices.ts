@@ -1,12 +1,14 @@
 import { useSyncExternalStore } from 'react';
 import { addActivity } from './activityStore';
 import { loadPersistedData, persistData } from './persistentStore';
+import { generateId } from '@/utils/id';
 
 export type InvoiceStatus = 'Draft' | 'Sent' | 'Due Today' | 'Overdue' | 'Paid';
 
 export type Invoice = {
   invoice: string;
   customer: string;
+  customerId?: string;
   amount: string;
   status: InvoiceStatus;
   invoiceDate: string;
@@ -124,10 +126,6 @@ function persistInvoices() {
 }
 
 persistInvoices();
-
-function generateId() {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-}
 
 function parseTermsToDays(terms?: string) {
   if (!terms) return 0;

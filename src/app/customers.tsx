@@ -39,7 +39,12 @@ function getLastInvoiceDate(invoices: Invoice[]) {
 
 function buildCustomerSummaries(customers: Customer[], invoices: Invoice[]): CustomerSummary[] {
   return customers.map((customer) => {
-    const customerInvoices = invoices.filter((invoice) => invoice.customer === customer.name);
+    // Invoices created/edited after this fix carry a durable customerId and are
+    // matched on that. Older invoices that predate customerId fall back to a
+    // name match so existing history doesn't disappear.
+    const customerInvoices = invoices.filter((invoice) =>
+      invoice.customerId ? invoice.customerId === customer.id : invoice.customer === customer.name
+    );
     const waitingInvoices = customerInvoices.filter(isInvoiceWaitingToBePaid);
 
     return {
@@ -80,9 +85,9 @@ export default function CustomersScreen() {
         );
       });
   }, [customerSummaries, filter, query]);
-  const [selectedCustomerName, setSelectedCustomerName] = useState(customerSummaries[0]?.name ?? '');
+  const [selectedCustomerId, setSelectedCustomerId] = useState(customerSummaries[0]?.id ?? '');
   const selectedCustomer =
-    customerSummaries.find((customer) => customer.name === selectedCustomerName) ?? customerSummaries[0];
+    customerSummaries.find((customer) => customer.id === selectedCustomerId) ?? customerSummaries[0];
   const selectedOpenInvoices = selectedCustomer?.invoices.filter((invoice) => calculateInvoiceBalance(invoice) > 0) ?? [];
 
   return (
@@ -127,13 +132,13 @@ export default function CustomersScreen() {
 
         <View style={styles.customerList}>
           {visibleCustomerSummaries.map((customer) => {
-            const isSelected = customer.name === selectedCustomer?.name;
+            const isSelected = customer.id === selectedCustomer?.id;
 
             return (
               <Pressable
-                key={customer.name}
+                key={customer.id}
                 style={[styles.customerRow, isSelected && styles.customerRowActive]}
-                onPress={() => setSelectedCustomerName(customer.name)}
+                onPress={() => setSelectedCustomerId(customer.id)}
               >
                 <View style={styles.customerColumn}>
                   <Text style={styles.customerName}>{customer.name}</Text>
@@ -166,14 +171,14 @@ export default function CustomersScreen() {
           <View style={styles.detailActions}>
             <Pressable
               style={styles.primaryActionButton}
-              onPress={() => router.push(`/new-customer?customer=${encodeURIComponent(selectedCustomer.name)}`)}
+              onPress={() => router.push(`/new-customer?customerId=${encodeURIComponent(selectedCustomer.id)}`)}
             >
               <Text style={styles.primaryActionButtonText}>Edit Customer</Text>
             </Pressable>
 
             <Pressable
               style={styles.secondaryActionButton}
-              onPress={() => router.push(`/new-invoice?customer=${encodeURIComponent(selectedCustomer.name)}`)}
+              onPress={() => router.push(`/new-invoice?customerId=${encodeURIComponent(selectedCustomer.id)}`)}
             >
               <Text style={styles.secondaryActionButtonText}>Make Invoice</Text>
             </Pressable>

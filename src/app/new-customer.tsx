@@ -4,11 +4,12 @@ import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-na
 
 import { AppShell } from '@/components/AppShell';
 import { saveCustomer, useCustomers } from '@/data/mockCustomers';
+import { generateId } from '@/utils/id';
 
 export default function NewCustomerScreen() {
   const searchParams = useLocalSearchParams();
   const customers = useCustomers();
-  const [originalName, setOriginalName] = useState('');
+  const [originalId, setOriginalId] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [contactName, setContactName] = useState('');
   const [email, setEmail] = useState('');
@@ -25,15 +26,15 @@ export default function NewCustomerScreen() {
   }, [showSavedToast]);
 
   useEffect(() => {
-    const customerName = typeof searchParams.customer === 'string' ? searchParams.customer : '';
-    if (!customerName || originalName) {
+    const customerId = typeof searchParams.customerId === 'string' ? searchParams.customerId : '';
+    if (!customerId || originalId) {
       return;
     }
 
-    const foundCustomer = customers.find((item) => item.name === customerName);
+    const foundCustomer = customers.find((item) => item.id === customerId);
 
     if (foundCustomer) {
-      setOriginalName(foundCustomer.name);
+      setOriginalId(foundCustomer.id);
       setCompanyName(foundCustomer.name);
       setContactName(foundCustomer.contact);
       setEmail(foundCustomer.email);
@@ -41,51 +42,34 @@ export default function NewCustomerScreen() {
       setAddress(foundCustomer.address);
       setNotes(foundCustomer.notes);
     }
-  }, [customers, originalName, searchParams.customer]);
+  }, [customers, originalId, searchParams.customerId]);
+
+  function buildCustomerToSave() {
+    return {
+      id: originalId || generateId(),
+      name: companyName,
+      contact: contactName,
+      email,
+      phone,
+      address,
+      notes,
+    };
+  }
 
   function handleSaveCustomer() {
-    saveCustomer(
-      {
-        name: companyName,
-        contact: contactName,
-        email,
-        phone,
-        address,
-        notes,
-      },
-      originalName || undefined
-    );
+    saveCustomer(buildCustomerToSave(), originalId || undefined);
     router.replace('/customers');
   }
 
   function handleSave() {
-    saveCustomer(
-      {
-        name: companyName,
-        contact: contactName,
-        email,
-        phone,
-        address,
-        notes,
-      },
-      originalName || undefined
-    );
-    setOriginalName(companyName);
+    const customerToSave = buildCustomerToSave();
+    saveCustomer(customerToSave, originalId || undefined);
+    setOriginalId(customerToSave.id);
     setShowSavedToast(true);
   }
 
   function handleSaveAndClose() {
-    saveCustomer(
-      {
-        name: companyName,
-        contact: contactName,
-        email,
-        phone,
-        address,
-        notes,
-      },
-      originalName || undefined
-    );
+    saveCustomer(buildCustomerToSave(), originalId || undefined);
     router.replace('/customers');
   }
 
@@ -103,7 +87,7 @@ export default function NewCustomerScreen() {
       <View style={styles.pageHeader}>
         <View>
           <Text style={styles.eyebrow}>Customers</Text>
-          <Text style={styles.heading}>{originalName ? 'Edit Customer' : 'Add Customer'}</Text>
+          <Text style={styles.heading}>{originalId ? 'Edit Customer' : 'Add Customer'}</Text>
         </View>
 
         <Pressable style={styles.cancelTopButton} onPress={() => router.push('/customers')}>

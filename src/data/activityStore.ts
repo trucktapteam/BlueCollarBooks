@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { loadPersistedData, persistData } from './persistentStore';
+import { generateId } from '@/utils/id';
 
 export type Activity = {
   id: string;
@@ -8,10 +9,6 @@ export type Activity = {
 };
 
 const LOCAL_STORAGE_KEY = 'bluecollarbooks_activity';
-
-function generateId() {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-}
 
 const initialActivities: Activity[] = [];
 

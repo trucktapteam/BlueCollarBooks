@@ -55,7 +55,7 @@ export default function NewInvoiceScreen() {
   const [date, setDate] = useState(invoiceDraft.date);
   const [terms, setTerms] = useState(() => profile.defaultPaymentTerms || invoiceDraft.terms);
   const [customer, setCustomer] = useState(invoiceDraft.customer);
-  const [selectedCustomerName, setSelectedCustomerName] = useState('');
+  const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
   const [poNumber, setPoNumber] = useState(invoiceDraft.poNumber);
   const [bolNumber, setBolNumber] = useState(invoiceDraft.bolNumber);
@@ -91,12 +91,12 @@ export default function NewInvoiceScreen() {
   }
 
   const invoiceParam = typeof searchParams.invoice === 'string' ? searchParams.invoice : '';
-  const preselectedCustomerName =
-    typeof searchParams.customer === 'string' ? searchParams.customer : '';
+  const preselectedCustomerId =
+    typeof searchParams.customerId === 'string' ? searchParams.customerId : '';
 
   const selectedCustomer = useMemo(
-    () => customers.find((item) => item.name === selectedCustomerName),
-    [customers, selectedCustomerName]
+    () => customers.find((item) => item.id === selectedCustomerId),
+    [customers, selectedCustomerId]
   );
 
   useEffect(() => {
@@ -109,7 +109,11 @@ export default function NewInvoiceScreen() {
         setDate(foundInvoice.invoiceDate);
         setTerms(foundInvoice.terms ?? profile.defaultPaymentTerms ?? invoiceDraft.terms);
         setCustomer(foundInvoice.customer);
-        setSelectedCustomerName(foundInvoice.customer);
+        // Prefer the durable link; fall back to a name match for invoices saved
+        // before customerId existed so the dropdown still preselects correctly.
+        setSelectedCustomerId(
+          foundInvoice.customerId ?? customers.find((item) => item.name === foundInvoice.customer)?.id ?? ''
+        );
         setPoNumber(foundInvoice.poNumber ?? invoiceDraft.poNumber);
         setBolNumber(foundInvoice.bolNumber ?? invoiceDraft.bolNumber);
         setShipper(foundInvoice.shipper ?? invoiceDraft.shipper);
@@ -121,11 +125,11 @@ export default function NewInvoiceScreen() {
       return;
     }
 
-    if (!preselectedCustomerName || selectedCustomerName) {
+    if (!preselectedCustomerId || selectedCustomerId) {
       return;
     }
 
-    const foundCustomer = customers.find((item) => item.name === preselectedCustomerName);
+    const foundCustomer = customers.find((item) => item.id === preselectedCustomerId);
 
     if (foundCustomer) {
       handleSelectCustomer(foundCustomer);
@@ -135,13 +139,13 @@ export default function NewInvoiceScreen() {
     invoices,
     invoiceParam,
     originalInvoiceNumber,
-    preselectedCustomerName,
+    preselectedCustomerId,
     profile.defaultPaymentTerms,
-    selectedCustomerName,
+    selectedCustomerId,
   ]);
 
   function handleSelectCustomer(selectedCustomer: Customer) {
-    setSelectedCustomerName(selectedCustomer.name);
+    setSelectedCustomerId(selectedCustomer.id);
     setCustomer(selectedCustomer.name);
     setConsignee(selectedCustomer.address);
   }
@@ -153,7 +157,7 @@ export default function NewInvoiceScreen() {
 
   function handleSelectManualEntry() {
     setIsCustomerDropdownOpen(false);
-    setSelectedCustomerName('');
+    setSelectedCustomerId('');
     setCustomer('');
     setConsignee('');
   }
@@ -165,7 +169,7 @@ export default function NewInvoiceScreen() {
 
   function handleCustomerNameChange(value: string) {
     setCustomer(value);
-    setSelectedCustomerName('');
+    setSelectedCustomerId('');
   }
 
   function handleSave() {
@@ -173,6 +177,7 @@ export default function NewInvoiceScreen() {
       {
         invoice: number,
         customer: customer.trim(),
+        customerId: selectedCustomer?.id,
         amount: invoiceTotal,
         status,
         invoiceDate: date,
@@ -194,6 +199,7 @@ export default function NewInvoiceScreen() {
       {
         invoice: number,
         customer: customer.trim(),
+        customerId: selectedCustomer?.id,
         amount: invoiceTotal,
         status,
         invoiceDate: date,
@@ -372,7 +378,7 @@ export default function NewInvoiceScreen() {
                 <Text style={styles.fieldLabel}>Saved customer</Text>
                 <Pressable style={styles.customerDropdown} onPress={() => setIsCustomerDropdownOpen((open) => !open)}>
                   <Text style={styles.customerDropdownText}>
-                    {selectedCustomerName || customer || 'Pick a customer or type one in'}
+                    {selectedCustomer?.name || customer || 'Pick a customer or type one in'}
                   </Text>
                   <Text style={styles.customerDropdownIcon}>{isCustomerDropdownOpen ? '˄' : '˅'}</Text>
                 </Pressable>
@@ -391,11 +397,11 @@ export default function NewInvoiceScreen() {
                     </Pressable>
 
                     {customers.map((existingCustomer) => {
-                      const isActive = existingCustomer.name === selectedCustomerName;
+                      const isActive = existingCustomer.id === selectedCustomerId;
 
                       return (
                         <Pressable
-                          key={existingCustomer.name}
+                          key={existingCustomer.id}
                           style={[styles.customerDropdownOption, isActive && styles.customerDropdownOptionActive]}
                           onPress={() => handleSelectExistingCustomer(existingCustomer)}
                         >

@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { addActivity } from './activityStore';
 import { isSameMonth } from './mockInvoices';
 import { loadPersistedData, persistData } from './persistentStore';
+import { generateId } from '@/utils/id';
 
 export type Expense = {
   id?: string;
@@ -48,10 +49,6 @@ export const expenseDraft = {
   amount: '$324',
   notes: 'Diesel fill-up',
 };
-
-function generateId() {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-}
 
 const initialExpenses: Expense[] = [
   { date: '06/09/2026', vendor: 'Loves Travel Stop', category: 'Fuel', amount: 324, notes: 'Diesel fill-up' },

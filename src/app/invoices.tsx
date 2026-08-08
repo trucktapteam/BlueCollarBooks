@@ -203,7 +203,9 @@ export default function InvoicesScreen() {
         <View style={styles.invoiceList}>
           {visibleInvoices.map((invoice, index) => {
             const balance = calculateInvoiceBalance(invoice);
-          const customerEmail = customers.find((customer) => customer.name === invoice.customer)?.email;
+          const customerEmail = customers.find((customer) =>
+            invoice.customerId ? customer.id === invoice.customerId : customer.name === invoice.customer
+          )?.email;
 
             return (
               <View key={`${invoice.invoice}-${index}`} style={styles.invoiceItem}>
