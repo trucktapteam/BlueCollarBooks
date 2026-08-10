@@ -93,6 +93,3 @@ export function formatBusinessAddress(profile: BusinessSettings) {
   const structuredAddress = [profile.street, cityLine].filter(Boolean).join('<br />');
   return structuredAddress || profile.address || '';
 }
-
-// Cents, like every other money value in the app (see src/utils/money.ts).
-export const startingCashBalanceCents = 785000;

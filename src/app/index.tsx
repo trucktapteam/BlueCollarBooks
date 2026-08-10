@@ -5,8 +5,8 @@ import { Image, Pressable, StyleSheet, Text, TextInput, View, useWindowDimension
 import { AppShell } from '@/components/AppShell';
 import { BrandColors } from '@/constants/theme';
 import { useActivities } from '@/data/activityStore';
-import { useBankAccounts } from '@/data/mockBankAccounts';
-import { startingCashBalanceCents, useBusinessProfile } from '@/data/mockBusiness';
+import { sumBankAccountBalances, useBankAccounts } from '@/data/mockBankAccounts';
+import { useBusinessProfile } from '@/data/mockBusiness';
 import { calculateTotalMonthlyExpenses, useExpenses } from '@/data/mockExpenses';
 import {
   calculateInvoiceBalance,
@@ -20,12 +20,18 @@ import {
 } from '@/data/mockInvoices';
 import { computeDueDate } from '@/utils/date';
 
+// Every label below is matched explicitly to a live computed value further
+// down (metricValues), so this array intentionally carries no dollar amount
+// of its own - there used to be a hardcoded `value` field here (e.g.
+// '$7,850') that every render path bypassed in favor of a real number, so it
+// was dead weight that could mislead a future editor into thinking it was
+// live.
 const metrics = [
-  { label: 'Cash Available', icon: '💵', accent: BrandColors.green, value: '$7,850', helper: 'Updated today' },
-  { label: 'Waiting To Be Paid', icon: '💰', accent: BrandColors.orange, value: '$1,750', helper: 'Open invoices' },
-  { label: 'Money In', icon: '📈', accent: BrandColors.green, value: '$8,500', helper: 'This month' },
-  { label: 'Money Out', icon: '🧾', accent: BrandColors.orange, value: '$4,180', helper: 'This month' },
-  { label: 'Paid This Month', icon: '✔', accent: BrandColors.green, value: '$0', helper: 'Collected cash' },
+  { label: 'Cash Available', icon: '💵', accent: BrandColors.green, helper: 'All accounts' },
+  { label: 'Waiting To Be Paid', icon: '💰', accent: BrandColors.orange, helper: 'Open invoices' },
+  { label: 'Money In', icon: '📈', accent: BrandColors.green, helper: 'This month' },
+  { label: 'Money Out', icon: '🧾', accent: BrandColors.orange, helper: 'This month' },
+  { label: 'Paid This Month', icon: '✔', accent: BrandColors.green, helper: 'Collected cash' },
 ];
 
 export default function HomeScreen() {
@@ -33,7 +39,6 @@ export default function HomeScreen() {
   const isCompact = width < 760;
   const isWideDesktop = width > 1400;
   const [dashboardQuery, setDashboardQuery] = useState('');
-  const [isBankCardHighlighted, setIsBankCardHighlighted] = useState(false);
   const profile = useBusinessProfile();
   const bankAccounts = useBankAccounts();
   const expenses = useExpenses();
@@ -49,13 +54,24 @@ export default function HomeScreen() {
   const moneyOut = calculateTotalMonthlyExpenses(expenses, now);
   const profitThisMonth = moneyIn - moneyOut;
   const paidThisMonth = calculatePaidInvoiceTotal(invoices);
-  const cashAvailable = startingCashBalanceCents + paidThisMonth - moneyOut;
+  // Bank account balances are the real starting point, not a hardcoded
+  // number - see sumBankAccountBalances in mockBankAccounts.ts. The old
+  // constant here happened to equal only Business Checking, so Business
+  // Savings never counted toward Cash Available.
+  const cashAvailable = sumBankAccountBalances(bankAccounts) + paidThisMonth - moneyOut;
   const formattedTotalMonthlyExpenses = formatInvoiceAmount(moneyOut);
   const formattedCashAvailable = formatInvoiceAmount(cashAvailable);
   const formattedMoneyIn = formatInvoiceAmount(moneyIn);
   const formattedProfitThisMonth = formatInvoiceAmount(profitThisMonth);
   const formattedWaitingToBePaid = formatInvoiceAmount(calculateWaitingToBePaidTotal(invoices));
   const formattedPaidThisMonth = formatInvoiceAmount(paidThisMonth);
+  const metricValues: Record<string, string> = {
+    'Cash Available': formattedCashAvailable,
+    'Money Out': formattedTotalMonthlyExpenses,
+    'Money In': formattedMoneyIn,
+    'Waiting To Be Paid': formattedWaitingToBePaid,
+    'Paid This Month': formattedPaidThisMonth,
+  };
 
   const agingBuckets = (() => {
     const now = new Date();
@@ -113,28 +129,20 @@ export default function HomeScreen() {
   }).length;
 
   const overdueInvoiceLabel = `${overdueInvoiceCount} overdue invoice${overdueInvoiceCount === 1 ? '' : 's'}`;
+  // Only real, computed alerts belong here. This list used to also include
+  // two hardcoded placeholder strings ("12 expenses need categories", "1
+  // bank connection needs attention") with no actual check behind them -
+  // nothing in the app tracks expense categories or bank connection health,
+  // so those two items always showed no matter what was really going on.
   const attentionItems = [
     overdueInvoiceLabel,
     `Invoices over 30 days past due: ${invoicesOverThirtyPastDue}`,
     ...(missingPaperworkCount > 0 ? ['Invoices missing paperwork'] : []),
-    '12 expenses need categories',
-    '1 bank connection needs attention',
   ];
   const handleAttentionPress = (item: string) => {
     const lowerItem = item.toLowerCase();
     if (lowerItem.includes('overdue') || lowerItem.includes('paperwork') || lowerItem.includes('past due')) {
       router.push('/invoices');
-      return;
-    }
-
-    if (lowerItem.includes('expenses')) {
-      router.push('/expenses');
-      return;
-    }
-
-    if (item.toLowerCase().includes('bank')) {
-      setIsBankCardHighlighted(true);
-      setTimeout(() => setIsBankCardHighlighted(false), 1800);
     }
   };
 
@@ -171,7 +179,7 @@ export default function HomeScreen() {
 
             <View style={styles.attentionList}>
               {attentionItems.map((item) => {
-                const isActionable = item.toLowerCase().includes('overdue') || item.toLowerCase().includes('paperwork') || item.toLowerCase().includes('past due') || item.toLowerCase().includes('expenses') || item.toLowerCase().includes('bank');
+                const isActionable = item.toLowerCase().includes('overdue') || item.toLowerCase().includes('paperwork') || item.toLowerCase().includes('past due');
 
                 return (
                   <Pressable
@@ -229,19 +237,7 @@ export default function HomeScreen() {
                 </View>
                 <Text style={styles.metricLabel}>{metric.label}</Text>
               </View>
-              <Text style={styles.metricValue}>
-                {metric.label === 'Cash Available'
-                  ? formattedCashAvailable
-                  : metric.label === 'Money Out'
-                    ? formattedTotalMonthlyExpenses
-                    : metric.label === 'Money In'
-                      ? formattedMoneyIn
-                      : metric.label === 'Waiting To Be Paid'
-                        ? formattedWaitingToBePaid
-                        : metric.label === 'Paid This Month'
-                          ? formattedPaidThisMonth
-                          : metric.value}
-              </Text>
+              <Text style={styles.metricValue}>{metricValues[metric.label]}</Text>
               <Text style={styles.metricHelper}>{metric.helper}</Text>
             </Pressable>
           );
@@ -277,12 +273,11 @@ export default function HomeScreen() {
           style={[
             styles.detailCard,
             isCompact ? styles.fullWidthCard : isWideDesktop ? styles.quarterWidthCard : styles.halfWidthCard,
-            isBankCardHighlighted && styles.highlightedDetailCard,
           ]}
         >
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>🏦 Bank Accounts</Text>
-            <Text style={styles.sectionTotal}>Connection needs attention</Text>
+            <Text style={styles.sectionTotal}>Total: {formatInvoiceAmount(sumBankAccountBalances(bankAccounts))}</Text>
           </View>
 
           <View style={styles.detailList}>
