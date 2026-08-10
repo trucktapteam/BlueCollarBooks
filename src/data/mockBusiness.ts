@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
-import { loadPersistedData, persistData } from './persistentStore';
+import { getCurrentUserId } from './authStore';
+import { supabase } from '@/lib/supabase';
 
 export type BusinessSettings = {
   businessName: string;
@@ -20,7 +21,43 @@ export type BusinessSettings = {
   logoDataUrl?: string | null;
 };
 
-const LOCAL_STORAGE_KEY = 'bluecollarbooks_business';
+type BusinessSettingsRow = {
+  business_name: string;
+  contact_name: string | null;
+  address: string | null;
+  street: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+  default_payment_terms: string | null;
+  invoice_notes: string | null;
+  payment_instructions: string | null;
+  starting_invoice_number: string | null;
+  logo_data_url: string | null;
+};
+
+function rowToSettings(row: BusinessSettingsRow): BusinessSettings {
+  return {
+    businessName: row.business_name,
+    contactName: row.contact_name ?? undefined,
+    address: row.address ?? undefined,
+    street: row.street ?? undefined,
+    city: row.city ?? undefined,
+    state: row.state ?? undefined,
+    zip: row.zip ?? undefined,
+    phone: row.phone ?? undefined,
+    email: row.email ?? undefined,
+    website: row.website ?? undefined,
+    defaultPaymentTerms: row.default_payment_terms ?? undefined,
+    invoiceNotes: row.invoice_notes ?? undefined,
+    paymentInstructions: row.payment_instructions ?? undefined,
+    startingInvoiceNumber: row.starting_invoice_number ?? undefined,
+    logoDataUrl: row.logo_data_url,
+  };
+}
 
 const defaultSettings: BusinessSettings & { logoModule: any } = {
   businessName: 'Blue Collar Books',
@@ -41,15 +78,28 @@ const defaultSettings: BusinessSettings & { logoModule: any } = {
   logoModule: require('@/assets/images/blue-collar-books-logo.jpg'),
 };
 
-let snapshot: BusinessSettings & { logoModule?: any } = {
-  ...defaultSettings,
-  ...loadPersistedData<Partial<BusinessSettings>>(LOCAL_STORAGE_KEY, {}),
-};
-
+let snapshot: BusinessSettings & { logoModule?: any } = { ...defaultSettings };
 const listeners = new Set<() => void>();
 
 function emitChange() {
-  listeners.forEach((l) => l());
+  listeners.forEach((listener) => listener());
+}
+
+export async function loadBusinessProfile(userId: string) {
+  const { data, error } = await supabase.from('business_settings').select('*').eq('user_id', userId).maybeSingle();
+
+  if (error) {
+    console.error('Failed to load business settings', error);
+    return;
+  }
+
+  snapshot = data ? { ...defaultSettings, ...rowToSettings(data) } : { ...defaultSettings };
+  emitChange();
+}
+
+export function clearBusinessProfile() {
+  snapshot = { ...defaultSettings };
+  emitChange();
 }
 
 export function useBusinessProfile() {
@@ -63,12 +113,19 @@ export function useBusinessProfile() {
   );
 }
 
-export function saveBusinessProfile(updates: Partial<BusinessSettings & { logoModule?: any }>) {
+export async function saveBusinessProfile(updates: Partial<BusinessSettings & { logoModule?: any }>) {
+  const userId = getCurrentUserId();
+  if (!userId) {
+    throw new Error('You must be signed in to save business settings.');
+  }
+
   snapshot = { ...snapshot, ...updates };
-  // persist only serializable fields
-  const toPersist: BusinessSettings = {
-    businessName: snapshot.businessName,
-    contactName: snapshot.contactName,
+  emitChange();
+
+  const { error } = await supabase.from('business_settings').upsert({
+    user_id: userId,
+    business_name: snapshot.businessName,
+    contact_name: snapshot.contactName,
     address: snapshot.address,
     street: snapshot.street,
     city: snapshot.city,
@@ -77,15 +134,18 @@ export function saveBusinessProfile(updates: Partial<BusinessSettings & { logoMo
     phone: snapshot.phone,
     email: snapshot.email,
     website: snapshot.website,
-    defaultPaymentTerms: snapshot.defaultPaymentTerms,
-    invoiceNotes: snapshot.invoiceNotes,
-    paymentInstructions: snapshot.paymentInstructions,
-    startingInvoiceNumber: snapshot.startingInvoiceNumber,
-    logoDataUrl: snapshot.logoDataUrl ?? null,
-  };
+    default_payment_terms: snapshot.defaultPaymentTerms,
+    invoice_notes: snapshot.invoiceNotes,
+    payment_instructions: snapshot.paymentInstructions,
+    starting_invoice_number: snapshot.startingInvoiceNumber,
+    logo_data_url: snapshot.logoDataUrl ?? null,
+    updated_at: new Date().toISOString(),
+  });
 
-  persistData(LOCAL_STORAGE_KEY, toPersist);
-  emitChange();
+  if (error) {
+    console.error('Failed to save business settings', error);
+    throw error;
+  }
 }
 
 export function formatBusinessAddress(profile: BusinessSettings) {

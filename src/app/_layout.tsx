@@ -4,6 +4,9 @@ import { useColorScheme } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { useAuthInitialized, useSession } from '@/data/authStore';
+// Side-effect only import: registers the auth listener that loads/clears
+// every data store when the signed-in user changes. See src/data/bootstrap.ts.
+import '@/data/bootstrap';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();

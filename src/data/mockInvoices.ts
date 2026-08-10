@@ -1,10 +1,10 @@
 import { useSyncExternalStore } from 'react';
 import { addActivity } from './activityStore';
-import { getCustomersSnapshot } from './mockCustomers';
-import { loadPersistedData, persistData } from './persistentStore';
+import { getCurrentUserId } from './authStore';
 import { generateId } from '@/utils/id';
-import { dollarsToCents, formatMoneyCents, parseMoneyInputToCents } from '@/utils/money';
-import { computeDueDate, isSameMonthAsDate, isSameYearAsDate, normalizeDateToISO } from '@/utils/date';
+import { formatMoneyCents } from '@/utils/money';
+import { computeDueDate, isSameMonthAsDate, isSameYearAsDate } from '@/utils/date';
+import { supabase } from '@/lib/supabase';
 
 export type InvoiceStatus = 'Draft' | 'Sent' | 'Due Today' | 'Overdue' | 'Paid';
 
@@ -93,155 +93,94 @@ export const invoiceLineItems: InvoiceLineItem[] = [
   { id: 'seed-line-item-flatbed-freight', description: 'Flatbed Freight', amount: 62500 },
 ];
 
-const initialInvoices: Invoice[] = [
-  {
-    id: 'seed-invoice-26031',
-    invoice: '26031',
-    customer: 'Independent Steel',
-    amount: 62500,
-    status: 'Sent',
-    invoiceDate: 'Apr 1, 2026',
-  },
-  {
-    id: 'seed-invoice-26028',
-    invoice: '26028',
-    customer: 'Louisville Dryer',
-    amount: 85000,
-    status: 'Overdue',
-    invoiceDate: 'Mar 18, 2026',
-  },
-  {
-    id: 'seed-invoice-26027',
-    invoice: '26027',
-    customer: 'ABC Steel',
-    amount: 27500,
-    status: 'Paid',
-    invoiceDate: 'Apr 10, 2026',
-  },
-];
+type InvoiceRow = {
+  id: string;
+  invoice_number: string;
+  customer: string;
+  customer_id: string | null;
+  amount: number;
+  status: InvoiceStatus;
+  invoice_date: string | null;
+  terms: string | null;
+  po_number: string | null;
+  bol_number: string | null;
+  shipper: string | null;
+  consignee: string | null;
+  freight_description: string | null;
+  invoice_line_items: LineItemRow[] | null;
+  invoice_payments: PaymentRow[] | null;
+  invoice_attachments: AttachmentRow[] | null;
+};
 
-const LOCAL_STORAGE_KEY = 'bluecollarbooks_invoices';
+type LineItemRow = { id: string; description: string; amount: number; position: number };
+type PaymentRow = { id: string; amount: number; payment_date: string | null; notes: string | null };
+type AttachmentRow = { id: string; name: string; type: string; date_added: string; size: number | null };
 
-// Backfills a stable id for any invoice saved before ids existed, so
-// by-id lookups below don't silently fail to find pre-existing invoices.
-function migrateInvoice(invoice: Invoice): Invoice {
-  return invoice.id ? invoice : { ...invoice, id: generateId() };
-}
-
-// One-time flag so existing invoices saved before customerId existed get
-// linked to their customer by matching the old free-text customer name
-// against the current customer list. Without this, renaming a customer
-// (the whole point of adding customerId - see mockCustomers.ts) would
-// silently orphan any invoice created before this migration ran, since
-// customers.tsx's name-fallback match would stop matching the new name.
-const CUSTOMER_ID_VERSION_KEY = 'bluecollarbooks_invoices_customerid_v';
-const customerIdVersion = loadPersistedData<number>(CUSTOMER_ID_VERSION_KEY, 0);
-
-function migrateInvoiceCustomerId(invoice: Invoice): Invoice {
-  if (customerIdVersion >= 1 || invoice.customerId) return invoice;
-
-  const matchedCustomer = getCustomersSnapshot().find((customer) => customer.name === invoice.customer);
-  return matchedCustomer ? { ...invoice, customerId: matchedCustomer.id } : invoice;
-}
-
-// One-time flag so existing invoice line items (previously identified only
-// by their array index, which breaks as soon as a row is added/removed
-// above them - React's key churns and edits can land on the wrong row)
-// get a stable id.
-const LINE_ITEM_ID_VERSION_KEY = 'bluecollarbooks_invoices_lineitemid_v';
-const lineItemIdVersion = loadPersistedData<number>(LINE_ITEM_ID_VERSION_KEY, 0);
-
-function migrateInvoiceLineItemIds(invoice: Invoice): Invoice {
-  if (lineItemIdVersion >= 1 || !invoice.lineItems) return invoice;
-
+function rowToInvoice(row: InvoiceRow): Invoice {
   return {
-    ...invoice,
-    lineItems: invoice.lineItems.map((item) => (item.id ? item : { ...item, id: generateId() })),
-  };
-}
-
-// One-time flag so existing local invoices (amount/line-item amounts stored
-// as formatted "$625" strings, payments stored as whole dollars) get
-// converted to cents exactly once. Without this, re-running the conversion
-// on every load would corrupt the numbers further each time.
-const MONEY_VERSION_KEY = 'bluecollarbooks_invoices_money_v';
-const moneyVersion = loadPersistedData<number>(MONEY_VERSION_KEY, 0);
-
-function migrateInvoiceMoney(invoice: Invoice): Invoice {
-  if (moneyVersion >= 1) return invoice;
-
-  const rawAmount = invoice.amount as unknown;
-  const rawLineItems = invoice.lineItems as unknown as
-    | Array<{ id: string; description: string; amount: unknown }>
-    | undefined;
-  const rawPayments = invoice.payments as unknown as
-    | Array<{ id: string; amount: number; date: string; notes?: string }>
-    | undefined;
-
-  return {
-    ...invoice,
-    amount: typeof rawAmount === 'string' ? parseMoneyInputToCents(rawAmount) : (rawAmount as number),
-    lineItems: rawLineItems?.map((item) => ({
-      id: item.id,
-      description: item.description,
-      amount: typeof item.amount === 'string' ? parseMoneyInputToCents(item.amount) : (item.amount as number),
+    id: row.id,
+    invoice: row.invoice_number,
+    customer: row.customer,
+    customerId: row.customer_id ?? undefined,
+    amount: row.amount,
+    status: row.status,
+    invoiceDate: row.invoice_date ?? '',
+    terms: row.terms ?? undefined,
+    poNumber: row.po_number ?? undefined,
+    bolNumber: row.bol_number ?? undefined,
+    shipper: row.shipper ?? undefined,
+    consignee: row.consignee ?? undefined,
+    freightDescription: row.freight_description ?? undefined,
+    lineItems: (row.invoice_line_items ?? [])
+      .slice()
+      .sort((a, b) => a.position - b.position)
+      .map((item) => ({ id: item.id, description: item.description, amount: item.amount })),
+    payments: (row.invoice_payments ?? []).map((payment) => ({
+      id: payment.id,
+      amount: payment.amount,
+      date: payment.payment_date ?? '',
+      notes: payment.notes ?? undefined,
     })),
-    payments: rawPayments?.map((payment) => ({ ...payment, amount: dollarsToCents(payment.amount) })),
+    attachments: (row.invoice_attachments ?? []).map((attachment) => ({
+      id: attachment.id,
+      name: attachment.name,
+      type: attachment.type,
+      dateAdded: attachment.date_added,
+      size: attachment.size ?? undefined,
+    })),
   };
 }
 
-// One-time flag so existing local dates (invoiceDate stored in mixed
-// "Apr 1, 2026" / "06/09/2026" formats, payment dates as loose strings) get
-// normalized to ISO 'YYYY-MM-DD' exactly once.
-const DATE_VERSION_KEY = 'bluecollarbooks_invoices_date_v';
-const dateVersion = loadPersistedData<number>(DATE_VERSION_KEY, 0);
-
-function migrateInvoiceDates(invoice: Invoice): Invoice {
-  if (dateVersion >= 1) return invoice;
-  return {
-    ...invoice,
-    invoiceDate: normalizeDateToISO(invoice.invoiceDate),
-    payments: invoice.payments?.map((payment) => ({ ...payment, date: normalizeDateToISO(payment.date) })),
-  };
-}
-
-let invoicesSnapshot = loadPersistedData<Invoice[]>(LOCAL_STORAGE_KEY, initialInvoices)
-  .map(migrateInvoice)
-  .map(migrateInvoiceCustomerId)
-  .map(migrateInvoiceLineItemIds)
-  .map(migrateInvoiceMoney)
-  .map(migrateInvoiceDates)
-  .map(sanitizeInvoiceForPersistence);
-if (customerIdVersion < 1) {
-  persistData(CUSTOMER_ID_VERSION_KEY, 1);
-}
-if (lineItemIdVersion < 1) {
-  persistData(LINE_ITEM_ID_VERSION_KEY, 1);
-}
-if (moneyVersion < 1) {
-  persistData(MONEY_VERSION_KEY, 1);
-}
-if (dateVersion < 1) {
-  persistData(DATE_VERSION_KEY, 1);
-}
+let invoicesSnapshot: Invoice[] = [];
 const listeners = new Set<() => void>();
 
 function emitChange() {
   listeners.forEach((listener) => listener());
 }
 
-function sanitizeInvoiceForPersistence(invoice: Invoice): Invoice {
-  return {
-    ...invoice,
-    attachments: invoice.attachments?.map(({ objectUrl, ...attachment }) => attachment),
-  };
+export async function loadInvoices(userId: string) {
+  const { data, error } = await supabase
+    .from('invoices')
+    .select('*, invoice_line_items(*), invoice_payments(*), invoice_attachments(*)')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .order('position', { foreignTable: 'invoice_line_items', ascending: true })
+    .order('date_added', { foreignTable: 'invoice_attachments', ascending: true });
+
+  if (error) {
+    console.error('Failed to load invoices', error);
+    return;
+  }
+
+  invoicesSnapshot = (data ?? []).map(rowToInvoice);
+  refreshInvoiceStatuses();
+  emitChange();
 }
 
-function persistInvoices() {
-  persistData(LOCAL_STORAGE_KEY, invoicesSnapshot.map(sanitizeInvoiceForPersistence));
+export function clearInvoices() {
+  invoicesSnapshot = [];
+  emitChange();
 }
-
-persistInvoices();
 
 function refreshInvoiceStatuses() {
   const now = new Date();
@@ -267,15 +206,12 @@ function refreshInvoiceStatuses() {
 }
 
 // Kept under its original name so the ~20 existing call sites across the app
-// don't all need touching - it now formats cents, like every other money
-// value, instead of dollars. See src/utils/money.ts for the single canonical
-// implementation.
+// don't all need touching - it formats cents, like every other money value.
+// See src/utils/money.ts for the single canonical implementation.
 export const formatInvoiceAmount = formatMoneyCents;
 
 // Kept under their original names for the same reason as formatInvoiceAmount
-// above - both now delegate to the single shared implementation in
-// src/utils/date.ts instead of the locally-duplicated parser this file used
-// to have.
+// above - both delegate to the shared implementation in src/utils/date.ts.
 export const isSameMonth = isSameMonthAsDate;
 export const isSameYear = isSameYearAsDate;
 
@@ -293,35 +229,94 @@ export function calculateInvoiceBalance(invoice: Invoice) {
   return Math.max(invoice.amount - calculateInvoicePaymentTotal(invoice), 0);
 }
 
-export function saveInvoice(invoice: Invoice, originalInvoiceId?: string) {
+export async function saveInvoice(invoice: Invoice, originalInvoiceId?: string) {
+  const userId = getCurrentUserId();
+  if (!userId) {
+    throw new Error('You must be signed in to save an invoice.');
+  }
+
   const lookupInvoiceId = originalInvoiceId ?? invoice.id;
   const existingInvoiceIndex = invoicesSnapshot.findIndex((item) => item.id === lookupInvoiceId);
+  const existingInvoice = existingInvoiceIndex >= 0 ? invoicesSnapshot[existingInvoiceIndex] : undefined;
+
+  const { error: invoiceError } = await supabase.from('invoices').upsert({
+    id: invoice.id,
+    user_id: userId,
+    invoice_number: invoice.invoice,
+    customer: invoice.customer,
+    customer_id: invoice.customerId ?? null,
+    amount: invoice.amount,
+    status: invoice.status,
+    invoice_date: invoice.invoiceDate || null,
+    terms: invoice.terms ?? null,
+    po_number: invoice.poNumber ?? null,
+    bol_number: invoice.bolNumber ?? null,
+    shipper: invoice.shipper ?? null,
+    consignee: invoice.consignee ?? null,
+    freight_description: invoice.freightDescription ?? null,
+    updated_at: new Date().toISOString(),
+  });
+
+  if (invoiceError) {
+    console.error('Failed to save invoice', invoiceError);
+    throw invoiceError;
+  }
+
+  const lineItems = invoice.lineItems ?? [];
+  // The invoice form always saves its full line-item list at once (no
+  // incremental per-row saves), so replacing every row for this invoice is
+  // simpler and just as correct as diffing - delete what's there, then
+  // insert what the form has now.
+  const { error: deleteError } = await supabase.from('invoice_line_items').delete().eq('invoice_id', invoice.id);
+  if (deleteError) {
+    console.error('Failed to clear old line items', deleteError);
+    throw deleteError;
+  }
+
+  if (lineItems.length > 0) {
+    const { error: lineItemsError } = await supabase.from('invoice_line_items').insert(
+      lineItems.map((item, index) => ({
+        id: item.id,
+        invoice_id: invoice.id,
+        user_id: userId,
+        description: item.description,
+        amount: item.amount,
+        position: index,
+      }))
+    );
+
+    if (lineItemsError) {
+      console.error('Failed to save line items', lineItemsError);
+      throw lineItemsError;
+    }
+  }
+
+  const invoiceToSave: Invoice = {
+    ...invoice,
+    lineItems,
+    attachments: invoice.attachments ?? existingInvoice?.attachments,
+    payments: invoice.payments ?? existingInvoice?.payments,
+  };
 
   if (existingInvoiceIndex >= 0) {
-    const existingInvoice = invoicesSnapshot[existingInvoiceIndex];
-    const invoiceToSave = {
-      ...invoice,
-      attachments: invoice.attachments ?? existingInvoice.attachments,
-      payments: invoice.payments ?? existingInvoice.payments,
-    };
-
-    invoicesSnapshot = invoicesSnapshot.map((item, index) =>
-      index === existingInvoiceIndex ? invoiceToSave : item
-    );
+    invoicesSnapshot = invoicesSnapshot.map((item, index) => (index === existingInvoiceIndex ? invoiceToSave : item));
     addActivity(`Invoice #${invoice.invoice} updated`);
   } else {
-    invoicesSnapshot = [invoice, ...invoicesSnapshot];
+    invoicesSnapshot = [invoiceToSave, ...invoicesSnapshot];
     addActivity(`Invoice #${invoice.invoice} created`);
   }
 
-  persistInvoices();
   refreshInvoiceStatuses();
   emitChange();
 }
 
-export function addInvoiceAttachment(invoiceId: string, attachmentInput?: InvoiceAttachmentInput) {
-  const invoice = invoicesSnapshot.find((item) => item.id === invoiceId);
+export async function addInvoiceAttachment(invoiceId: string, attachmentInput?: InvoiceAttachmentInput) {
+  const userId = getCurrentUserId();
+  if (!userId) {
+    throw new Error('You must be signed in to attach a file.');
+  }
 
+  const invoice = invoicesSnapshot.find((item) => item.id === invoiceId);
   if (!invoice) {
     return;
   }
@@ -336,18 +331,30 @@ export function addInvoiceAttachment(invoiceId: string, attachmentInput?: Invoic
     objectUrl: attachmentInput?.objectUrl,
   };
 
+  const { error } = await supabase.from('invoice_attachments').insert({
+    id: attachment.id,
+    invoice_id: invoiceId,
+    user_id: userId,
+    name: attachment.name,
+    type: attachment.type,
+    date_added: attachment.dateAdded,
+    size: attachment.size ?? null,
+  });
+
+  if (error) {
+    console.error('Failed to save attachment', error);
+    throw error;
+  }
+
   invoicesSnapshot = invoicesSnapshot.map((item) =>
-    item.id === invoiceId
-      ? { ...item, attachments: [...(item.attachments ?? []), attachment] }
-      : item
+    item.id === invoiceId ? { ...item, attachments: [...(item.attachments ?? []), attachment] } : item
   );
 
-  persistInvoices();
   addActivity(`Attachment added to invoice #${invoice.invoice}: ${attachment.name}`);
   emitChange();
 }
 
-export function reattachInvoiceAttachment(
+export async function reattachInvoiceAttachment(
   invoiceId: string,
   attachmentId: string,
   attachmentInput: InvoiceAttachmentInput
@@ -361,6 +368,20 @@ export function reattachInvoiceAttachment(
 
   if (typeof URL !== 'undefined' && attachment.objectUrl?.startsWith('blob:')) {
     URL.revokeObjectURL(attachment.objectUrl);
+  }
+
+  const { error } = await supabase
+    .from('invoice_attachments')
+    .update({
+      name: attachmentInput.name,
+      type: attachmentInput.type,
+      size: attachmentInput.size ?? null,
+    })
+    .eq('id', attachmentId);
+
+  if (error) {
+    console.error('Failed to reattach attachment', error);
+    throw error;
   }
 
   invoicesSnapshot = invoicesSnapshot.map((item) =>
@@ -382,12 +403,11 @@ export function reattachInvoiceAttachment(
       : item
   );
 
-  persistInvoices();
   addActivity(`Attachment reattached to invoice #${invoice.invoice}: ${attachmentInput.name}`);
   emitChange();
 }
 
-export function deleteInvoiceAttachment(invoiceId: string, attachmentId: string) {
+export async function deleteInvoiceAttachment(invoiceId: string, attachmentId: string) {
   const invoice = invoicesSnapshot.find((item) => item.id === invoiceId);
   const attachment = invoice?.attachments?.find((item) => item.id === attachmentId);
 
@@ -399,18 +419,23 @@ export function deleteInvoiceAttachment(invoiceId: string, attachmentId: string)
     URL.revokeObjectURL(attachment.objectUrl);
   }
 
+  const { error } = await supabase.from('invoice_attachments').delete().eq('id', attachmentId);
+  if (error) {
+    console.error('Failed to delete attachment', error);
+    throw error;
+  }
+
   invoicesSnapshot = invoicesSnapshot.map((item) =>
     item.id === invoiceId
       ? { ...item, attachments: (item.attachments ?? []).filter((file) => file.id !== attachmentId) }
       : item
   );
 
-  persistInvoices();
   addActivity(`Attachment deleted from invoice #${invoice.invoice}: ${attachment.name}`);
   emitChange();
 }
 
-export function updateInvoiceStatus(invoiceId: string, status: InvoiceStatus) {
+export async function updateInvoiceStatus(invoiceId: string, status: InvoiceStatus) {
   const invoice = invoicesSnapshot.find((item) => item.id === invoiceId);
 
   if (!invoice) {
@@ -421,7 +446,7 @@ export function updateInvoiceStatus(invoiceId: string, status: InvoiceStatus) {
     const balance = calculateInvoiceBalance(invoice);
 
     if (balance > 0) {
-      receiveInvoicePayment(invoiceId, {
+      await receiveInvoicePayment(invoiceId, {
         amount: balance,
         date: new Date().toISOString(),
       });
@@ -429,18 +454,25 @@ export function updateInvoiceStatus(invoiceId: string, status: InvoiceStatus) {
     }
   }
 
-  invoicesSnapshot = invoicesSnapshot.map((item) =>
-    item.id === invoiceId ? { ...item, status } : item
-  );
-  persistInvoices();
+  const { error } = await supabase.from('invoices').update({ status }).eq('id', invoiceId);
+  if (error) {
+    console.error('Failed to update invoice status', error);
+    throw error;
+  }
+
+  invoicesSnapshot = invoicesSnapshot.map((item) => (item.id === invoiceId ? { ...item, status } : item));
   addActivity(`Invoice #${invoice.invoice} marked ${status}`);
   refreshInvoiceStatuses();
   emitChange();
 }
 
-export function receiveInvoicePayment(invoiceId: string, paymentInput: ReceiveInvoicePaymentInput) {
-  const invoice = invoicesSnapshot.find((item) => item.id === invoiceId);
+export async function receiveInvoicePayment(invoiceId: string, paymentInput: ReceiveInvoicePaymentInput) {
+  const userId = getCurrentUserId();
+  if (!userId) {
+    throw new Error('You must be signed in to record a payment.');
+  }
 
+  const invoice = invoicesSnapshot.find((item) => item.id === invoiceId);
   if (!invoice) {
     return;
   }
@@ -459,6 +491,22 @@ export function receiveInvoicePayment(invoiceId: string, paymentInput: ReceiveIn
     notes: paymentInput.notes?.trim() || undefined,
   };
 
+  const { error: paymentError } = await supabase.from('invoice_payments').insert({
+    id: payment.id,
+    invoice_id: invoiceId,
+    user_id: userId,
+    amount: payment.amount,
+    payment_date: payment.date || null,
+    notes: payment.notes ?? null,
+  });
+
+  if (paymentError) {
+    console.error('Failed to save payment', paymentError);
+    throw paymentError;
+  }
+
+  let updatedStatus: InvoiceStatus = invoice.status;
+
   invoicesSnapshot = invoicesSnapshot.map((item) => {
     if (item.id !== invoiceId) {
       return item;
@@ -467,14 +515,18 @@ export function receiveInvoicePayment(invoiceId: string, paymentInput: ReceiveIn
     const payments = [...(item.payments ?? []), payment];
     const updatedInvoice = { ...item, payments };
     const balance = calculateInvoiceBalance(updatedInvoice);
+    updatedStatus = balance <= 0 ? 'Paid' : item.status === 'Draft' ? 'Sent' : item.status;
 
-    return {
-      ...updatedInvoice,
-      status: balance <= 0 ? 'Paid' : item.status === 'Draft' ? 'Sent' : item.status,
-    };
+    return { ...updatedInvoice, status: updatedStatus };
   });
 
-  persistInvoices();
+  if (updatedStatus !== invoice.status) {
+    const { error: statusError } = await supabase.from('invoices').update({ status: updatedStatus }).eq('id', invoiceId);
+    if (statusError) {
+      console.error('Failed to update invoice status after payment', statusError);
+    }
+  }
+
   addActivity(`Payment received: ${formatInvoiceAmount(receivedAmount)} from ${invoice.customer} for invoice #${invoice.invoice}`);
   refreshInvoiceStatuses();
   emitChange();
@@ -511,6 +563,10 @@ export function calculatePaidInvoiceTotal(invoices: Invoice[], comparisonDate = 
 }
 
 export function useInvoices() {
+  // Recomputed on every call (not just on load) so a "Sent" invoice that
+  // crosses its due date while the tab is left open updates to "Due
+  // Today"/"Overdue" without needing a full page reload - same behavior
+  // as before this store talked to Supabase.
   refreshInvoiceStatuses();
   return useSyncExternalStore(
     (listener) => {

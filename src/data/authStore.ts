@@ -16,21 +16,46 @@ let session: Session | null = null;
 let isInitialized = false;
 const listeners = new Set<() => void>();
 
+// Separate from `listeners` above: this is for non-React code (the data
+// stores in this folder) that needs to react to "which user is signed in
+// changed" - loading that user's rows in, or clearing out the previous
+// user's rows on sign-out. See src/data/bootstrap.ts.
+type AuthChangeListener = (session: Session | null) => void;
+const authChangeListeners = new Set<AuthChangeListener>();
+
+export function onAuthChange(listener: AuthChangeListener) {
+  authChangeListeners.add(listener);
+  return () => authChangeListeners.delete(listener);
+}
+
 function emitChange() {
   listeners.forEach((listener) => listener());
 }
 
-supabase.auth.getSession().then(({ data }) => {
-  session = data.session;
-  isInitialized = true;
-  emitChange();
-});
-
-supabase.auth.onAuthStateChange((_event, newSession) => {
+function setSession(newSession: Session | null) {
   session = newSession;
   isInitialized = true;
   emitChange();
+  authChangeListeners.forEach((listener) => listener(session));
+}
+
+supabase.auth.getSession().then(({ data }) => {
+  setSession(data.session);
 });
+
+supabase.auth.onAuthStateChange((_event, newSession) => {
+  setSession(newSession);
+});
+
+// Synchronous read of the current user id, for use in the data stores'
+// mutation functions (saveCustomer, saveInvoice, etc). Those run inside
+// event handlers, not React render, so they can't call the useSession()
+// hook - they read this instead. Returns null before the initial
+// getSession() resolves or when signed out; every mutation function checks
+// for that and throws rather than silently writing rows with no owner.
+export function getCurrentUserId(): string | null {
+  return session?.user.id ?? null;
+}
 
 export function useSession() {
   return useSyncExternalStore(

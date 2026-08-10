@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { addActivity } from './activityStore';
-import { loadPersistedData, persistData } from './persistentStore';
-import { generateId } from '@/utils/id';
+import { getCurrentUserId } from './authStore';
+import { supabase } from '@/lib/supabase';
 
 export type Customer = {
   id: string;
@@ -13,79 +13,96 @@ export type Customer = {
   notes: string;
 };
 
-const initialCustomers: Customer[] = [
-  {
-    id: 'seed-independent-steel',
-    name: 'Independent Steel',
-    contact: 'Mason Clarke',
-    phone: '(502) 555-0148',
-    email: 'dispatch@independentsteel.example',
-    address: '1400 River Road, Louisville, KY',
-    notes: 'Flatbed steel loads. Usually pays on Net 30.',
-  },
-  {
-    id: 'seed-louisville-dryer',
-    name: 'Louisville Dryer',
-    contact: 'Dana Whitaker',
-    phone: '(502) 555-0192',
-    email: 'ap@louisvilledryer.example',
-    address: '88 Industrial Parkway, Louisville, KY',
-    notes: 'Repair equipment freight and rush shipments.',
-  },
-  {
-    id: 'seed-abc-steel',
-    name: 'ABC Steel',
-    contact: 'Riley Brooks',
-    phone: '(812) 555-0175',
-    email: 'billing@abcsteel.example',
-    address: '240 Foundry Lane, Jeffersonville, IN',
-    notes: 'Smaller recurring steel runs.',
-  },
-];
+type CustomerRow = {
+  id: string;
+  name: string;
+  contact: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  notes: string | null;
+};
 
-const LOCAL_STORAGE_KEY = 'bluecollarbooks_customers';
-
-// Backfills a stable id for any customer record saved before ids existed.
-// Without this, every customer created prior to this change would have no
-// id and would break the by-id lookups below on first load.
-function migrateCustomer(customer: Customer): Customer {
-  return customer.id ? customer : { ...customer, id: generateId() };
+function rowToCustomer(row: CustomerRow): Customer {
+  return {
+    id: row.id,
+    name: row.name,
+    contact: row.contact ?? '',
+    phone: row.phone ?? '',
+    email: row.email ?? '',
+    address: row.address ?? '',
+    notes: row.notes ?? '',
+  };
 }
 
-let customersSnapshot = loadPersistedData<Customer[]>(LOCAL_STORAGE_KEY, initialCustomers).map(migrateCustomer);
+let customersSnapshot: Customer[] = [];
 const listeners = new Set<() => void>();
-
-// Persist immediately so backfilled ids are written to storage once, not
-// regenerated (and thus changed) on every subsequent load.
-persistData(LOCAL_STORAGE_KEY, customersSnapshot);
 
 function emitChange() {
   listeners.forEach((listener) => listener());
 }
 
-export function saveCustomer(customer: Customer, originalId?: string) {
-  const lookupId = originalId ?? customer.id;
-  const existingCustomerIndex = customersSnapshot.findIndex((item) => item.id === lookupId);
+// Called by src/data/bootstrap.ts whenever the signed-in user changes -
+// loads that user's customers from Supabase into the in-memory snapshot
+// this store's hook reads from.
+export async function loadCustomers(userId: string) {
+  const { data, error } = await supabase
+    .from('customers')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
 
-  if (existingCustomerIndex >= 0) {
-    customersSnapshot = customersSnapshot.map((item, index) =>
-      index === existingCustomerIndex ? customer : item
-    );
+  if (error) {
+    console.error('Failed to load customers', error);
+    return;
+  }
+
+  customersSnapshot = (data ?? []).map(rowToCustomer);
+  emitChange();
+}
+
+// Called on sign-out so the previous user's data doesn't linger on screen
+// for whoever looks at the app next.
+export function clearCustomers() {
+  customersSnapshot = [];
+  emitChange();
+}
+
+export async function saveCustomer(customer: Customer, originalId?: string) {
+  const userId = getCurrentUserId();
+  if (!userId) {
+    throw new Error('You must be signed in to save a customer.');
+  }
+
+  const lookupId = originalId ?? customer.id;
+  const isExisting = customersSnapshot.some((item) => item.id === lookupId);
+
+  const { error } = await supabase.from('customers').upsert({
+    id: customer.id,
+    user_id: userId,
+    name: customer.name,
+    contact: customer.contact,
+    phone: customer.phone,
+    email: customer.email,
+    address: customer.address,
+    notes: customer.notes,
+    updated_at: new Date().toISOString(),
+  });
+
+  if (error) {
+    console.error('Failed to save customer', error);
+    throw error;
+  }
+
+  if (isExisting) {
+    customersSnapshot = customersSnapshot.map((item) => (item.id === lookupId ? customer : item));
     addActivity(`Customer updated: ${customer.name}`);
   } else {
     customersSnapshot = [customer, ...customersSnapshot];
     addActivity(`Customer created: ${customer.name}`);
   }
 
-  persistData(LOCAL_STORAGE_KEY, customersSnapshot);
   emitChange();
-}
-
-// Non-reactive read of the current customers, for one-time migrations in
-// other stores (e.g. backfilling Invoice.customerId by matching names).
-// Not for use in components - use the useCustomers() hook there instead.
-export function getCustomersSnapshot(): Customer[] {
-  return customersSnapshot;
 }
 
 export function useCustomers() {

@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
-import { loadPersistedData, persistData } from './persistentStore';
+import { getCurrentUserId } from './authStore';
 import { generateId } from '@/utils/id';
+import { supabase } from '@/lib/supabase';
 
 export type Activity = {
   id: string;
@@ -8,18 +9,54 @@ export type Activity = {
   timestamp: string; // ISO
 };
 
-const LOCAL_STORAGE_KEY = 'bluecollarbooks_activity';
+type ActivityRow = {
+  id: string;
+  message: string;
+  created_at: string;
+};
 
-const initialActivities: Activity[] = [];
+function rowToActivity(row: ActivityRow): Activity {
+  return { id: row.id, message: row.message, timestamp: row.created_at };
+}
 
-let activitiesSnapshot = loadPersistedData<Activity[]>(LOCAL_STORAGE_KEY, initialActivities);
+let activitiesSnapshot: Activity[] = [];
 const listeners = new Set<() => void>();
 
 function emitChange() {
   listeners.forEach((listener) => listener());
 }
 
+export async function loadActivities(userId: string) {
+  const { data, error } = await supabase
+    .from('activity_log')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(200);
+
+  if (error) {
+    console.error('Failed to load activity log', error);
+    return;
+  }
+
+  activitiesSnapshot = (data ?? []).map(rowToActivity);
+  emitChange();
+}
+
+export function clearActivities() {
+  activitiesSnapshot = [];
+  emitChange();
+}
+
+// Fire-and-forget by design (matches the old localStorage version): every
+// other mutation in the app calls this as a side note after its own save
+// succeeds, and none of them should fail or block on an activity-log write.
 export function addActivity(message: string) {
+  const userId = getCurrentUserId();
+  if (!userId) {
+    return;
+  }
+
   const activity: Activity = {
     id: generateId(),
     message,
@@ -27,8 +64,14 @@ export function addActivity(message: string) {
   };
 
   activitiesSnapshot = [activity, ...activitiesSnapshot].slice(0, 200);
-  persistData(LOCAL_STORAGE_KEY, activitiesSnapshot);
   emitChange();
+
+  supabase
+    .from('activity_log')
+    .insert({ id: activity.id, user_id: userId, message: activity.message, created_at: activity.timestamp })
+    .then(({ error }) => {
+      if (error) console.error('Failed to persist activity log entry', error);
+    });
 }
 
 export function useActivities() {
@@ -40,10 +83,4 @@ export function useActivities() {
     () => activitiesSnapshot,
     () => activitiesSnapshot
   );
-}
-
-export function clearActivities() {
-  activitiesSnapshot = [];
-  persistData(LOCAL_STORAGE_KEY, activitiesSnapshot);
-  emitChange();
 }

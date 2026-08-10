@@ -5,6 +5,7 @@ import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-na
 
 import { AppShell } from '@/components/AppShell';
 import { expenseCategories, expenseDraft, saveExpense, useExpenses } from '@/data/mockExpenses';
+import { generateId } from '@/utils/id';
 import { formatMoneyCents, parseMoneyInputToCents } from '@/utils/money';
 import { formatDateDisplay, normalizeDateToISO } from '@/utils/date';
 
@@ -45,9 +46,10 @@ export default function NewExpenseScreen() {
   }, [expenses, originalId, searchParams.id]);
 
   function handleSaveExpense() {
+    const expenseId = originalId ?? generateId();
     saveExpense(
       {
-        id: originalId,
+        id: expenseId,
         date: normalizeDateToISO(date),
         vendor,
         category,
@@ -61,9 +63,13 @@ export default function NewExpenseScreen() {
   }
 
   function handleSave() {
+    // Reuse the same id across repeated "Save" clicks on a brand-new
+    // expense - otherwise each click would generate a fresh id and create
+    // a new duplicate row instead of updating the one just saved.
+    const expenseId = originalId ?? generateId();
     saveExpense(
       {
-        id: originalId,
+        id: expenseId,
         date: normalizeDateToISO(date),
         vendor,
         category,
@@ -72,14 +78,15 @@ export default function NewExpenseScreen() {
       },
       originalId
     );
-    setOriginalId(originalId ?? undefined);
+    setOriginalId(expenseId);
     setShowSavedToast(true);
   }
 
   function handleSaveAndClose() {
+    const expenseId = originalId ?? generateId();
     saveExpense(
       {
-        id: originalId,
+        id: expenseId,
         date: normalizeDateToISO(date),
         vendor,
         category,

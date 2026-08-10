@@ -1,13 +1,13 @@
 import { useSyncExternalStore } from 'react';
 import { addActivity } from './activityStore';
+import { getCurrentUserId } from './authStore';
 import { isSameMonth } from './mockInvoices';
-import { loadPersistedData, persistData } from './persistentStore';
 import { generateId } from '@/utils/id';
-import { dollarsToCents, formatMoneyCents } from '@/utils/money';
-import { normalizeDateToISO } from '@/utils/date';
+import { formatMoneyCents } from '@/utils/money';
+import { supabase } from '@/lib/supabase';
 
 export type Expense = {
-  id?: string;
+  id: string;
   date: string;
   vendor: string;
   category: string;
@@ -53,101 +53,142 @@ export const expenseDraft = {
   notes: 'Diesel fill-up',
 };
 
-const initialExpenses: Expense[] = [
-  { date: '06/09/2026', vendor: 'Loves Travel Stop', category: 'Fuel', amount: 32400, notes: 'Diesel fill-up' },
-  { date: '06/08/2026', vendor: 'NAPA Auto Parts', category: 'Repairs', amount: 8900, notes: 'Replacement parts' },
-  { date: '06/07/2026', vendor: 'Supabase', category: 'Software', amount: 2500, notes: 'Monthly tools' },
-  { date: '06/06/2026', vendor: 'Google Play', category: 'Software', amount: 2500, notes: 'App publishing' },
-];
+type ExpenseRow = {
+  id: string;
+  date: string | null;
+  vendor: string;
+  category: string | null;
+  amount: number;
+  notes: string | null;
+  expense_receipts: ExpenseReceiptRow[] | null;
+};
 
-const LOCAL_STORAGE_KEY = 'bluecollarbooks_expenses';
-// One-time flag so existing local amounts (stored as whole dollars) get
-// multiplied into cents exactly once, instead of being reinterpreted as
-// cents (which would silently divide every expense by 100).
-const MONEY_VERSION_KEY = 'bluecollarbooks_expenses_money_v';
-const moneyVersion = loadPersistedData<number>(MONEY_VERSION_KEY, 0);
+type ExpenseReceiptRow = {
+  id: string;
+  name: string;
+  type: string;
+  date_added: string;
+  size: number | null;
+};
 
-function migrateExpenseMoney(expense: Expense): Expense {
-  return moneyVersion >= 1 ? expense : { ...expense, amount: dollarsToCents(expense.amount) };
+function rowToExpense(row: ExpenseRow): Expense {
+  const receiptRow = row.expense_receipts?.[0];
+  return {
+    id: row.id,
+    date: row.date ?? '',
+    vendor: row.vendor,
+    category: row.category ?? '',
+    amount: row.amount,
+    notes: row.notes ?? '',
+    receipt: receiptRow
+      ? {
+          id: receiptRow.id,
+          name: receiptRow.name,
+          type: receiptRow.type,
+          dateAdded: receiptRow.date_added,
+          size: receiptRow.size ?? undefined,
+        }
+      : undefined,
+  };
 }
 
-// One-time flag so existing local dates (stored in mixed "MM/DD/YYYY" /
-// other formats) get normalized to ISO 'YYYY-MM-DD' exactly once.
-const DATE_VERSION_KEY = 'bluecollarbooks_expenses_date_v';
-const dateVersion = loadPersistedData<number>(DATE_VERSION_KEY, 0);
-
-function migrateExpenseDate(expense: Expense): Expense {
-  return dateVersion >= 1 ? expense : { ...expense, date: normalizeDateToISO(expense.date) };
-}
-
-let expensesSnapshot = loadPersistedData<Expense[]>(LOCAL_STORAGE_KEY, initialExpenses).map((expense) =>
-  sanitizeExpenseForPersistence(
-    migrateExpenseDate(
-      migrateExpenseMoney({
-        ...expense,
-        id: expense.id ?? generateId(),
-      })
-    )
-  )
-);
-if (moneyVersion < 1) {
-  persistData(MONEY_VERSION_KEY, 1);
-}
-if (dateVersion < 1) {
-  persistData(DATE_VERSION_KEY, 1);
-}
+let expensesSnapshot: Expense[] = [];
 const listeners = new Set<() => void>();
 
 function emitChange() {
   listeners.forEach((listener) => listener());
 }
 
-function sanitizeExpenseForPersistence(expense: Expense): Expense {
-  if (!expense.receipt) {
-    return expense;
+export async function loadExpenses(userId: string) {
+  const { data, error } = await supabase
+    .from('expenses')
+    .select('*, expense_receipts(*)')
+    .eq('user_id', userId)
+    .order('date', { ascending: false });
+
+  if (error) {
+    console.error('Failed to load expenses', error);
+    return;
   }
 
-  const { objectUrl, ...receipt } = expense.receipt;
-  return { ...expense, receipt };
+  expensesSnapshot = (data ?? []).map(rowToExpense);
+  emitChange();
 }
 
-function persistExpenses() {
-  persistData(LOCAL_STORAGE_KEY, expensesSnapshot.map(sanitizeExpenseForPersistence));
+export function clearExpenses() {
+  expensesSnapshot = [];
+  emitChange();
 }
-
-persistExpenses();
 
 export function addExpense(expense: Expense) {
   saveExpense({ ...expense, id: expense.id ?? generateId() });
 }
 
-export function saveExpense(expense: Expense, originalId?: string) {
+export async function saveExpense(expense: Expense, originalId?: string) {
+  const userId = getCurrentUserId();
+  if (!userId) {
+    throw new Error('You must be signed in to save an expense.');
+  }
+
   const lookupId = originalId ?? expense.id;
-  const existingExpenseIndex = expensesSnapshot.findIndex((item) => item.id === lookupId);
-  const existingExpense = existingExpenseIndex >= 0 ? expensesSnapshot[existingExpenseIndex] : undefined;
-  const expenseToSave = {
+  const existingIndex = expensesSnapshot.findIndex((item) => item.id === lookupId);
+  const existingExpense = existingIndex >= 0 ? expensesSnapshot[existingIndex] : undefined;
+  const expenseToSave: Expense = {
     ...expense,
     id: lookupId ?? generateId(),
     receipt: expense.receipt ?? existingExpense?.receipt,
   };
 
-  if (existingExpenseIndex >= 0) {
-    expensesSnapshot = expensesSnapshot.map((item, index) =>
-      index === existingExpenseIndex ? expenseToSave : item
-    );
+  const { error } = await supabase.from('expenses').upsert({
+    id: expenseToSave.id,
+    user_id: userId,
+    date: expenseToSave.date,
+    vendor: expenseToSave.vendor,
+    category: expenseToSave.category,
+    amount: expenseToSave.amount,
+    notes: expenseToSave.notes,
+  });
+
+  if (error) {
+    console.error('Failed to save expense', error);
+    throw error;
+  }
+
+  if (existingIndex >= 0) {
+    expensesSnapshot = expensesSnapshot.map((item, index) => (index === existingIndex ? expenseToSave : item));
     addActivity(`Expense updated: ${expenseToSave.vendor} ${formatMoneyCents(expenseToSave.amount)}`);
   } else {
     expensesSnapshot = [expenseToSave, ...expensesSnapshot];
     addActivity(`Expense added: ${expenseToSave.vendor} ${formatMoneyCents(expenseToSave.amount)}`);
   }
 
-  persistExpenses();
   emitChange();
 }
 
-export function attachExpenseReceipt(expenseId: string, receiptInput?: ExpenseReceiptInput) {
-  const expense = expensesSnapshot.find((item) => item.id === expenseId);
+async function upsertReceipt(expenseId: string, receipt: ExpenseReceipt) {
+  const userId = getCurrentUserId();
+  if (!userId) {
+    throw new Error('You must be signed in to attach a receipt.');
+  }
 
+  const { error } = await supabase.from('expense_receipts').upsert({
+    id: receipt.id,
+    expense_id: expenseId,
+    user_id: userId,
+    name: receipt.name,
+    type: receipt.type,
+    date_added: receipt.dateAdded,
+    size: receipt.size ?? null,
+  });
+
+  if (error) {
+    console.error('Failed to save receipt', error);
+    throw error;
+  }
+}
+
+export async function attachExpenseReceipt(expenseId: string, receiptInput?: ExpenseReceiptInput) {
+  const expense = expensesSnapshot.find((item) => item.id === expenseId);
   if (!expense) {
     return;
   }
@@ -161,18 +202,15 @@ export function attachExpenseReceipt(expenseId: string, receiptInput?: ExpenseRe
     objectUrl: receiptInput?.objectUrl,
   };
 
-  expensesSnapshot = expensesSnapshot.map((item) =>
-    item.id === expenseId ? { ...item, receipt } : item
-  );
+  await upsertReceipt(expenseId, receipt);
 
-  persistExpenses();
+  expensesSnapshot = expensesSnapshot.map((item) => (item.id === expenseId ? { ...item, receipt } : item));
   addActivity(`Receipt attached: ${expense.vendor} ${receipt.name}`);
   emitChange();
 }
 
-export function reattachExpenseReceipt(expenseId: string, receiptInput: ExpenseReceiptInput) {
+export async function reattachExpenseReceipt(expenseId: string, receiptInput: ExpenseReceiptInput) {
   const expense = expensesSnapshot.find((item) => item.id === expenseId);
-
   if (!expense?.receipt) {
     return;
   }
@@ -181,31 +219,23 @@ export function reattachExpenseReceipt(expenseId: string, receiptInput: ExpenseR
     URL.revokeObjectURL(expense.receipt.objectUrl);
   }
 
-  expensesSnapshot = expensesSnapshot.map((item) =>
-    item.id === expenseId
-      ? {
-          ...item,
-          receipt: {
-            ...item.receipt,
-            id: item.receipt?.id ?? generateId(),
-            name: receiptInput.name,
-            type: receiptInput.type,
-            dateAdded: item.receipt?.dateAdded ?? new Date().toISOString(),
-            size: receiptInput.size,
-            objectUrl: receiptInput.objectUrl,
-          },
-        }
-      : item
-  );
+  const receipt: ExpenseReceipt = {
+    ...expense.receipt,
+    name: receiptInput.name,
+    type: receiptInput.type,
+    size: receiptInput.size,
+    objectUrl: receiptInput.objectUrl,
+  };
 
-  persistExpenses();
+  await upsertReceipt(expenseId, receipt);
+
+  expensesSnapshot = expensesSnapshot.map((item) => (item.id === expenseId ? { ...item, receipt } : item));
   addActivity(`Receipt reattached: ${expense.vendor} ${receiptInput.name}`);
   emitChange();
 }
 
-export function deleteExpenseReceipt(expenseId: string) {
+export async function deleteExpenseReceipt(expenseId: string) {
   const expense = expensesSnapshot.find((item) => item.id === expenseId);
-
   if (!expense?.receipt) {
     return;
   }
@@ -214,12 +244,15 @@ export function deleteExpenseReceipt(expenseId: string) {
     URL.revokeObjectURL(expense.receipt.objectUrl);
   }
 
-  expensesSnapshot = expensesSnapshot.map((item) =>
-    item.id === expenseId ? { ...item, receipt: undefined } : item
-  );
+  const { error } = await supabase.from('expense_receipts').delete().eq('id', expense.receipt.id);
+  if (error) {
+    console.error('Failed to delete receipt', error);
+    throw error;
+  }
 
-  persistExpenses();
-  addActivity(`Receipt deleted: ${expense.vendor} ${expense.receipt.name}`);
+  const deletedReceiptName = expense.receipt.name;
+  expensesSnapshot = expensesSnapshot.map((item) => (item.id === expenseId ? { ...item, receipt: undefined } : item));
+  addActivity(`Receipt deleted: ${expense.vendor} ${deletedReceiptName}`);
   emitChange();
 }
 
