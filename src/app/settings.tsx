@@ -1,5 +1,6 @@
 import { AppShell } from '@/components/AppShell';
 import { useActivities } from '@/data/activityStore';
+import { signOut } from '@/data/authStore';
 import { useBankAccounts } from '@/data/mockBankAccounts';
 import { type BusinessSettings, saveBusinessProfile, useBusinessProfile } from '@/data/mockBusiness';
 import { useCustomers } from '@/data/mockCustomers';
@@ -143,14 +144,7 @@ export default function SettingsScreen() {
   }
 
   function handleSignOut() {
-    try {
-      if (typeof window !== 'undefined') {
-        window.localStorage.removeItem('bcb_dev_logged_in');
-      }
-    } catch {
-      // ignore
-    }
-
+    signOut();
     router.replace('/login');
   }
 
