@@ -29,6 +29,7 @@ export type Invoice = {
 };
 
 export type InvoiceLineItem = {
+  id: string;
   description: string;
   // Cents, like every other money value in the app (see src/utils/money.ts).
   amount: number;
@@ -88,7 +89,9 @@ export const invoiceDraft = {
   total: '$625',
 };
 
-export const invoiceLineItems: InvoiceLineItem[] = [{ description: 'Flatbed Freight', amount: 62500 }];
+export const invoiceLineItems: InvoiceLineItem[] = [
+  { id: 'seed-line-item-flatbed-freight', description: 'Flatbed Freight', amount: 62500 },
+];
 
 const initialInvoices: Invoice[] = [
   {
@@ -141,6 +144,22 @@ function migrateInvoiceCustomerId(invoice: Invoice): Invoice {
   return matchedCustomer ? { ...invoice, customerId: matchedCustomer.id } : invoice;
 }
 
+// One-time flag so existing invoice line items (previously identified only
+// by their array index, which breaks as soon as a row is added/removed
+// above them - React's key churns and edits can land on the wrong row)
+// get a stable id.
+const LINE_ITEM_ID_VERSION_KEY = 'bluecollarbooks_invoices_lineitemid_v';
+const lineItemIdVersion = loadPersistedData<number>(LINE_ITEM_ID_VERSION_KEY, 0);
+
+function migrateInvoiceLineItemIds(invoice: Invoice): Invoice {
+  if (lineItemIdVersion >= 1 || !invoice.lineItems) return invoice;
+
+  return {
+    ...invoice,
+    lineItems: invoice.lineItems.map((item) => (item.id ? item : { ...item, id: generateId() })),
+  };
+}
+
 // One-time flag so existing local invoices (amount/line-item amounts stored
 // as formatted "$625" strings, payments stored as whole dollars) get
 // converted to cents exactly once. Without this, re-running the conversion
@@ -152,7 +171,9 @@ function migrateInvoiceMoney(invoice: Invoice): Invoice {
   if (moneyVersion >= 1) return invoice;
 
   const rawAmount = invoice.amount as unknown;
-  const rawLineItems = invoice.lineItems as unknown as Array<{ description: string; amount: unknown }> | undefined;
+  const rawLineItems = invoice.lineItems as unknown as
+    | Array<{ id: string; description: string; amount: unknown }>
+    | undefined;
   const rawPayments = invoice.payments as unknown as
     | Array<{ id: string; amount: number; date: string; notes?: string }>
     | undefined;
@@ -161,6 +182,7 @@ function migrateInvoiceMoney(invoice: Invoice): Invoice {
     ...invoice,
     amount: typeof rawAmount === 'string' ? parseMoneyInputToCents(rawAmount) : (rawAmount as number),
     lineItems: rawLineItems?.map((item) => ({
+      id: item.id,
       description: item.description,
       amount: typeof item.amount === 'string' ? parseMoneyInputToCents(item.amount) : (item.amount as number),
     })),
@@ -186,11 +208,15 @@ function migrateInvoiceDates(invoice: Invoice): Invoice {
 let invoicesSnapshot = loadPersistedData<Invoice[]>(LOCAL_STORAGE_KEY, initialInvoices)
   .map(migrateInvoice)
   .map(migrateInvoiceCustomerId)
+  .map(migrateInvoiceLineItemIds)
   .map(migrateInvoiceMoney)
   .map(migrateInvoiceDates)
   .map(sanitizeInvoiceForPersistence);
 if (customerIdVersion < 1) {
   persistData(CUSTOMER_ID_VERSION_KEY, 1);
+}
+if (lineItemIdVersion < 1) {
+  persistData(LINE_ITEM_ID_VERSION_KEY, 1);
 }
 if (moneyVersion < 1) {
   persistData(MONEY_VERSION_KEY, 1);

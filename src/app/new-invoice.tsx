@@ -37,10 +37,10 @@ const blueCollarBooksLogo = require('@/assets/images/blue-collar-books-logo.jpg'
 // rather than the stored cents number, so someone can type freely without the
 // field reformatting itself on every keystroke. Amounts convert to/from cents
 // only at the form boundary (loading an existing invoice, and saving).
-type LineItemDraft = { description: string; amount: string };
+type LineItemDraft = { id: string; description: string; amount: string };
 
 function toLineItemDrafts(items: InvoiceLineItem[]): LineItemDraft[] {
-  return items.map((item) => ({ description: item.description, amount: formatMoneyCents(item.amount) }));
+  return items.map((item) => ({ id: item.id, description: item.description, amount: formatMoneyCents(item.amount) }));
 }
 
 function getNextInvoiceNumber(invoices: Invoice[]) {
@@ -100,7 +100,7 @@ export default function NewInvoiceScreen() {
   }
 
   function handleAddLineItem() {
-    setLineItems((items) => [...items, { description: '', amount: '$0' }]);
+    setLineItems((items) => [...items, { id: generateId(), description: '', amount: '$0' }]);
   }
 
   function handleRemoveLineItem(index: number) {
@@ -192,6 +192,7 @@ export default function NewInvoiceScreen() {
 
   function buildLineItemsForSave(): InvoiceLineItem[] {
     return lineItems.map((item) => ({
+      id: item.id,
       description: item.description,
       amount: parseMoneyInputToCents(item.amount),
     }));
@@ -516,7 +517,7 @@ export default function NewInvoiceScreen() {
                 </View>
 
                 {lineItems.map((item, index) => (
-                  <View key={index} style={styles.lineItemRow}>
+                  <View key={item.id} style={styles.lineItemRow}>
                     <TextInput
                       onChangeText={(value) => updateLineItem(index, 'description', value)}
                       style={[styles.lineItemText, styles.descriptionColumn]}
