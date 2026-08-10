@@ -81,6 +81,13 @@ export function saveCustomer(customer: Customer, originalId?: string) {
   emitChange();
 }
 
+// Non-reactive read of the current customers, for one-time migrations in
+// other stores (e.g. backfilling Invoice.customerId by matching names).
+// Not for use in components - use the useCustomers() hook there instead.
+export function getCustomersSnapshot(): Customer[] {
+  return customersSnapshot;
+}
+
 export function useCustomers() {
   return useSyncExternalStore(
     (listener) => {

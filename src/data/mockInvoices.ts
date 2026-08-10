@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { addActivity } from './activityStore';
+import { getCustomersSnapshot } from './mockCustomers';
 import { loadPersistedData, persistData } from './persistentStore';
 import { generateId } from '@/utils/id';
 import { dollarsToCents, formatMoneyCents, parseMoneyInputToCents } from '@/utils/money';
@@ -124,6 +125,22 @@ function migrateInvoice(invoice: Invoice): Invoice {
   return invoice.id ? invoice : { ...invoice, id: generateId() };
 }
 
+// One-time flag so existing invoices saved before customerId existed get
+// linked to their customer by matching the old free-text customer name
+// against the current customer list. Without this, renaming a customer
+// (the whole point of adding customerId - see mockCustomers.ts) would
+// silently orphan any invoice created before this migration ran, since
+// customers.tsx's name-fallback match would stop matching the new name.
+const CUSTOMER_ID_VERSION_KEY = 'bluecollarbooks_invoices_customerid_v';
+const customerIdVersion = loadPersistedData<number>(CUSTOMER_ID_VERSION_KEY, 0);
+
+function migrateInvoiceCustomerId(invoice: Invoice): Invoice {
+  if (customerIdVersion >= 1 || invoice.customerId) return invoice;
+
+  const matchedCustomer = getCustomersSnapshot().find((customer) => customer.name === invoice.customer);
+  return matchedCustomer ? { ...invoice, customerId: matchedCustomer.id } : invoice;
+}
+
 // One-time flag so existing local invoices (amount/line-item amounts stored
 // as formatted "$625" strings, payments stored as whole dollars) get
 // converted to cents exactly once. Without this, re-running the conversion
@@ -168,9 +185,13 @@ function migrateInvoiceDates(invoice: Invoice): Invoice {
 
 let invoicesSnapshot = loadPersistedData<Invoice[]>(LOCAL_STORAGE_KEY, initialInvoices)
   .map(migrateInvoice)
+  .map(migrateInvoiceCustomerId)
   .map(migrateInvoiceMoney)
   .map(migrateInvoiceDates)
   .map(sanitizeInvoiceForPersistence);
+if (customerIdVersion < 1) {
+  persistData(CUSTOMER_ID_VERSION_KEY, 1);
+}
 if (moneyVersion < 1) {
   persistData(MONEY_VERSION_KEY, 1);
 }
