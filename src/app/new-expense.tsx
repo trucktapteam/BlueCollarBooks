@@ -7,13 +7,13 @@ import { AppShell } from '@/components/AppShell';
 import { expenseCategories, expenseDraft, saveExpense, useExpenses } from '@/data/mockExpenses';
 import { generateId } from '@/utils/id';
 import { formatMoneyCents, parseMoneyInputToCents } from '@/utils/money';
-import { formatDateDisplay, normalizeDateToISO } from '@/utils/date';
+import { formatDateDisplay, normalizeDateToISO, toISODateString } from '@/utils/date';
 
 export default function NewExpenseScreen() {
   const searchParams = useLocalSearchParams();
   const expenses = useExpenses();
   const [originalId, setOriginalId] = useState<string | undefined>(undefined);
-  const [date, setDate] = useState(expenseDraft.date);
+  const [date, setDate] = useState(() => formatDateDisplay(toISODateString(new Date())));
   const [vendor, setVendor] = useState(expenseDraft.vendor);
   const [amount, setAmount] = useState(expenseDraft.amount);
   const [category, setCategory] = useState(expenseDraft.category);

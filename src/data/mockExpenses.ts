@@ -45,12 +45,15 @@ export const expenseCategories = [
   'Other',
 ];
 
+// Blank-form defaults for a brand-new expense - date defaults to today in
+// new-expense.tsx; vendor/amount/notes are deliberately empty, not sample
+// data. This used to default to a fake vendor/amount ("Loves Travel Stop",
+// "$324") left over from local development.
 export const expenseDraft = {
-  date: '06/09/2026',
-  vendor: 'Loves Travel Stop',
-  category: 'Fuel',
-  amount: '$324',
-  notes: 'Diesel fill-up',
+  vendor: '',
+  category: expenseCategories[0],
+  amount: '$0',
+  notes: '',
 };
 
 type ExpenseRow = {

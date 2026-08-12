@@ -29,7 +29,7 @@ import {
 } from '@/data/mockInvoices';
 import { generateId } from '@/utils/id';
 import { formatMoneyCents, parseMoneyInputToCents } from '@/utils/money';
-import { formatDateDisplay, formatDueDateDisplay, normalizeDateToISO } from '@/utils/date';
+import { formatDateDisplay, formatDueDateDisplay, normalizeDateToISO, toISODateString } from '@/utils/date';
 
 const blueCollarBooksLogo = require('@/assets/images/blue-collar-books-logo.jpg');
 
@@ -43,12 +43,18 @@ function toLineItemDrafts(items: InvoiceLineItem[]): LineItemDraft[] {
   return items.map((item) => ({ id: item.id, description: item.description, amount: formatMoneyCents(item.amount) }));
 }
 
-function getNextInvoiceNumber(invoices: Invoice[]) {
+// The very first invoice for a new account starts from the business's own
+// configured starting number (Settings > starting invoice number, default
+// 1000) rather than a hardcoded demo value - every invoice after that just
+// increments off the highest existing number.
+function getNextInvoiceNumber(invoices: Invoice[], startingInvoiceNumber?: string) {
     const numericValues = invoices
         .map((invoice) => Number(invoice.invoice.replace(/\D/g, '')))
         .filter((value) => Number.isFinite(value) && value > 0);
 
-    const nextNumber = numericValues.length ? Math.max(...numericValues) + 1 : Number(invoiceDraft.number) || 0;
+    const nextNumber = numericValues.length
+      ? Math.max(...numericValues) + 1
+      : Number(startingInvoiceNumber) || 1000;
     return String(nextNumber);
 }
 
@@ -67,8 +73,8 @@ export default function NewInvoiceScreen() {
   // screen is editing an existing invoice, the effect below overwrites it
   // with that invoice's real id once it's found.
   const [recordId, setRecordId] = useState(() => generateId());
-  const [number, setNumber] = useState(() => getNextInvoiceNumber(invoices));
-  const [date, setDate] = useState(invoiceDraft.date);
+  const [number, setNumber] = useState(() => getNextInvoiceNumber(invoices, profile.startingInvoiceNumber));
+  const [date, setDate] = useState(() => formatDateDisplay(toISODateString(new Date())));
   const [terms, setTerms] = useState(() => profile.defaultPaymentTerms || invoiceDraft.terms);
   const [customer, setCustomer] = useState(invoiceDraft.customer);
   const [selectedCustomerId, setSelectedCustomerId] = useState('');

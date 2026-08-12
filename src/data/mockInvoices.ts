@@ -76,22 +76,22 @@ export const invoiceLabels = {
   po: 'PO Number',
 };
 
+// Blank-form defaults for a brand-new invoice - deliberately empty/generic,
+// not sample data. This used to be seeded with a fake customer name and PO/
+// BOL numbers ("Independent Steel", "PO-44321", etc.) left over from local
+// development, which a real new user would see pre-filled on their very
+// first invoice as if it meant something.
 export const invoiceDraft = {
-  number: '26032',
-  date: '06/09/2026',
   terms: 'Net 30',
-  customer: 'Independent Steel',
-  poNumber: 'PO-44321',
-  bolNumber: 'BOL-99812',
-  shipper: 'Address',
-  consignee: 'Address',
-  freightDescription: 'Steel Beams',
-  total: '$625',
+  customer: '',
+  poNumber: '',
+  bolNumber: '',
+  shipper: '',
+  consignee: '',
+  freightDescription: '',
 };
 
-export const invoiceLineItems: InvoiceLineItem[] = [
-  { id: 'seed-line-item-flatbed-freight', description: 'Flatbed Freight', amount: 62500 },
-];
+export const invoiceLineItems: InvoiceLineItem[] = [];
 
 type InvoiceRow = {
   id: string;
