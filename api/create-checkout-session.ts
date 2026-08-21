@@ -1,6 +1,16 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type Stripe from 'stripe';
 import { stripe, MONTHLY_PRICE_ID } from '../src/server/stripeAdmin';
 import { supabaseAdmin, getUserFromAuthHeader } from '../src/server/supabaseAdmin';
+
+// managed_payments is a newer Checkout Session param the installed stripe
+// SDK's TypeScript types (18.5.0) don't know about yet, even though the
+// live API accepts it - see the comment below for why we need it. This
+// extends the SDK's own params type instead of casting the whole object to
+// any, so every other field here stays type-checked normally.
+type SessionCreateParamsWithManagedPayments = Stripe.Checkout.SessionCreateParams & {
+  managed_payments?: { enabled: boolean };
+};
 
 // Called by the client (see src/data/subscriptionStore.ts) when a signed-in
 // user wants to start their 30-day trial / subscribe. Creates a Stripe
@@ -40,7 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const origin = req.headers.origin ?? `https://${req.headers.host}`;
 
-    const session = await stripe.checkout.sessions.create({
+    const sessionParams: SessionCreateParamsWithManagedPayments = {
       mode: 'subscription',
       customer: customerId,
       client_reference_id: user.id,
@@ -51,7 +61,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
       success_url: `${origin}/settings?checkout=success`,
       cancel_url: `${origin}/settings?checkout=canceled`,
-    });
+      // Managed Payments is on by default for new Stripe accounts and
+      // requires every product to carry a tax_code - more setup than a
+      // single flat-rate SaaS plan needs. We deliberately chose the plain
+      // Stripe-hosted Checkout path (not Managed Payments) when planning
+      // this integration, so opt back out of the account default here.
+      managed_payments: { enabled: false },
+    };
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
 
     return res.status(200).json({ url: session.url });
   } catch (error) {
