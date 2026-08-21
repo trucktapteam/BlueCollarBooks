@@ -6,10 +6,21 @@ import { type BusinessSettings, saveBusinessProfile, useBusinessProfile } from '
 import { useCustomers } from '@/data/mockCustomers';
 import { useExpenses } from '@/data/mockExpenses';
 import { useInvoices } from '@/data/mockInvoices';
+import { useSubscription } from '@/data/subscriptionStore';
+import { supabase } from '@/lib/supabase';
 import { router } from 'expo-router';
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+
+const subscriptionStatusLabels: Record<string, string> = {
+  trialing: 'Free trial active',
+  active: 'Active — $20/month',
+  past_due: 'Payment failed — update your card',
+  canceled: 'Canceled',
+  unpaid: 'Unpaid',
+  none: 'No subscription',
+};
 
 function stripObjectUrl<T extends { objectUrl?: string }>({ objectUrl, ...rest }: T) {
   return rest;
@@ -48,6 +59,8 @@ export default function SettingsScreen() {
   const expenses = useExpenses();
   const bankAccounts = useBankAccounts();
   const activities = useActivities();
+  const subscription = useSubscription();
+  const [isManagingSubscription, setIsManagingSubscription] = useState(false);
   const [businessName, setBusinessName] = useState(profile.businessName || '');
   const [contactName, setContactName] = useState(profile.contactName || '');
   const [phone, setPhone] = useState(profile.phone || '');
@@ -146,6 +159,34 @@ export default function SettingsScreen() {
   function handleSignOut() {
     signOut();
     router.replace('/login');
+  }
+
+  async function handleManageSubscription() {
+    setIsManagingSubscription(true);
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) {
+        throw new Error('You need to be signed in.');
+      }
+
+      const response = await fetch('/api/create-portal-session', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = await response.json();
+      if (!response.ok || !body.url) {
+        throw new Error(body.error ?? 'Could not open subscription management.');
+      }
+
+      window.location.href = body.url;
+    } catch (error) {
+      // Rare enough (only fires if the portal call itself fails, e.g. no
+      // customer on file yet) that a console log plus resetting the button
+      // is enough - no dedicated error UI for this one card.
+      console.error('Failed to open subscription portal', error);
+      setIsManagingSubscription(false);
+    }
   }
 
   function handleLogoUpload(file?: File) {
@@ -270,6 +311,24 @@ export default function SettingsScreen() {
               multiline
             />
           </View>
+        </SettingsCard>
+
+        <SettingsCard title="Subscription">
+          <Text style={styles.helperText}>
+            {subscriptionStatusLabels[subscription?.status ?? 'none'] ?? 'No subscription'}
+            {subscription?.status === 'trialing' && subscription.trialEnd
+              ? ` — trial ends ${new Date(subscription.trialEnd).toLocaleDateString()}`
+              : ''}
+          </Text>
+          <Pressable
+            style={[styles.secondaryButton, isManagingSubscription && styles.disabledButton]}
+            onPress={handleManageSubscription}
+            disabled={isManagingSubscription}
+          >
+            <Text style={styles.secondaryButtonText}>
+              {isManagingSubscription ? 'Opening...' : 'Manage Subscription'}
+            </Text>
+          </Pressable>
         </SettingsCard>
 
         <SettingsCard title="Backup">

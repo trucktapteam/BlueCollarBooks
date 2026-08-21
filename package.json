@@ -26,10 +26,13 @@
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "4.25.2",
     "react-native-web": "~0.21.0",
-    "react-native-worklets": "0.8.3"
+    "react-native-worklets": "0.8.3",
+    "stripe": "^18.0.0"
   },
   "devDependencies": {
+    "@types/node": "^22.10.0",
     "@types/react": "~19.2.2",
+    "@vercel/node": "^5.1.14",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~56.0.4",
     "typescript": "~6.0.3"
