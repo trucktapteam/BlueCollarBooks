@@ -11,7 +11,7 @@ if (!secretKey) {
 }
 
 export const stripe = new Stripe(secretKey, {
-  apiVersion: '2026-06-24.preview',
+  apiVersion: '2025-08-27.basil',
 });
 
 // The $20/month price created for Blue Collar Books' single subscription

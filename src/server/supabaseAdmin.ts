@@ -36,6 +36,7 @@ export async function getUserFromAuthHeader(authHeader: string | undefined) {
 
   const { data, error } = await supabaseAdmin.auth.getUser(token);
   if (error || !data.user) {
+    console.error('getUserFromAuthHeader: token rejected', error?.message);
     return null;
   }
   return data.user;

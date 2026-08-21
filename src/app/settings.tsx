@@ -1,13 +1,12 @@
 import { AppShell } from '@/components/AppShell';
 import { useActivities } from '@/data/activityStore';
-import { signOut } from '@/data/authStore';
+import { signOut, useSession } from '@/data/authStore';
 import { useBankAccounts } from '@/data/mockBankAccounts';
 import { type BusinessSettings, saveBusinessProfile, useBusinessProfile } from '@/data/mockBusiness';
 import { useCustomers } from '@/data/mockCustomers';
 import { useExpenses } from '@/data/mockExpenses';
 import { useInvoices } from '@/data/mockInvoices';
 import { useSubscription } from '@/data/subscriptionStore';
-import { supabase } from '@/lib/supabase';
 import { router } from 'expo-router';
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
@@ -59,6 +58,7 @@ export default function SettingsScreen() {
   const expenses = useExpenses();
   const bankAccounts = useBankAccounts();
   const activities = useActivities();
+  const session = useSession();
   const subscription = useSubscription();
   const [isManagingSubscription, setIsManagingSubscription] = useState(false);
   const [businessName, setBusinessName] = useState(profile.businessName || '');
@@ -164,8 +164,7 @@ export default function SettingsScreen() {
   async function handleManageSubscription() {
     setIsManagingSubscription(true);
     try {
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
+      const token = session?.access_token;
       if (!token) {
         throw new Error('You need to be signed in.');
       }

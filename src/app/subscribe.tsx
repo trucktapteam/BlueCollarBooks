@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { ActivityIndicator, Image, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 
-import { supabase } from '@/lib/supabase';
-import { signOut } from '@/data/authStore';
+import { signOut, useSession } from '@/data/authStore';
 import { useSubscription } from '@/data/subscriptionStore';
 
 const defaultLogo = require('@/assets/images/blue-collar-books-logo.jpg');
@@ -11,6 +10,7 @@ const defaultLogo = require('@/assets/images/blue-collar-books-logo.jpg');
 // they're brand new, or their trial/subscription lapsed. See _layout.tsx
 // for the redirect logic that sends people here.
 export default function SubscribeScreen() {
+  const session = useSession();
   const subscription = useSubscription();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -21,8 +21,11 @@ export default function SubscribeScreen() {
     setErrorMessage('');
     setIsSubmitting(true);
     try {
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
+      // Reuse the session already held by authStore (the same one that let
+      // this screen render in the first place) instead of re-fetching it -
+      // a fresh supabase.auth.getSession() call here raced with session
+      // hydration on first load and intermittently came back empty.
+      const token = session?.access_token;
       if (!token) {
         throw new Error('You need to be signed in.');
       }
