@@ -217,7 +217,7 @@ export default function SettingsScreen() {
           <Text style={styles.heading}>Business Profile</Text>
         </View>
 
-        <Pressable style={styles.backButton} onPress={() => router.push('/')}>
+        <Pressable style={styles.backButton} onPress={() => router.push('/dashboard')}>
           <Text style={styles.backButtonText}>Back to dashboard</Text>
         </Pressable>
       </View>

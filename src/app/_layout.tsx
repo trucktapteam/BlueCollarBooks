@@ -21,9 +21,23 @@ export default function TabLayout() {
   const subscriptionInitialized = useSubscriptionInitialized();
   const pathname = usePathname();
 
+  // '/' is the public marketing/welcome page (see src/app/index.tsx) - it
+  // needs to render for signed-out visitors instead of bouncing them to
+  // /login like every other route does. '/login' is public by nature too.
+  const isPublicRoute = pathname === '/' || pathname === '/login';
+
   useEffect(() => {
     if (authInitialized && !session) {
-      router.replace('/login');
+      if (!isPublicRoute) {
+        router.replace('/login');
+      }
+      return;
+    }
+
+    // Someone who's already signed in doesn't need to see the marketing
+    // page or the login form again - send them straight into the app.
+    if (authInitialized && session && isPublicRoute) {
+      router.replace('/dashboard');
       return;
     }
 
@@ -39,7 +53,7 @@ export default function TabLayout() {
     ) {
       router.replace('/subscribe');
     }
-  }, [authInitialized, session, subscription, subscriptionInitialized, pathname]);
+  }, [authInitialized, session, subscription, subscriptionInitialized, pathname, isPublicRoute]);
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>

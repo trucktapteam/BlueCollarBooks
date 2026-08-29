@@ -9,7 +9,7 @@ type AppRoute = '/' | '/invoices' | '/payments' | '/expenses' | '/customers' | '
 type ActiveNav = 'Dashboard' | 'Invoices' | 'Payments' | 'Expenses' | 'Customers' | 'Reports' | 'Settings';
 
 const navItems: { label: string; icon: string; route?: AppRoute }[] = [
-  { label: 'Dashboard', icon: '💵', route: '/' },
+  { label: 'Dashboard', icon: '💵', route: '/dashboard' },
   { label: 'Invoices', icon: '📄', route: '/invoices' },
   { label: 'Payments', icon: '✔', route: '/payments' },
   { label: 'Expenses', icon: '🧾', route: '/expenses' },

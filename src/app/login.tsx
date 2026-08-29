@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Image, Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -7,9 +7,14 @@ import { signInWithPassword, signUpWithPassword } from '@/data/authStore';
 const defaultLogo = require('@/assets/images/blue-collar-books-logo.jpg');
 
 export default function LoginScreen() {
+  // The marketing homepage's "Start Free Trial" button links here with
+  // ?mode=signup so people land straight on Create Account instead of
+  // Sign In - the whole point of that button was to start a trial, not to
+  // make a first-time visitor find the toggle themselves.
+  const { mode: modeParam } = useLocalSearchParams<{ mode?: string }>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [mode, setMode] = useState<'sign-in' | 'sign-up'>('sign-in');
+  const [mode, setMode] = useState<'sign-in' | 'sign-up'>(modeParam === 'signup' ? 'sign-up' : 'sign-in');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [confirmMessage, setConfirmMessage] = useState('');
@@ -34,7 +39,7 @@ export default function LoginScreen() {
       }
 
       await signInWithPassword(email.trim(), password);
-      router.replace('/');
+      router.replace('/dashboard');
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Something went wrong. Try again.');
     } finally {
