@@ -1,7 +1,34 @@
 import { router } from 'expo-router';
-import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BrandColors } from '@/constants/theme';
+
+// Expo's static web export (app.json web.output: "static") prerenders this
+// route with no real browser present, so react-native's useWindowDimensions
+// was coming back with a stale/default width after hydration on
+// bluecollarbookspro.com - correct locally (Metro dev server always has a
+// real window), broken only on the deployed build, where every isCompact
+// check below stayed stuck "true" regardless of actual screen width. This
+// reads window.innerWidth directly and re-syncs once on mount plus on
+// resize, which sidesteps whatever the hook was doing wrong on that export
+// path.
+function useIsCompact(breakpoint: number) {
+  const [isCompact, setIsCompact] = useState(() =>
+    typeof window === 'undefined' ? false : window.innerWidth < breakpoint,
+  );
+
+  useEffect(() => {
+    function syncWidth() {
+      setIsCompact(window.innerWidth < breakpoint);
+    }
+    syncWidth();
+    window.addEventListener('resize', syncWidth);
+    return () => window.removeEventListener('resize', syncWidth);
+  }, [breakpoint]);
+
+  return isCompact;
+}
 
 const defaultLogo = require('@/assets/images/blue-collar-books-logo.jpg');
 
@@ -87,8 +114,7 @@ function GaugeReadout({ label, value, fill, compact }: { label: string; value: s
 }
 
 export default function WelcomeScreen() {
-  const { width } = useWindowDimensions();
-  const isCompact = width < 900;
+  const isCompact = useIsCompact(900);
 
   const goToSignup = () => router.push({ pathname: '/login', params: { mode: 'signup' } });
 
