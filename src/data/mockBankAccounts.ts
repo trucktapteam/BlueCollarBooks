@@ -9,6 +9,16 @@ export type BankAccount = {
   // Cents, like every other money value in the app (see src/utils/money.ts).
   balance: number;
   lastUpdated: string;
+  // Null for manually-entered accounts (no UI for that currently exists,
+  // but the column/type support it). Set for anything connected through
+  // Plaid - see api/plaid-exchange-public-token.ts - and used to show a
+  // Disconnect action only where it's actually meaningful.
+  plaidItemId: string | null;
+  // True when api/plaid-sync.ts hit an ITEM_LOGIN_REQUIRED-class error for
+  // this account's connection - the bank needs the user to reconnect
+  // (expired credentials, forced re-verification, etc.) before balances
+  // can refresh again.
+  needsReauth: boolean;
 };
 
 type BankAccountRow = {
@@ -17,6 +27,8 @@ type BankAccountRow = {
   last4: string | null;
   balance: number;
   last_updated: string | null;
+  plaid_item_id: string | null;
+  needs_reauth: boolean | null;
 };
 
 function rowToBankAccount(row: BankAccountRow): BankAccount {
@@ -26,6 +38,8 @@ function rowToBankAccount(row: BankAccountRow): BankAccount {
     last4: row.last4 ?? '',
     balance: row.balance,
     lastUpdated: row.last_updated ?? '',
+    plaidItemId: row.plaid_item_id,
+    needsReauth: row.needs_reauth ?? false,
   };
 }
 

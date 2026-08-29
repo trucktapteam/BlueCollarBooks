@@ -42,6 +42,10 @@ export default function DashboardScreen() {
   const isCompact = width < 760;
   const isWideDesktop = width > 1400;
   const [dashboardQuery, setDashboardQuery] = useState('');
+  const session = useSession();
+  const [disconnectingItemId, setDisconnectingItemId] = useState<string | null>(null);
+  const [isRefreshingBalances, setIsRefreshingBalances] = useState(false);
+  const [bankActionError, setBankActionError] = useState('');
   const profile = useBusinessProfile();
   const bankAccounts = useBankAccounts();
   const expenses = useExpenses();
@@ -148,6 +152,60 @@ export default function DashboardScreen() {
       router.push('/invoices');
     }
   };
+
+  async function handleRefreshBalances() {
+    const accessToken = session?.access_token;
+    if (!accessToken) return;
+
+    setBankActionError('');
+    setIsRefreshingBalances(true);
+    try {
+      const response = await fetch('/api/plaid-sync', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!response.ok) {
+        const body = await response.json();
+        throw new Error(body.error ?? 'Could not refresh balances.');
+      }
+      if (session?.user.id) {
+        await loadBankAccounts(session.user.id);
+      }
+    } catch (error) {
+      setBankActionError(error instanceof Error ? error.message : 'Something went wrong. Try again.');
+    } finally {
+      setIsRefreshingBalances(false);
+    }
+  }
+
+  async function handleDisconnectBank(plaidItemId: string, accountName: string) {
+    const accessToken = session?.access_token;
+    if (!accessToken) return;
+    if (typeof window !== 'undefined' && !window.confirm(`Disconnect ${accountName}? You can reconnect it any time.`)) {
+      return;
+    }
+
+    setBankActionError('');
+    setDisconnectingItemId(plaidItemId);
+    try {
+      const response = await fetch('/api/plaid-disconnect', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId: plaidItemId }),
+      });
+      if (!response.ok) {
+        const body = await response.json();
+        throw new Error(body.error ?? 'Could not disconnect bank account.');
+      }
+      if (session?.user.id) {
+        await loadBankAccounts(session.user.id);
+      }
+    } catch (error) {
+      setBankActionError(error instanceof Error ? error.message : 'Something went wrong. Try again.');
+    } finally {
+      setDisconnectingItemId(null);
+    }
+  }
 
   return (
     <AppShell activeNav="Dashboard">
@@ -287,6 +345,18 @@ export default function DashboardScreen() {
             <Text style={styles.sectionTotal}>Total: {formatInvoiceAmount(sumBankAccountBalances(bankAccounts))}</Text>
           </View>
 
+          {bankAccounts.some((account) => account.plaidItemId) && (
+            <Pressable
+              style={[styles.refreshBalancesButton, isRefreshingBalances && styles.connectBankButtonDisabled]}
+              onPress={handleRefreshBalances}
+              disabled={isRefreshingBalances}
+            >
+              <Text style={styles.refreshBalancesButtonText}>
+                {isRefreshingBalances ? 'Refreshing…' : 'Refresh Balances'}
+              </Text>
+            </Pressable>
+          )}
+
           <View style={styles.detailList}>
             {bankAccounts.map((account) => (
               <View key={account.id} style={styles.detailRow}>
@@ -294,6 +364,21 @@ export default function DashboardScreen() {
                   <Text style={styles.detailTitle}>{account.name}</Text>
                   <Text style={styles.detailSubtitle}>Last 4: {account.last4}</Text>
                   <Text style={styles.detailSubtitle}>Updated {account.lastUpdated}</Text>
+                  {account.needsReauth && (
+                    <Text style={styles.needsReauthText}>
+                      ⚠ Connection needs attention - disconnect and reconnect this bank
+                    </Text>
+                  )}
+                  {!!account.plaidItemId && (
+                    <Pressable
+                      onPress={() => handleDisconnectBank(account.plaidItemId!, account.name)}
+                      disabled={disconnectingItemId === account.plaidItemId}
+                    >
+                      <Text style={styles.disconnectBankText}>
+                        {disconnectingItemId === account.plaidItemId ? 'Disconnecting…' : 'Disconnect'}
+                      </Text>
+                    </Pressable>
+                  )}
                 </View>
 
                 <Text style={styles.detailAmount}>{formatInvoiceAmount(account.balance)}</Text>
@@ -302,6 +387,7 @@ export default function DashboardScreen() {
           </View>
 
           <ConnectBankButton />
+          {!!bankActionError && <Text style={styles.bankConnectErrorText}>{bankActionError}</Text>}
         </View>
 
         <View style={[styles.detailCard, isCompact ? styles.fullWidthCard : isWideDesktop ? styles.quarterWidthCard : styles.halfWidthCard]}>
@@ -831,6 +917,34 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     marginTop: 8,
+  },
+  refreshBalancesButton: {
+    alignItems: 'center',
+    backgroundColor: '#252525',
+    borderColor: '#343434',
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    width: '100%',
+  },
+  refreshBalancesButtonText: {
+    color: '#d4d4d4',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  disconnectBankText: {
+    color: '#ff6b6b',
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 4,
+  },
+  needsReauthText: {
+    color: '#f5a524',
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 4,
   },
   detailList: {
     gap: 12,
