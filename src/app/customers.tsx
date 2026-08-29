@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import Head from 'expo-router/head';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -94,6 +95,10 @@ export default function CustomersScreen() {
 
   return (
     <AppShell activeNav="Customers">
+      <Head>
+        <title>Customers | Blue Collar Books</title>
+        <meta name="robots" content="noindex, nofollow" />
+      </Head>
       <View style={styles.pageHeader}>
         <View>
           <Text style={styles.eyebrow}>Customers</Text>

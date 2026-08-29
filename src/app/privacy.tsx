@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import Head from 'expo-router/head';
 import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BrandColors } from '@/constants/theme';
@@ -13,6 +14,12 @@ const defaultLogo = require('@/assets/images/blue-collar-books-logo.jpg');
 export default function PrivacyScreen() {
   return (
     <SafeAreaView style={styles.screen}>
+      <Head>
+        <title>Privacy Policy | Blue Collar Books</title>
+        <meta name="description" content="How Blue Collar Books stores and handles your business data." />
+        <link rel="canonical" href="https://www.bluecollarbookspro.com/privacy" />
+        <meta name="robots" content="index, follow" />
+      </Head>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.nav}>
           <Pressable onPress={() => router.push('/')}>

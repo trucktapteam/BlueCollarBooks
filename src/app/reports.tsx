@@ -1,3 +1,4 @@
+import Head from 'expo-router/head';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
@@ -131,6 +132,10 @@ export default function ReportsScreen() {
 
   return (
     <AppShell activeNav="Reports">
+      <Head>
+        <title>Reports | Blue Collar Books</title>
+        <meta name="robots" content="noindex, nofollow" />
+      </Head>
       <View style={styles.pageHeader}>
         <View>
           <Text style={styles.eyebrow}>Reports</Text>

@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import Head from 'expo-router/head';
 import { useEffect, useState } from 'react';
 import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -120,6 +121,23 @@ export default function WelcomeScreen() {
 
   return (
     <SafeAreaView style={styles.screen}>
+      <Head>
+        <title>Blue Collar Books | Bookkeeping for People Who Actually Work</title>
+        <meta
+          name="description"
+          content="Invoicing, expenses, and cash flow for owner-operators and service trades. $20/month, 30 days free."
+        />
+        <link rel="canonical" href="https://www.bluecollarbookspro.com/" />
+        <meta name="robots" content="index, follow" />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="Blue Collar Books | Bookkeeping for People Who Actually Work" />
+        <meta
+          property="og:description"
+          content="Invoicing, expenses, and cash flow for owner-operators and service trades. $20/month, 30 days free."
+        />
+        <meta property="og:url" content="https://www.bluecollarbookspro.com/" />
+        <meta property="og:image" content="https://www.bluecollarbookspro.com/og-image.jpg" />
+      </Head>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.nav}>
           <Image source={defaultLogo} style={styles.navLogo} />
@@ -132,7 +150,11 @@ export default function WelcomeScreen() {
         <View style={[styles.hero, isCompact && styles.heroCompact]}>
           <View style={[styles.heroCopy, isCompact && styles.heroCopyCompact]}>
             <Text style={styles.eyebrow}>BLUE COLLAR BOOKS</Text>
-            <Text style={[styles.headline, isCompact && styles.headlineCompact]}>
+            <Text
+              accessibilityRole="header"
+              aria-level={1}
+              style={[styles.headline, isCompact && styles.headlineCompact]}
+            >
               BOOKKEEPING FOR PEOPLE WHO ACTUALLY WORK.
             </Text>
             <Text style={styles.subhead}>Keep track of your money without living in spreadsheets.</Text>
@@ -168,7 +190,9 @@ export default function WelcomeScreen() {
 
         {/* 2. BUSINESS DASHBOARD */}
         <View style={styles.dashboardSection}>
-          <Text style={styles.sectionHeading}>YOUR BUSINESS. ONE DASHBOARD.</Text>
+          <Text accessibilityRole="header" aria-level={2} style={styles.sectionHeading}>
+            YOUR BUSINESS. ONE DASHBOARD.
+          </Text>
           <Text style={styles.sectionSubhead}>
             Know what came in, what went out, what you have, and who still owes you.
           </Text>
@@ -268,7 +292,9 @@ export default function WelcomeScreen() {
 
         {/* 4. PRICING */}
         <View style={styles.pricingSection}>
-          <Text style={styles.sectionHeading}>NO PACKAGES. NO TIERS. NO BULLSHIT.</Text>
+          <Text accessibilityRole="header" aria-level={2} style={styles.sectionHeading}>
+            NO PACKAGES. NO TIERS. NO BULLSHIT.
+          </Text>
           <Text style={styles.pricingAmount}>
             $20<Text style={styles.pricingPeriod}> / MONTH</Text>
           </Text>
@@ -281,7 +307,7 @@ export default function WelcomeScreen() {
         {/* 5. MANIFESTO */}
         <View style={styles.manifestoSection}>
           <View style={styles.manifestoAccent} />
-          <Text style={styles.manifestoHeadline}>
+          <Text accessibilityRole="header" aria-level={2} style={styles.manifestoHeadline}>
             YOU DIDN'T START A BUSINESS BECAUSE YOU WANTED TO BECOME A BOOKKEEPER.
           </Text>
           <Text style={styles.manifestoBody}>

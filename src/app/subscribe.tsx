@@ -1,3 +1,4 @@
+import Head from 'expo-router/head';
 import { useState } from 'react';
 import { ActivityIndicator, Image, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 
@@ -48,6 +49,10 @@ export default function SubscribeScreen() {
 
   return (
     <SafeAreaView style={styles.screen}>
+      <Head>
+        <title>Start Your Trial | Blue Collar Books</title>
+        <meta name="robots" content="noindex, nofollow" />
+      </Head>
       <View style={styles.centerContainer}>
         <View style={styles.card}>
           <Image source={defaultLogo} style={styles.cardLogo} />

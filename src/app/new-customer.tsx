@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
+import Head from 'expo-router/head';
 import { useEffect, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -79,6 +80,10 @@ export default function NewCustomerScreen() {
 
   return (
     <AppShell activeNav="Customers">
+      <Head>
+        <title>New Customer | Blue Collar Books</title>
+        <meta name="robots" content="noindex, nofollow" />
+      </Head>
       {showSavedToast && (
         <View style={styles.toast}>
           <Text style={styles.toastText}>Saved</Text>

@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import Head from 'expo-router/head';
 import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 
@@ -148,6 +149,10 @@ export default function DashboardScreen() {
 
   return (
     <AppShell activeNav="Dashboard">
+      <Head>
+        <title>Dashboard | Blue Collar Books</title>
+        <meta name="robots" content="noindex, nofollow" />
+      </Head>
       <View style={styles.dashboardHeader}>
         <View>
           <Text style={styles.dashboardEyebrow}>Shop Dashboard</Text>

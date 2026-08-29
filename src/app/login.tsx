@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
+import Head from 'expo-router/head';
 import { useState } from 'react';
 import { ActivityIndicator, Image, Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -49,6 +50,10 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.screen}>
+      <Head>
+        <title>Sign In | Blue Collar Books</title>
+        <meta name="robots" content="noindex, nofollow" />
+      </Head>
       <View style={styles.centerContainer}>
         <View style={styles.card}>
           <Image source={defaultLogo} style={styles.cardLogo} />

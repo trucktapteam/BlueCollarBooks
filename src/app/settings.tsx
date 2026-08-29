@@ -8,6 +8,7 @@ import { useExpenses } from '@/data/mockExpenses';
 import { useInvoices } from '@/data/mockInvoices';
 import { useSubscription } from '@/data/subscriptionStore';
 import { router } from 'expo-router';
+import Head from 'expo-router/head';
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -206,6 +207,10 @@ export default function SettingsScreen() {
 
   return (
     <AppShell activeNav="Settings">
+      <Head>
+        <title>Settings | Blue Collar Books</title>
+        <meta name="robots" content="noindex, nofollow" />
+      </Head>
       {showSavedToast && (
         <View style={styles.toast}>
           <Text style={styles.toastText}>Saved</Text>

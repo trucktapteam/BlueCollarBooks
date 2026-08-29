@@ -1,0 +1,18 @@
+User-agent: *
+Allow: /
+Allow: /privacy
+Allow: /terms
+Disallow: /dashboard
+Disallow: /login
+Disallow: /subscribe
+Disallow: /settings
+Disallow: /invoices
+Disallow: /new-invoice
+Disallow: /expenses
+Disallow: /new-expense
+Disallow: /customers
+Disallow: /new-customer
+Disallow: /payments
+Disallow: /reports
+
+Sitemap: https://www.bluecollarbookspro.com/sitemap.xml

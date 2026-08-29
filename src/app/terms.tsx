@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import Head from 'expo-router/head';
 import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BrandColors } from '@/constants/theme';
@@ -13,6 +14,12 @@ const defaultLogo = require('@/assets/images/blue-collar-books-logo.jpg');
 export default function TermsScreen() {
   return (
     <SafeAreaView style={styles.screen}>
+      <Head>
+        <title>Terms of Service | Blue Collar Books</title>
+        <meta name="description" content="The terms for using Blue Collar Books' bookkeeping and invoicing service." />
+        <link rel="canonical" href="https://www.bluecollarbookspro.com/terms" />
+        <meta name="robots" content="index, follow" />
+      </Head>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.nav}>
           <Pressable onPress={() => router.push('/')}>

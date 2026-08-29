@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
+import Head from 'expo-router/head';
 import { useEffect, useState } from 'react';
 import type { KeyboardTypeOptions } from 'react-native';
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -104,6 +105,10 @@ export default function NewExpenseScreen() {
 
   return (
     <AppShell activeNav="Expenses">
+      <Head>
+        <title>New Expense | Blue Collar Books</title>
+        <meta name="robots" content="noindex, nofollow" />
+      </Head>
       {showSavedToast && (
         <View style={styles.toast}>
           <Text style={styles.toastText}>Saved</Text>

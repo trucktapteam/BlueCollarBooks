@@ -1,5 +1,6 @@
 import { Asset } from 'expo-asset';
 import { router, useLocalSearchParams } from 'expo-router';
+import Head from 'expo-router/head';
 import { useEffect, useMemo, useState } from 'react';
 import type { KeyboardTypeOptions } from 'react-native';
 import {
@@ -371,6 +372,10 @@ export default function NewInvoiceScreen() {
 
   return (
     <AppShell activeNav="Invoices">
+      <Head>
+        <title>New Invoice | Blue Collar Books</title>
+        <meta name="robots" content="noindex, nofollow" />
+      </Head>
       {showSavedToast && (
         <View style={styles.toast}>
           <Text style={styles.toastText}>Saved</Text>
