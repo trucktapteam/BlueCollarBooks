@@ -25,8 +25,16 @@ export default function TabLayout() {
   // needs to render for signed-out visitors instead of bouncing them to
   // /login like every other route does. '/login' is public by nature too.
   const isPublicRoute = pathname === '/' || pathname === '/login';
+  // /privacy and /terms are linked from the marketing page footer and need
+  // to stay viewable no matter who's looking - signed in or not - so they
+  //'re excluded from both redirect checks below entirely.
+  const isAlwaysPublicRoute = pathname === '/privacy' || pathname === '/terms';
 
   useEffect(() => {
+    if (isAlwaysPublicRoute) {
+      return;
+    }
+
     if (authInitialized && !session) {
       if (!isPublicRoute) {
         router.replace('/login');
@@ -53,7 +61,7 @@ export default function TabLayout() {
     ) {
       router.replace('/subscribe');
     }
-  }, [authInitialized, session, subscription, subscriptionInitialized, pathname, isPublicRoute]);
+  }, [authInitialized, session, subscription, subscriptionInitialized, pathname, isPublicRoute, isAlwaysPublicRoute]);
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>

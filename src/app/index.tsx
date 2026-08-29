@@ -10,41 +10,81 @@ const defaultLogo = require('@/assets/images/blue-collar-books-logo.jpg');
 // the isPublicRoute check in _layout.tsx). Everything below it (dashboard,
 // invoices, etc.) still requires a real session.
 //
-// Deliberately not the standard centered-hero / 2x2-card-grid / centered-
-// pricing-card template every AI-generated SaaS page defaults to - that
-// layout is instantly recognizable as generic. This uses an asymmetric
-// hero with a real product preview (built from the app's own dashboard
-// tiles, not a stock screenshot), a numbered editorial feature list
-// instead of symmetric cards, and a banner-style pricing strip instead of
-// a centered pricing card.
-const features = [
-  {
-    number: '01',
-    title: 'Invoicing',
-    body: "Send a clean invoice with your logo on it, track who's paid and who isn't, stop chasing paper.",
-  },
-  {
-    number: '02',
-    title: 'Expense tracking',
-    body: 'Log fuel, repairs, permits, and every write-off as it happens - not scrambling at tax time.',
-  },
-  {
-    number: '03',
-    title: 'Cash position',
-    body: "See what's actually in the bank and who owes you, in one glance, no math in your head.",
-  },
-  {
-    number: '04',
-    title: 'Reports',
-    body: 'Pull what your accountant needs in a couple clicks, not a shoebox full of receipts.',
-  },
+// Brand direction: clean work-truck-instrument-panel feel, not generic
+// SaaS. Charcoal background, warm off-white headings (not stark white),
+// orange used only where it means something, square-ish panels, flat
+// shadows instead of glow, no stock imagery. See the brand brief this was
+// built from for the full rationale.
+const offWhite = '#f4f1ec';
+
+// Illustrative example numbers for the instrument-panel preview - this is
+// a mockup of what the real dashboard looks like (see src/app/dashboard.tsx
+// for the actual thing), not live data.
+const readouts = [
+  { label: 'Cash Available', value: '$18,240', fill: 0.7 },
+  { label: 'Money In', value: '$9,800', fill: 0.55 },
+  { label: 'Money Out', value: '$3,260', fill: 0.3 },
+  { label: 'Waiting To Be Paid', value: '$4,120', fill: 0.4 },
 ];
 
-const previewTiles = [
-  { label: 'Cash Available', value: '$18,240' },
-  { label: 'Waiting To Be Paid', value: '$4,120' },
-  { label: 'Paid This Month', value: '$11,600' },
+// Mirrors the real metric-card row on src/app/dashboard.tsx (same labels,
+// icons, and accent colors) so the "YOUR BUSINESS. ONE DASHBOARD." section
+// reads as an authentic preview of the actual product rather than a
+// restatement of the hero numbers.
+const productMetrics = [
+  { label: 'Cash Available', icon: '💵', accent: BrandColors.green, value: '$18,240', helper: 'All accounts' },
+  { label: 'Waiting To Be Paid', icon: '💰', accent: BrandColors.orange, value: '$4,120', helper: 'Open invoices' },
+  { label: 'Money In', icon: '📈', accent: BrandColors.green, value: '$9,800', helper: 'This month' },
+  { label: 'Money Out', icon: '🧾', accent: BrandColors.orange, value: '$3,260', helper: 'This month' },
 ];
+
+const workbenchItems = [
+  { title: 'INVOICING', body: 'Get paid without chasing paper.' },
+  { title: 'EXPENSES', body: 'Know where the money went.' },
+  { title: 'CASH POSITION', body: "Know what you've actually got." },
+  { title: 'REPORTS', body: 'Give your accountant what they need.' },
+  { title: 'CUSTOMERS', body: 'Keep the people you work for organized.' },
+  { title: 'PAYMENTS', body: "See what's been paid and what's still outstanding." },
+];
+
+// Tick fan spans a full semicircle (-90deg to 90deg, i.e. 9 o'clock through
+// 12 through 3 o'clock), each tick rotated around a shared pivot at the
+// bottom-center of its box. This is restrained on purpose: no needle, no
+// numerals printed on the dial face, no bezel - just a row of instrument
+// ticks with the number doing the actual work underneath.
+const gaugeTickAngles = [-90, -72, -54, -36, -18, 0, 18, 36, 54, 72, 90];
+
+function GaugeReadout({ label, value, fill, compact }: { label: string; value: string; fill: number; compact?: boolean }) {
+  const tickLength = compact ? 15 : 20;
+  const tickWidth = compact ? 2 : 2.5;
+  const arcWidth = tickLength * 2 + 22;
+  const filledCount = Math.max(1, Math.round(fill * gaugeTickAngles.length));
+
+  return (
+    <View style={styles.gaugeTile}>
+      <Text style={styles.gaugeLabel}>{label.toUpperCase()}</Text>
+      <View style={[styles.gaugeArcBox, { width: arcWidth, height: tickLength + 6 }]}>
+        {gaugeTickAngles.map((angle, index) => (
+          <View
+            key={angle}
+            style={[
+              styles.gaugeTick,
+              {
+                height: tickLength,
+                width: tickWidth,
+                marginLeft: -tickWidth / 2,
+                backgroundColor: index < filledCount ? BrandColors.orange : BrandColors.borderSubtle,
+                transform: [{ rotate: `${angle}deg` }],
+              },
+            ]}
+          />
+        ))}
+      </View>
+      <View style={[styles.gaugeBaseline, { width: arcWidth * 0.72 }]} />
+      <Text style={[styles.gaugeValue, compact && styles.gaugeValueCompact]}>{value}</Text>
+    </View>
+  );
+}
 
 export default function WelcomeScreen() {
   const { width } = useWindowDimensions();
@@ -58,44 +98,41 @@ export default function WelcomeScreen() {
         <View style={styles.nav}>
           <Image source={defaultLogo} style={styles.navLogo} />
           <Pressable style={styles.navSignIn} onPress={() => router.push('/login')}>
-            <Text style={styles.navSignInText}>Sign In</Text>
+            <Text style={styles.navSignInText}>SIGN IN</Text>
           </Pressable>
         </View>
 
+        {/* 1. HERO */}
         <View style={[styles.hero, isCompact && styles.heroCompact]}>
           <View style={[styles.heroCopy, isCompact && styles.heroCopyCompact]}>
-            <Text style={styles.eyebrow}>BOOKKEEPING FOR OWNER-OPERATORS</Text>
+            <Text style={styles.eyebrow}>BLUE COLLAR BOOKS</Text>
             <Text style={[styles.headline, isCompact && styles.headlineCompact]}>
-              Your books, done{'\n'}between loads.
+              BOOKKEEPING FOR PEOPLE WHO ACTUALLY WORK.
             </Text>
-            <Text style={styles.subhead}>
-              Invoices, expenses, and cash flow — built for people who run trucks, not spreadsheets.
-            </Text>
+            <Text style={styles.subhead}>Keep track of your money without living in spreadsheets.</Text>
+            <Text style={styles.valueLine}>Invoices. Expenses. Cash flow. Reports. One straightforward $20/month.</Text>
 
             <View style={styles.ctaRow}>
               <Pressable style={styles.primaryButton} onPress={goToSignup}>
-                <Text style={styles.primaryButtonText}>Start 30-Day Free Trial</Text>
+                <Text style={styles.primaryButtonText}>START MY 30-DAY FREE TRIAL</Text>
               </Pressable>
               <Pressable style={styles.secondaryButton} onPress={() => router.push('/login')}>
-                <Text style={styles.secondaryButtonText}>Sign In</Text>
+                <Text style={styles.secondaryButtonText}>SIGN IN</Text>
               </Pressable>
             </View>
-            <Text style={styles.ctaHelper}>No credit card scams. $20/month after your trial, cancel any time.</Text>
+            <Text style={styles.ctaHelper}>30 days free  •  Then $20/month  •  Cancel anytime</Text>
           </View>
 
           <View style={[styles.previewWrap, isCompact && styles.previewWrapCompact]}>
-            <View style={styles.previewCard}>
+            <View style={styles.previewPanel}>
               <View style={styles.previewHeaderRow}>
                 <View style={styles.previewDot} />
-                <Text style={styles.previewHeaderText}>Shop Dashboard</Text>
+                <Text style={styles.previewHeaderText}>BUSINESS DASHBOARD</Text>
               </View>
-              <Text style={styles.previewHeroLabel}>Profit This Month</Text>
-              <Text style={styles.previewHeroValue}>$6,540</Text>
-              <View style={styles.previewTileRow}>
-                {previewTiles.map((tile) => (
-                  <View key={tile.label} style={styles.previewTile}>
-                    <Text style={styles.previewTileLabel}>{tile.label}</Text>
-                    <Text style={styles.previewTileValue}>{tile.value}</Text>
+              <View style={styles.readoutGrid}>
+                {readouts.map((readout) => (
+                  <View key={readout.label} style={styles.readoutGridItem}>
+                    <GaugeReadout {...readout} />
                   </View>
                 ))}
               </View>
@@ -103,44 +140,150 @@ export default function WelcomeScreen() {
           </View>
         </View>
 
-        <View style={styles.divider} />
+        {/* 2. BUSINESS DASHBOARD */}
+        <View style={styles.dashboardSection}>
+          <Text style={styles.sectionHeading}>YOUR BUSINESS. ONE DASHBOARD.</Text>
+          <Text style={styles.sectionSubhead}>
+            Know what came in, what went out, what you have, and who still owes you.
+          </Text>
 
-        <View style={styles.featuresSection}>
-          <Text style={styles.sectionEyebrow}>WHAT YOU GET</Text>
-          <View style={styles.featuresList}>
-            {features.map((feature, index) => (
-              <View
-                key={feature.title}
-                style={[styles.featureRow, index === features.length - 1 && styles.featureRowLast]}
-              >
-                <Text style={styles.featureNumber}>{feature.number}</Text>
-                <View style={styles.featureText}>
-                  <Text style={styles.featureTitle}>{feature.title}</Text>
-                  <Text style={styles.featureBody}>{feature.body}</Text>
+          <View style={styles.dashboardPanel}>
+            <View style={styles.productPreviewHeader}>
+              <Text style={styles.productPreviewEyebrow}>BUSINESS DASHBOARD</Text>
+              <Text style={styles.productPreviewHeading}>
+                Know your cash, who owes you, and what needs attention today.
+              </Text>
+            </View>
+
+            <View style={styles.productMetricRow}>
+              {productMetrics.map((metric) => (
+                <View
+                  key={metric.label}
+                  style={[styles.productMetricCard, { flexBasis: isCompact ? '46%' : '22%' }]}
+                >
+                  <View style={styles.productMetricTopRow}>
+                    <View
+                      style={[
+                        styles.productMetricIcon,
+                        { backgroundColor: `${metric.accent}22`, borderColor: `${metric.accent}66` },
+                      ]}
+                    >
+                      <Text style={styles.productMetricIconText}>{metric.icon}</Text>
+                    </View>
+                    <Text style={styles.productMetricLabel}>{metric.label}</Text>
+                  </View>
+                  <Text style={styles.productMetricValue}>{metric.value}</Text>
+                  <Text style={styles.productMetricHelper}>{metric.helper}</Text>
                 </View>
+              ))}
+            </View>
+
+            <View style={[styles.productDetailRow, isCompact && styles.productDetailRowCompact]}>
+              <View style={styles.productDetailCard}>
+                <View style={styles.productDetailHeader}>
+                  <Text style={styles.productDetailTitle}>🚨 Who Is Late</Text>
+                  <Text style={styles.productDetailTotal}>Still owed: $4,120</Text>
+                </View>
+                <View style={styles.productDetailList}>
+                  <View style={styles.productDetailListRow}>
+                    <Text style={styles.productDetailListLabel}>Not late yet</Text>
+                    <Text style={styles.productDetailListValue}>$2,900</Text>
+                  </View>
+                  <View style={styles.productDetailListRow}>
+                    <Text style={styles.productDetailListLabel}>1-30 Days Past Due</Text>
+                    <Text style={styles.productDetailListValue}>$960</Text>
+                  </View>
+                  <View style={styles.productDetailListRow}>
+                    <Text style={styles.productDetailListLabel}>31-60 Days Past Due</Text>
+                    <Text style={styles.productDetailListValue}>$260</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.productDetailCard}>
+                <View style={styles.productDetailHeader}>
+                  <Text style={styles.productDetailTitle}>🏦 Bank Accounts</Text>
+                  <Text style={styles.productDetailTotal}>Total: $18,240</Text>
+                </View>
+                <View style={styles.productDetailList}>
+                  <View style={styles.productDetailListRow}>
+                    <View>
+                      <Text style={styles.productDetailListLabel}>Business Checking</Text>
+                      <Text style={styles.productDetailListSub}>Last 4: 4821</Text>
+                    </View>
+                    <Text style={styles.productDetailListValue}>$14,610</Text>
+                  </View>
+                  <View style={styles.productDetailListRow}>
+                    <View>
+                      <Text style={styles.productDetailListLabel}>Business Savings</Text>
+                      <Text style={styles.productDetailListSub}>Last 4: 0193</Text>
+                    </View>
+                    <Text style={styles.productDetailListValue}>$3,630</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* 3. FEATURES / WORKBENCH */}
+        <View style={styles.workbenchSection}>
+          <Text style={styles.sectionEyebrow}>THE TOOL DRAWER</Text>
+          <View style={[styles.workbenchGrid, isCompact && styles.workbenchGridCompact]}>
+            {workbenchItems.map((item) => (
+              <View key={item.title} style={[styles.workbenchCard, isCompact && styles.workbenchCardCompact]}>
+                <View style={styles.workbenchTab} />
+                <Text style={styles.workbenchTitle}>{item.title}</Text>
+                <Text style={styles.workbenchBody}>{item.body}</Text>
               </View>
             ))}
           </View>
         </View>
 
-        <View style={[styles.pricingBanner, isCompact && styles.pricingBannerCompact]}>
-          <View style={styles.pricingBannerAccent} />
-          <View style={[styles.pricingLeft, isCompact && styles.pricingLeftCompact]}>
-            <Text style={styles.pricingAmount}>
-              $20<Text style={styles.pricingPeriod}>/month</Text>
-            </Text>
-            <Text style={styles.pricingDetail}>First 30 days free. Cancel any time. No contracts.</Text>
-          </View>
-          <Pressable style={styles.pricingButton} onPress={goToSignup}>
-            <Text style={styles.primaryButtonText}>Start Free Trial</Text>
+        {/* 4. PRICING */}
+        <View style={styles.pricingSection}>
+          <Text style={styles.sectionHeading}>NO PACKAGES. NO TIERS. NO BULLSHIT.</Text>
+          <Text style={styles.pricingAmount}>
+            $20<Text style={styles.pricingPeriod}> / MONTH</Text>
+          </Text>
+          <Text style={styles.pricingDetail}>Everything included.{'\n'}First 30 days free.{'\n'}Cancel anytime.</Text>
+          <Pressable style={styles.primaryButton} onPress={goToSignup}>
+            <Text style={styles.primaryButtonText}>START MY 30-DAY FREE TRIAL</Text>
           </Pressable>
         </View>
 
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Blue Collar Books</Text>
-          <Pressable onPress={() => router.push('/login')}>
-            <Text style={styles.footerLink}>Sign In</Text>
+        {/* 5. MANIFESTO */}
+        <View style={styles.manifestoSection}>
+          <View style={styles.manifestoAccent} />
+          <Text style={styles.manifestoHeadline}>
+            YOU DIDN'T START A BUSINESS BECAUSE YOU WANTED TO BECOME A BOOKKEEPER.
+          </Text>
+          <Text style={styles.manifestoBody}>
+            Blue Collar Books handles the boring part so you can see what's coming in, what's going out, and who
+            still owes you.
+          </Text>
+          <Pressable style={styles.primaryButton} onPress={goToSignup}>
+            <Text style={styles.primaryButtonText}>START MY 30-DAY FREE TRIAL</Text>
           </Pressable>
+        </View>
+
+        {/* 6. FOOTER */}
+        <View style={[styles.footer, isCompact && styles.footerCompact]}>
+          <Text style={styles.footerText}>Blue Collar Books</Text>
+          <View style={styles.footerLinks}>
+            <Pressable onPress={() => router.push('/login')}>
+              <Text style={styles.footerLink}>Sign In</Text>
+            </Pressable>
+            <Pressable onPress={goToSignup}>
+              <Text style={styles.footerLink}>Start Free Trial</Text>
+            </Pressable>
+            <Pressable onPress={() => router.push('/privacy')}>
+              <Text style={styles.footerLink}>Privacy</Text>
+            </Pressable>
+            <Pressable onPress={() => router.push('/terms')}>
+              <Text style={styles.footerLink}>Terms</Text>
+            </Pressable>
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -150,6 +293,7 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: BrandColors.background },
   scrollContent: { paddingBottom: 48 },
+
   nav: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -160,12 +304,14 @@ const styles = StyleSheet.create({
   navLogo: { width: 160, height: 60, resizeMode: 'contain' },
   navSignIn: {
     borderColor: BrandColors.border,
-    borderRadius: 10,
+    borderRadius: 8,
     borderWidth: 1,
     paddingHorizontal: 20,
     paddingVertical: 10,
   },
-  navSignInText: { color: '#ffffff', fontSize: 14, fontWeight: '700' },
+  navSignInText: { color: offWhite, fontSize: 13, fontWeight: '800', letterSpacing: 0.6 },
+
+  // --- Hero ---
   hero: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -173,265 +319,360 @@ const styles = StyleSheet.create({
     maxWidth: 1160,
     alignSelf: 'center',
     paddingHorizontal: 32,
-    paddingTop: 72,
-    paddingBottom: 64,
+    paddingTop: 64,
+    paddingBottom: 56,
     width: '100%',
   },
   heroCompact: {
     flexDirection: 'column',
-    paddingTop: 48,
+    paddingTop: 44,
   },
-  heroCopy: {
-    flex: 1,
-  },
-  heroCopyCompact: {
-    width: '100%',
-  },
+  heroCopy: { flex: 1 },
+  heroCopyCompact: { width: '100%' },
   eyebrow: {
     color: BrandColors.orange,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
-    letterSpacing: 1.2,
+    letterSpacing: 1.6,
     marginBottom: 18,
   },
   headline: {
-    color: '#ffffff',
-    fontSize: 56,
+    color: offWhite,
+    fontSize: 46,
     fontWeight: '900',
-    lineHeight: 60,
+    letterSpacing: 0.2,
+    lineHeight: 52,
   },
   headlineCompact: {
-    fontSize: 38,
-    lineHeight: 44,
+    fontSize: 32,
+    lineHeight: 38,
   },
   subhead: {
     color: BrandColors.label,
-    fontSize: 19,
+    fontSize: 18,
     fontWeight: '600',
-    marginTop: 22,
+    marginTop: 20,
+    maxWidth: 480,
+  },
+  valueLine: {
+    color: offWhite,
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: 14,
     maxWidth: 480,
   },
   ctaRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 16,
-    marginTop: 36,
+    gap: 14,
+    marginTop: 32,
   },
   primaryButton: {
     alignItems: 'center',
     backgroundColor: BrandColors.orange,
-    borderRadius: 12,
-    paddingHorizontal: 28,
+    borderRadius: 10,
+    paddingHorizontal: 26,
     paddingVertical: 16,
   },
-  primaryButtonText: { color: '#111111', fontSize: 16, fontWeight: '900' },
+  primaryButtonText: { color: '#111111', fontSize: 14, fontWeight: '900', letterSpacing: 0.4 },
   secondaryButton: {
     alignItems: 'center',
     borderColor: BrandColors.border,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
-    paddingHorizontal: 28,
+    paddingHorizontal: 26,
     paddingVertical: 16,
   },
-  secondaryButtonText: { color: '#ffffff', fontSize: 16, fontWeight: '800' },
+  secondaryButtonText: { color: offWhite, fontSize: 14, fontWeight: '800', letterSpacing: 0.4 },
   ctaHelper: {
     color: BrandColors.muted,
     fontSize: 13,
     fontWeight: '600',
-    marginTop: 18,
+    marginTop: 16,
   },
-  previewWrap: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  previewWrapCompact: {
-    width: '100%',
-    marginTop: 48,
-  },
-  previewCard: {
+
+  // --- Instrument-panel preview (hero) ---
+  previewWrap: { flex: 1, alignItems: 'stretch' },
+  previewWrapCompact: { width: '100%', marginTop: 40 },
+  previewPanel: {
     backgroundColor: BrandColors.card,
-    borderColor: BrandColors.orangeBorder,
-    borderRadius: 24,
+    borderColor: BrandColors.border,
+    borderRadius: 16,
     borderWidth: 1,
-    maxWidth: 420,
-    padding: 28,
-    shadowColor: BrandColors.orange,
-    shadowOffset: { width: 0, height: 22 },
-    shadowOpacity: 0.2,
-    shadowRadius: 40,
-    transform: [{ rotate: '-2.5deg' }],
-    width: '100%',
+    padding: 24,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.35,
+    shadowRadius: 24,
   },
   previewHeaderRow: {
     alignItems: 'center',
+    borderBottomColor: BrandColors.borderSubtle,
+    borderBottomWidth: 1,
     flexDirection: 'row',
     gap: 8,
     marginBottom: 20,
+    paddingBottom: 16,
   },
-  previewDot: {
-    backgroundColor: BrandColors.orange,
-    borderRadius: 5,
-    height: 10,
-    width: 10,
+  previewDot: { backgroundColor: BrandColors.orange, borderRadius: 4, height: 8, width: 8 },
+  previewHeaderText: { color: BrandColors.muted, fontSize: 12, fontWeight: '800', letterSpacing: 1 },
+  readoutGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 14,
   },
-  previewHeaderText: {
-    color: BrandColors.muted,
-    fontSize: 13,
-    fontWeight: '800',
-    letterSpacing: 0.6,
-  },
-  previewHeroLabel: {
-    color: BrandColors.label,
-    fontSize: 14,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  previewHeroValue: {
-    color: '#ffffff',
-    fontSize: 42,
-    fontWeight: '900',
-    marginBottom: 24,
-  },
-  previewTileRow: {
-    gap: 12,
-  },
-  previewTile: {
+  readoutGridItem: { flexBasis: '46%', flexGrow: 1 },
+
+  // --- Instrument-style gauge tile (hero preview) ---
+  gaugeTile: {
     alignItems: 'center',
     backgroundColor: BrandColors.field,
-    borderColor: BrandColors.border,
-    borderRadius: 12,
+    borderColor: BrandColors.borderSubtle,
+    borderRadius: 10,
     borderWidth: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 14,
   },
-  previewTileLabel: {
-    color: BrandColors.label,
-    fontSize: 13,
-    fontWeight: '700',
+  gaugeLabel: {
+    color: BrandColors.muted,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginBottom: 10,
+    textAlign: 'center',
   },
-  previewTileValue: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '900',
+  gaugeArcBox: { alignSelf: 'center', position: 'relative' },
+  gaugeTick: {
+    borderRadius: 999,
+    bottom: 0,
+    left: '50%',
+    position: 'absolute',
+    transformOrigin: 'bottom center',
   },
-  divider: {
+  gaugeBaseline: {
     alignSelf: 'center',
-    backgroundColor: BrandColors.orange,
-    height: 3,
-    marginVertical: 8,
-    transform: [{ rotate: '-1deg' }],
-    width: 120,
+    backgroundColor: BrandColors.borderSubtle,
+    height: 1,
+    marginTop: 2,
   },
-  featuresSection: {
-    maxWidth: 760,
+  gaugeValue: { color: offWhite, fontSize: 20, fontWeight: '900', marginTop: 8 },
+  gaugeValueCompact: { fontSize: 17 },
+
+  // --- Business dashboard section ---
+  dashboardSection: {
+    borderTopColor: BrandColors.borderSubtle,
+    borderTopWidth: 1,
+    maxWidth: 1040,
     alignSelf: 'center',
     paddingHorizontal: 24,
-    paddingTop: 48,
+    paddingTop: 56,
+    width: '100%',
+  },
+  sectionHeading: {
+    color: offWhite,
+    fontSize: 26,
+    fontWeight: '900',
+    letterSpacing: 0.3,
+    textAlign: 'center',
+  },
+  sectionSubhead: {
+    color: BrandColors.label,
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 12,
+    marginBottom: 32,
+    textAlign: 'center',
+  },
+  dashboardPanel: {
+    backgroundColor: BrandColors.card,
+    borderColor: BrandColors.border,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 28,
+  },
+
+  // --- Product-accurate mini preview (mirrors src/app/dashboard.tsx) ---
+  productPreviewHeader: {
+    borderBottomColor: BrandColors.borderSubtle,
+    borderBottomWidth: 1,
+    marginBottom: 20,
+    paddingBottom: 16,
+  },
+  productPreviewEyebrow: { color: BrandColors.orange, fontSize: 12, fontWeight: '800', letterSpacing: 1, marginBottom: 6 },
+  productPreviewHeading: { color: offWhite, fontSize: 15, fontWeight: '800', maxWidth: 480 },
+
+  productMetricRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginBottom: 20 },
+  productMetricCard: {
+    backgroundColor: BrandColors.field,
+    borderColor: BrandColors.borderSubtle,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexGrow: 1,
+    padding: 16,
+  },
+  productMetricTopRow: { alignItems: 'center', flexDirection: 'row', gap: 8, marginBottom: 10 },
+  productMetricIcon: {
+    alignItems: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
+    height: 30,
+    justifyContent: 'center',
+    width: 30,
+  },
+  productMetricIconText: { fontSize: 14, lineHeight: 16 },
+  productMetricLabel: { color: BrandColors.label, fontSize: 11, fontWeight: '800', flex: 1 },
+  productMetricValue: { color: offWhite, fontSize: 20, fontWeight: '900' },
+  productMetricHelper: { color: BrandColors.muted, fontSize: 10, fontWeight: '700', marginTop: 4 },
+
+  productDetailRow: { flexDirection: 'row', gap: 14 },
+  productDetailRowCompact: { flexDirection: 'column' },
+  productDetailCard: {
+    backgroundColor: BrandColors.field,
+    borderColor: BrandColors.borderSubtle,
+    borderRadius: 12,
+    borderWidth: 1,
+    flex: 1,
+    padding: 16,
+  },
+  productDetailHeader: {
+    borderBottomColor: BrandColors.borderSubtle,
+    borderBottomWidth: 1,
+    marginBottom: 12,
+    paddingBottom: 12,
+  },
+  productDetailTitle: { color: offWhite, fontSize: 13, fontWeight: '800' },
+  productDetailTotal: { color: BrandColors.orange, fontSize: 11, fontWeight: '800', marginTop: 4 },
+  productDetailList: { gap: 8 },
+  productDetailListRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  productDetailListLabel: { color: BrandColors.label, fontSize: 12, fontWeight: '700' },
+  productDetailListSub: { color: BrandColors.muted, fontSize: 10, fontWeight: '600', marginTop: 2 },
+  productDetailListValue: { color: offWhite, fontSize: 13, fontWeight: '800' },
+
+  // --- Workbench / features ---
+  workbenchSection: {
+    maxWidth: 1040,
+    alignSelf: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 64,
     width: '100%',
   },
   sectionEyebrow: {
     color: BrandColors.orange,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
-    letterSpacing: 1.2,
-    marginBottom: 28,
+    letterSpacing: 1.6,
+    marginBottom: 24,
+    textAlign: 'center',
   },
-  featuresList: {
-    width: '100%',
-  },
-  featureRow: {
-    borderBottomColor: BrandColors.borderSubtle,
-    borderBottomWidth: 1,
+  workbenchGrid: {
     flexDirection: 'row',
-    gap: 24,
-    paddingVertical: 28,
+    flexWrap: 'wrap',
+    gap: 16,
   },
-  featureRowLast: {
-    borderBottomWidth: 0,
+  workbenchGridCompact: {
+    flexDirection: 'column',
   },
-  featureNumber: {
-    color: BrandColors.orangeBorder,
-    fontSize: 40,
+  workbenchCard: {
+    backgroundColor: BrandColors.card,
+    borderColor: BrandColors.border,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexBasis: '31%',
+    flexGrow: 1,
+    padding: 22,
+  },
+  workbenchCardCompact: { flexBasis: '100%' },
+  workbenchTab: {
+    backgroundColor: BrandColors.orange,
+    borderRadius: 2,
+    height: 4,
+    marginBottom: 16,
+    width: 32,
+  },
+  workbenchTitle: {
+    color: offWhite,
+    fontSize: 15,
     fontWeight: '900',
-    minWidth: 64,
-  },
-  featureText: {
-    flex: 1,
-  },
-  featureTitle: {
-    color: '#ffffff',
-    fontSize: 20,
-    fontWeight: '800',
+    letterSpacing: 0.6,
     marginBottom: 8,
   },
-  featureBody: {
+  workbenchBody: {
     color: BrandColors.label,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '500',
-    lineHeight: 24,
+    lineHeight: 20,
   },
-  pricingBanner: {
+
+  // --- Pricing ---
+  pricingSection: {
     alignItems: 'center',
-    backgroundColor: BrandColors.cardRaised,
     borderColor: BrandColors.orangeBorder,
+    borderRadius: 16,
     borderWidth: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     marginHorizontal: 24,
     marginTop: 64,
-    maxWidth: 1040,
+    maxWidth: 720,
     alignSelf: 'center',
-    overflow: 'hidden',
-    padding: 36,
-    position: 'relative',
+    paddingHorizontal: 32,
+    paddingVertical: 48,
     width: '90%',
   },
-  pricingBannerCompact: {
-    alignItems: 'flex-start',
-    flexDirection: 'column',
-    gap: 24,
-  },
-  pricingBannerAccent: {
-    backgroundColor: BrandColors.orangeSoft,
-    height: 240,
-    position: 'absolute',
-    right: -60,
-    top: -60,
-    transform: [{ rotate: '18deg' }],
-    width: 240,
-  },
-  pricingLeft: {
-    zIndex: 1,
-  },
-  pricingLeftCompact: {
-    width: '100%',
-  },
   pricingAmount: {
-    color: '#ffffff',
-    fontSize: 48,
+    color: offWhite,
+    fontSize: 60,
     fontWeight: '900',
+    marginTop: 24,
   },
   pricingPeriod: {
     color: BrandColors.muted,
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   pricingDetail: {
     color: BrandColors.label,
     fontSize: 15,
     fontWeight: '600',
-    marginTop: 8,
+    lineHeight: 24,
+    marginTop: 16,
+    marginBottom: 32,
+    textAlign: 'center',
   },
-  pricingButton: {
+
+  // --- Manifesto ---
+  manifestoSection: {
     alignItems: 'center',
-    backgroundColor: BrandColors.orange,
-    borderRadius: 12,
+    maxWidth: 720,
+    alignSelf: 'center',
     paddingHorizontal: 32,
-    paddingVertical: 16,
-    zIndex: 1,
+    paddingTop: 64,
+    width: '100%',
   },
+  manifestoAccent: {
+    backgroundColor: BrandColors.orange,
+    height: 3,
+    marginBottom: 28,
+    width: 56,
+  },
+  manifestoHeadline: {
+    color: offWhite,
+    fontSize: 26,
+    fontWeight: '900',
+    lineHeight: 34,
+    textAlign: 'center',
+  },
+  manifestoBody: {
+    color: BrandColors.label,
+    fontSize: 16,
+    fontWeight: '600',
+    lineHeight: 25,
+    marginTop: 18,
+    marginBottom: 32,
+    maxWidth: 560,
+    textAlign: 'center',
+  },
+
+  // --- Footer ---
   footer: {
     alignItems: 'center',
     borderTopColor: BrandColors.borderSubtle,
@@ -442,6 +683,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     paddingTop: 24,
   },
+  footerCompact: {
+    flexDirection: 'column',
+    gap: 16,
+  },
   footerText: { color: BrandColors.muted, fontSize: 13, fontWeight: '700' },
+  footerLinks: { flexDirection: 'row', gap: 20 },
   footerLink: { color: BrandColors.orange, fontSize: 13, fontWeight: '800' },
 });
