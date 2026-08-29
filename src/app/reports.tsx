@@ -1,5 +1,5 @@
 import Head from 'expo-router/head';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { useBusinessProfile } from '@/data/mockBusiness';
@@ -13,6 +13,7 @@ import {
   useInvoices,
 } from '@/data/mockInvoices';
 import { formatDueDateDisplay } from '@/utils/date';
+import { downloadBlob } from '@/utils/downloadFile';
 
 // CSV cells hold a plain dollar number (not cents, and not a "$"-prefixed
 // string) so a spreadsheet can sum the column directly.
@@ -46,19 +47,8 @@ function buildCsv(rows: Array<Array<string | number | undefined>>) {
 }
 
 function downloadCsv(filename: string, rows: Array<Array<string | number | undefined>>) {
-  if (Platform.OS !== 'web' || typeof document === 'undefined') {
-    return;
-  }
-
   const blob = new Blob([buildCsv(rows)], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  downloadBlob(filename, blob);
 }
 
 function buildInvoiceDueDate(invoice: Invoice) {

@@ -7,6 +7,7 @@ import { useCustomers } from '@/data/mockCustomers';
 import { useExpenses } from '@/data/mockExpenses';
 import { useInvoices } from '@/data/mockInvoices';
 import { useSubscription } from '@/data/subscriptionStore';
+import { downloadBlob } from '@/utils/downloadFile';
 import { router } from 'expo-router';
 import Head from 'expo-router/head';
 import type { ReactNode } from 'react';
@@ -27,19 +28,8 @@ function stripObjectUrl<T extends { objectUrl?: string }>({ objectUrl, ...rest }
 }
 
 function downloadJson(filename: string, data: unknown) {
-  if (Platform.OS !== 'web' || typeof document === 'undefined') {
-    return;
-  }
-
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  downloadBlob(filename, blob);
 }
 
 const termOptions = ['Net 15', 'Net 30', 'Due on Receipt', 'Custom'] as const;
