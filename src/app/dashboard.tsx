@@ -42,13 +42,6 @@ export default function DashboardScreen() {
   const isCompact = width < 760;
   const isWideDesktop = width > 1400;
   const [dashboardQuery, setDashboardQuery] = useState('');
-  const session = useSession();
-  // react-plaid-link's token option is typed as a plain string (not
-  // nullable) - an empty string is its own documented way of saying "not
-  // ready yet", so that's the "no token" state here rather than null.
-  const [plaidLinkToken, setPlaidLinkToken] = useState('');
-  const [isConnectingBank, setIsConnectingBank] = useState(false);
-  const [bankConnectError, setBankConnectError] = useState('');
   const profile = useBusinessProfile();
   const bankAccounts = useBankAccounts();
   const expenses = useExpenses();
@@ -155,85 +148,6 @@ export default function DashboardScreen() {
       router.push('/invoices');
     }
   };
-
-  // "Connect Bank" flow: fetch a short-lived Plaid Link token, then let
-  // react-plaid-link's usePlaidLink hook open Plaid's own hosted UI (bank
-  // search + login happens entirely inside that, we never see credentials).
-  // On success it hands back a public_token, which the server exchanges for
-  // a permanent access_token and pulls the linked accounts in - see
-  // api/plaid-create-link-token.ts and api/plaid-exchange-public-token.ts.
-  async function startBankConnect() {
-    const accessToken = session?.access_token;
-    if (!accessToken) return;
-
-    setBankConnectError('');
-    setIsConnectingBank(true);
-    try {
-      const response = await fetch('/api/plaid-create-link-token', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      const body = await response.json();
-      if (!response.ok || !body.linkToken) {
-        throw new Error(body.error ?? 'Could not start bank connection.');
-      }
-      setPlaidLinkToken(body.linkToken);
-    } catch (error) {
-      setBankConnectError(error instanceof Error ? error.message : 'Something went wrong. Try again.');
-      setIsConnectingBank(false);
-    }
-  }
-
-  function resetPlaidLink() {
-    setIsConnectingBank(false);
-    setPlaidLinkToken('');
-  }
-
-  const { open: openPlaidLink, ready: plaidLinkReady } = usePlaidLink({
-    token: plaidLinkToken,
-    onSuccess: async (publicToken) => {
-      const accessToken = session?.access_token;
-      try {
-        if (!accessToken) {
-          throw new Error('You need to be signed in.');
-        }
-        const response = await fetch('/api/plaid-exchange-public-token', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ publicToken }),
-        });
-        if (!response.ok) {
-          const body = await response.json();
-          throw new Error(body.error ?? 'Could not connect bank account.');
-        }
-        if (session?.user.id) {
-          await loadBankAccounts(session.user.id);
-        }
-      } catch (error) {
-        setBankConnectError(error instanceof Error ? error.message : 'Something went wrong. Try again.');
-      } finally {
-        resetPlaidLink();
-      }
-    },
-    onExit: (plaidError) => {
-      if (plaidError) {
-        setBankConnectError(plaidError.display_message ?? 'Bank connection was canceled.');
-      }
-      resetPlaidLink();
-    },
-  });
-
-  // react-plaid-link only exposes the Link UI via this open() call, not as a
-  // prop - fetching the token (above) and opening it are two separate
-  // steps, so open as soon as a fresh token is ready.
-  useEffect(() => {
-    if (plaidLinkToken && plaidLinkReady) {
-      openPlaidLink();
-    }
-  }, [plaidLinkToken, plaidLinkReady, openPlaidLink]);
 
   return (
     <AppShell activeNav="Dashboard">
@@ -387,14 +301,7 @@ export default function DashboardScreen() {
             ))}
           </View>
 
-          <Pressable
-            style={[styles.connectBankButton, isConnectingBank && styles.connectBankButtonDisabled]}
-            onPress={startBankConnect}
-            disabled={isConnectingBank}
-          >
-            <Text style={styles.connectBankButtonText}>{isConnectingBank ? 'Connecting…' : 'Connect Bank'}</Text>
-          </Pressable>
-          {!!bankConnectError && <Text style={styles.bankConnectErrorText}>{bankConnectError}</Text>}
+          <ConnectBankButton />
         </View>
 
         <View style={[styles.detailCard, isCompact ? styles.fullWidthCard : isWideDesktop ? styles.quarterWidthCard : styles.halfWidthCard]}>
@@ -521,6 +428,133 @@ export default function DashboardScreen() {
         </View>
       </View>
     </AppShell>
+  );
+}
+
+// This app's static export server-renders every route (including
+// authenticated ones like this) at build time in Node, then hydrates over
+// that HTML in the browser. react-plaid-link's usePlaidLink hook behaves
+// differently between those two environments (it's inherently browser-only
+// - Plaid Link is a hosted iframe), so calling it directly inside
+// DashboardScreen made the *entire page* throw a hydration mismatch (React
+// error #418) on every load, not just when this button was clicked. Isolating
+// it in its own component that only mounts after the client-side effect
+// below runs means usePlaidLink never executes during the server/hydration
+// pass at all - it's a fresh client-only mount, nothing to mismatch against.
+function ConnectBankButton() {
+  const [hasMounted, setHasMounted] = useState(false);
+  useEffect(() => setHasMounted(true), []);
+
+  if (!hasMounted) {
+    return (
+      <Pressable style={styles.connectBankButton} disabled>
+        <Text style={styles.connectBankButtonText}>Connect Bank</Text>
+      </Pressable>
+    );
+  }
+
+  return <ConnectBankButtonReady />;
+}
+
+// "Connect Bank" flow: fetch a short-lived Plaid Link token, then let
+// react-plaid-link's usePlaidLink hook open Plaid's own hosted UI (bank
+// search + login happens entirely inside that, we never see credentials).
+// On success it hands back a public_token, which the server exchanges for a
+// permanent access_token and pulls the linked accounts in - see
+// api/plaid-create-link-token.ts and api/plaid-exchange-public-token.ts.
+function ConnectBankButtonReady() {
+  const session = useSession();
+  // react-plaid-link's token option is typed as a plain string (not
+  // nullable) - an empty string is its own documented way of saying "not
+  // ready yet", so that's the "no token" state here rather than null.
+  const [plaidLinkToken, setPlaidLinkToken] = useState('');
+  const [isConnectingBank, setIsConnectingBank] = useState(false);
+  const [bankConnectError, setBankConnectError] = useState('');
+
+  async function startBankConnect() {
+    const accessToken = session?.access_token;
+    if (!accessToken) return;
+
+    setBankConnectError('');
+    setIsConnectingBank(true);
+    try {
+      const response = await fetch('/api/plaid-create-link-token', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const body = await response.json();
+      if (!response.ok || !body.linkToken) {
+        throw new Error(body.error ?? 'Could not start bank connection.');
+      }
+      setPlaidLinkToken(body.linkToken);
+    } catch (error) {
+      setBankConnectError(error instanceof Error ? error.message : 'Something went wrong. Try again.');
+      setIsConnectingBank(false);
+    }
+  }
+
+  function resetPlaidLink() {
+    setIsConnectingBank(false);
+    setPlaidLinkToken('');
+  }
+
+  const { open: openPlaidLink, ready: plaidLinkReady } = usePlaidLink({
+    token: plaidLinkToken,
+    onSuccess: async (publicToken) => {
+      const accessToken = session?.access_token;
+      try {
+        if (!accessToken) {
+          throw new Error('You need to be signed in.');
+        }
+        const response = await fetch('/api/plaid-exchange-public-token', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ publicToken }),
+        });
+        if (!response.ok) {
+          const body = await response.json();
+          throw new Error(body.error ?? 'Could not connect bank account.');
+        }
+        if (session?.user.id) {
+          await loadBankAccounts(session.user.id);
+        }
+      } catch (error) {
+        setBankConnectError(error instanceof Error ? error.message : 'Something went wrong. Try again.');
+      } finally {
+        resetPlaidLink();
+      }
+    },
+    onExit: (plaidError) => {
+      if (plaidError) {
+        setBankConnectError(plaidError.display_message ?? 'Bank connection was canceled.');
+      }
+      resetPlaidLink();
+    },
+  });
+
+  // react-plaid-link only exposes the Link UI via this open() call, not as a
+  // prop - fetching the token (above) and opening it are two separate
+  // steps, so open as soon as a fresh token is ready.
+  useEffect(() => {
+    if (plaidLinkToken && plaidLinkReady) {
+      openPlaidLink();
+    }
+  }, [plaidLinkToken, plaidLinkReady, openPlaidLink]);
+
+  return (
+    <>
+      <Pressable
+        style={[styles.connectBankButton, isConnectingBank && styles.connectBankButtonDisabled]}
+        onPress={startBankConnect}
+        disabled={isConnectingBank}
+      >
+        <Text style={styles.connectBankButtonText}>{isConnectingBank ? 'Connecting…' : 'Connect Bank'}</Text>
+      </Pressable>
+      {!!bankConnectError && <Text style={styles.bankConnectErrorText}>{bankConnectError}</Text>}
+    </>
   );
 }
 
