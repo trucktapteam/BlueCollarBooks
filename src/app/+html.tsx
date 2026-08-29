@@ -33,7 +33,18 @@ export default function Root({ children }: { children: React.ReactNode }) {
         {headNodes}
       </head>
       <body {...bodyAttributes}>
-        {children}
+        {/*
+          The app renders into this wrapper div rather than directly onto
+          <body>. Without it, React treats body's entire child list as its
+          own - which is fine until something outside React's tree needs to
+          append a sibling to body, like Plaid Link's injected iframe or the
+          temporary download <a> in src/utils/downloadFile.ts. Both threw a
+          hydration-mismatch error (React #418) at that exact moment before
+          this wrapper existed, since React would find a DOM node under body
+          it didn't recognize the next time it reconciled. Scoping React to
+          its own div leaves the rest of body free for anyone else.
+        */}
+        <div id="root">{children}</div>
         {bodyNodes}
       </body>
     </html>
