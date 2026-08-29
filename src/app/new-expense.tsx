@@ -8,6 +8,7 @@ import { AppShell } from '@/components/AppShell';
 import { expenseCategories, expenseDraft, saveExpense, useExpenses } from '@/data/mockExpenses';
 import { generateId } from '@/utils/id';
 import { formatMoneyCents, parseMoneyInputToCents } from '@/utils/money';
+import { selectTextOnFocus } from '@/utils/selectOnFocus';
 import { formatDateDisplay, normalizeDateToISO, toISODateString } from '@/utils/date';
 
 export default function NewExpenseScreen() {
@@ -129,7 +130,7 @@ export default function NewExpenseScreen() {
         <View style={styles.formGrid}>
           <Field label="Date" value={date} onChangeText={setDate} />
           <Field label="Vendor" value={vendor} onChangeText={setVendor} />
-          <Field label="Amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" />
+          <Field label="Amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" selectOnFocus />
         </View>
 
         <View style={styles.categorySection}>
@@ -171,7 +172,7 @@ export default function NewExpenseScreen() {
         <View style={[styles.bottomActionBar, Platform.OS === 'web' && styles.bottomActionBarSticky]}>
           <View>
             <Text style={styles.actionLabel}>Money out ready.</Text>
-            <Text style={styles.actionSubtext}>Saved locally for your dashboard and reports.</Text>
+            <Text style={styles.actionSubtext}>Reflected in your dashboard and reports.</Text>
           </View>
 
           <View style={styles.actionRow}>
@@ -199,12 +200,14 @@ function Field({
   onChangeText,
   multiline = false,
   keyboardType = 'default',
+  selectOnFocus = false,
 }: {
   label: string;
   value: string;
   onChangeText: (value: string) => void;
   multiline?: boolean;
   keyboardType?: KeyboardTypeOptions;
+  selectOnFocus?: boolean;
 }) {
   return (
     <View style={styles.field}>
@@ -214,6 +217,7 @@ function Field({
         keyboardType={keyboardType}
         multiline={multiline}
         onChangeText={onChangeText}
+        onFocus={selectOnFocus ? selectTextOnFocus : undefined}
         style={[styles.input, multiline && styles.multilineInput]}
         value={value}
       />

@@ -8,6 +8,7 @@ import {
   receiveInvoicePayment,
 } from '@/data/mockInvoices';
 import { formatMoneyCents, parseMoneyInputToCents } from '@/utils/money';
+import { selectTextOnFocus } from '@/utils/selectOnFocus';
 import { normalizeDateToISO, parseFlexibleDate } from '@/utils/date';
 
 function formatInputDate(date: Date) {
@@ -114,6 +115,7 @@ export function ReceivePaymentModal({
                     placeholderTextColor="#6b6b6b"
                     value={amount}
                     onChangeText={setAmount}
+                    onFocus={selectTextOnFocus}
                   />
                 </View>
 

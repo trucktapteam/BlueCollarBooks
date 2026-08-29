@@ -30,6 +30,7 @@ import {
 } from '@/data/mockInvoices';
 import { generateId } from '@/utils/id';
 import { formatMoneyCents, parseMoneyInputToCents } from '@/utils/money';
+import { selectTextOnFocus } from '@/utils/selectOnFocus';
 import { formatDateDisplay, formatDueDateDisplay, normalizeDateToISO, toISODateString } from '@/utils/date';
 
 const blueCollarBooksLogo = require('@/assets/images/blue-collar-books-logo.jpg');
@@ -537,6 +538,7 @@ export default function NewInvoiceScreen() {
                     <TextInput
                       keyboardType="decimal-pad"
                       onChangeText={(value) => updateLineItem(index, 'amount', value)}
+                      onFocus={selectTextOnFocus}
                       style={[styles.lineItemAmount, styles.amountColumn]}
                       value={item.amount}
                     />

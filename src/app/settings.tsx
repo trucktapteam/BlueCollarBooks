@@ -348,7 +348,7 @@ export default function SettingsScreen() {
         <View style={styles.actionBar}>
           <View>
             <Text style={styles.actionLabel}>Business profile</Text>
-            <Text style={styles.actionSubtext}>Changes save locally and flow into invoices.</Text>
+            <Text style={styles.actionSubtext}>Changes save to your account and flow into invoices.</Text>
           </View>
 
           <View style={styles.actionRow}>

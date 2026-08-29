@@ -119,7 +119,7 @@ export default function NewCustomerScreen() {
         <View style={[styles.bottomActionBar, Platform.OS === 'web' && styles.bottomActionBarSticky]}>
           <View>
             <Text style={styles.actionLabel}>Customer ready.</Text>
-            <Text style={styles.actionSubtext}>Saved locally for invoices and payment tracking.</Text>
+            <Text style={styles.actionSubtext}>Ready to use for invoices and payment tracking.</Text>
           </View>
 
           <View style={styles.actionRow}>
