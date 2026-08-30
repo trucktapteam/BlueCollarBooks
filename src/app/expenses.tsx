@@ -12,6 +12,7 @@ import {
   reattachExpenseReceipt,
   useExpenses,
 } from '@/data/mockExpenses';
+import { getTransactionsNeedingReview, usePlaidTransactions } from '@/data/mockPlaidTransactions';
 import { formatMoneyCents } from '@/utils/money';
 import { formatDateDisplay } from '@/utils/date';
 
@@ -66,6 +67,8 @@ function viewReceipt(receipt: ExpenseReceipt) {
 
 export default function ExpensesScreen() {
   const expenses = useExpenses();
+  const plaidTransactions = usePlaidTransactions();
+  const transactionsNeedingReview = getTransactionsNeedingReview(plaidTransactions);
   const totalMonthlyExpenses = calculateTotalMonthlyExpenses(expenses);
   const [query, setQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
@@ -106,6 +109,18 @@ export default function ExpensesScreen() {
         <Text style={styles.summaryLabel}>🧾 Money Out This Month</Text>
         <Text style={styles.summaryValue}>{formatMoneyCents(totalMonthlyExpenses)}</Text>
       </View>
+
+      {transactionsNeedingReview.length > 0 && (
+        <Pressable style={styles.reviewBanner} onPress={() => router.push('/transactions')}>
+          <View>
+            <Text style={styles.reviewBannerTitle}>
+              {transactionsNeedingReview.length} bank transaction{transactionsNeedingReview.length === 1 ? '' : 's'} waiting to be categorized
+            </Text>
+            <Text style={styles.reviewBannerText}>Turn them into expenses in a couple of taps.</Text>
+          </View>
+          <Text style={styles.reviewBannerAction}>Review →</Text>
+        </Pressable>
+      )}
 
       <View style={styles.searchRow}>
         <TextInput
@@ -273,6 +288,34 @@ const styles = StyleSheet.create({
   summaryValue: {
     color: '#ffffff',
     fontSize: 46,
+    fontWeight: '900',
+  },
+  reviewBanner: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 122, 0, 0.1)',
+    borderColor: 'rgba(255, 122, 0, 0.4)',
+    borderRadius: 18,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 16,
+    justifyContent: 'space-between',
+    marginBottom: 24,
+    padding: 20,
+  },
+  reviewBannerTitle: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  reviewBannerText: {
+    color: '#d4a373',
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  reviewBannerAction: {
+    color: '#ff7a00',
+    fontSize: 15,
     fontWeight: '900',
   },
   expenseCard: {

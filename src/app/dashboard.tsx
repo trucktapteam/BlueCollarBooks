@@ -11,6 +11,7 @@ import { useSession } from '@/data/authStore';
 import { loadBankAccounts, sumBankAccountBalances, useBankAccounts } from '@/data/mockBankAccounts';
 import { useBusinessProfile } from '@/data/mockBusiness';
 import { calculateTotalMonthlyExpenses, useExpenses } from '@/data/mockExpenses';
+import { getTransactionsNeedingReview, loadPlaidTransactions, usePlaidTransactions } from '@/data/mockPlaidTransactions';
 import {
   calculateInvoiceBalance,
   calculateInvoiceTotal,
@@ -49,6 +50,8 @@ export default function DashboardScreen() {
   const profile = useBusinessProfile();
   const bankAccounts = useBankAccounts();
   const expenses = useExpenses();
+  const plaidTransactions = usePlaidTransactions();
+  const transactionsNeedingReview = getTransactionsNeedingReview(plaidTransactions);
   const invoices = useInvoices();
   const waitingToBePaidInvoices = invoices.filter(isInvoiceWaitingToBePaid);
   const overdueInvoices = invoices.filter((invoice) => invoice.status === 'Overdue');
@@ -145,10 +148,15 @@ export default function DashboardScreen() {
     overdueInvoiceLabel,
     `Invoices over 30 days past due: ${invoicesOverThirtyPastDue}`,
     ...(missingPaperworkCount > 0 ? ['Invoices missing paperwork'] : []),
+    ...(transactionsNeedingReview.length > 0
+      ? [`${transactionsNeedingReview.length} bank transaction${transactionsNeedingReview.length === 1 ? '' : 's'} need categorizing`]
+      : []),
   ];
   const handleAttentionPress = (item: string) => {
     const lowerItem = item.toLowerCase();
-    if (lowerItem.includes('overdue') || lowerItem.includes('paperwork') || lowerItem.includes('past due')) {
+    if (lowerItem.includes('categorizing')) {
+      router.push('/transactions');
+    } else if (lowerItem.includes('overdue') || lowerItem.includes('paperwork') || lowerItem.includes('past due')) {
       router.push('/invoices');
     }
   };
@@ -170,6 +178,16 @@ export default function DashboardScreen() {
       }
       if (session?.user.id) {
         await loadBankAccounts(session.user.id);
+      }
+      // Balances and transactions come from the same Plaid connection, so
+      // refresh both together - otherwise the review queue only updates
+      // when the user happens to open the Transactions screen directly.
+      await fetch('/api/plaid-transactions-sync', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (session?.user.id) {
+        await loadPlaidTransactions(session.user.id);
       }
     } catch (error) {
       setBankActionError(error instanceof Error ? error.message : 'Something went wrong. Try again.');
@@ -244,7 +262,7 @@ export default function DashboardScreen() {
 
             <View style={styles.attentionList}>
               {attentionItems.map((item) => {
-                const isActionable = item.toLowerCase().includes('overdue') || item.toLowerCase().includes('paperwork') || item.toLowerCase().includes('past due');
+                const isActionable = item.toLowerCase().includes('overdue') || item.toLowerCase().includes('paperwork') || item.toLowerCase().includes('past due') || item.toLowerCase().includes('categorizing');
 
                 return (
                   <Pressable
@@ -346,15 +364,25 @@ export default function DashboardScreen() {
           </View>
 
           {bankAccounts.some((account) => account.plaidItemId) && (
-            <Pressable
-              style={[styles.refreshBalancesButton, isRefreshingBalances && styles.connectBankButtonDisabled]}
-              onPress={handleRefreshBalances}
-              disabled={isRefreshingBalances}
-            >
-              <Text style={styles.refreshBalancesButtonText}>
-                {isRefreshingBalances ? 'Refreshing…' : 'Refresh Balances'}
-              </Text>
-            </Pressable>
+            <View style={styles.bankActionRow}>
+              <Pressable
+                style={[styles.refreshBalancesButton, isRefreshingBalances && styles.connectBankButtonDisabled]}
+                onPress={handleRefreshBalances}
+                disabled={isRefreshingBalances}
+              >
+                <Text style={styles.refreshBalancesButtonText}>
+                  {isRefreshingBalances ? 'Refreshing…' : 'Refresh Balances'}
+                </Text>
+              </Pressable>
+
+              {transactionsNeedingReview.length > 0 && (
+                <Pressable style={styles.reviewTransactionsButton} onPress={() => router.push('/transactions')}>
+                  <Text style={styles.reviewTransactionsButtonText}>
+                    Categorize {transactionsNeedingReview.length}
+                  </Text>
+                </Pressable>
+              )}
+            </View>
           )}
 
           <View style={styles.detailList}>
@@ -918,19 +946,38 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 8,
   },
+  bankActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  },
   refreshBalancesButton: {
     alignItems: 'center',
     backgroundColor: '#252525',
     borderColor: '#343434',
     borderRadius: 12,
     borderWidth: 1,
-    marginBottom: 16,
+    flex: 1,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    width: '100%',
   },
   refreshBalancesButtonText: {
     color: '#d4d4d4',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  reviewTransactionsButton: {
+    alignItems: 'center',
+    backgroundColor: BrandColors.orangeSoft,
+    borderColor: BrandColors.orangeBorder,
+    borderRadius: 12,
+    borderWidth: 1,
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  reviewTransactionsButtonText: {
+    color: BrandColors.orange,
     fontSize: 13,
     fontWeight: '900',
   },

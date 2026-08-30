@@ -12,6 +12,7 @@ import { clearBusinessProfile, loadBusinessProfile } from './mockBusiness';
 import { clearCustomers, loadCustomers } from './mockCustomers';
 import { clearExpenses, loadExpenses } from './mockExpenses';
 import { clearInvoices, loadInvoices } from './mockInvoices';
+import { clearPlaidTransactions, loadPlaidTransactions } from './mockPlaidTransactions';
 import { clearSubscription, loadSubscription } from './subscriptionStore';
 
 let lastLoadedUserId: string | null = null;
@@ -31,6 +32,7 @@ onAuthChange((session) => {
     clearBusinessProfile();
     clearActivities();
     clearSubscription();
+    clearPlaidTransactions();
     return;
   }
 
@@ -41,4 +43,5 @@ onAuthChange((session) => {
   loadBusinessProfile(userId);
   loadActivities(userId);
   loadSubscription(userId);
+  loadPlaidTransactions(userId);
 });
