@@ -31,7 +31,7 @@ function useIsCompact(breakpoint: number) {
   return isCompact;
 }
 
-const defaultLogo = require('@/assets/images/blue-collar-books-logo.jpg');
+const defaultLogo = require('@/assets/images/blue-collar-books-logo.png');
 
 // Public marketing homepage - lives at "/" and is the one route in this app
 // that renders for signed-out visitors instead of bouncing to /login (see

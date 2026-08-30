@@ -75,7 +75,7 @@ const defaultSettings: BusinessSettings & { logoModule: any } = {
   paymentInstructions: '',
   startingInvoiceNumber: '1000',
   logoDataUrl: null,
-  logoModule: require('@/assets/images/blue-collar-books-logo.jpg'),
+  logoModule: require('@/assets/images/blue-collar-books-logo.png'),
 };
 
 let snapshot: BusinessSettings & { logoModule?: any } = { ...defaultSettings };

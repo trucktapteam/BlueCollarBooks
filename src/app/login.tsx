@@ -5,7 +5,7 @@ import { ActivityIndicator, Image, Pressable, SafeAreaView, StyleSheet, Text, Te
 
 import { signInWithPassword, signUpWithPassword } from '@/data/authStore';
 
-const defaultLogo = require('@/assets/images/blue-collar-books-logo.jpg');
+const defaultLogo = require('@/assets/images/blue-collar-books-logo.png');
 
 export default function LoginScreen() {
   // The marketing homepage's "Start Free Trial" button links here with

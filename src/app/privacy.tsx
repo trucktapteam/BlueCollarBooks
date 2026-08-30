@@ -4,7 +4,7 @@ import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } fr
 
 import { BrandColors } from '@/constants/theme';
 
-const defaultLogo = require('@/assets/images/blue-collar-books-logo.jpg');
+const defaultLogo = require('@/assets/images/blue-collar-books-logo.png');
 
 // Public, always-accessible route (see the isAlwaysPublic check in
 // _layout.tsx) - linked from the marketing homepage footer. Basic,

@@ -5,7 +5,7 @@ import { ActivityIndicator, Image, Pressable, SafeAreaView, StyleSheet, Text, Vi
 import { signOut, useSession } from '@/data/authStore';
 import { useSubscription } from '@/data/subscriptionStore';
 
-const defaultLogo = require('@/assets/images/blue-collar-books-logo.jpg');
+const defaultLogo = require('@/assets/images/blue-collar-books-logo.png');
 
 // Shown when a signed-in user has no active trial/subscription - either
 // they're brand new, or their trial/subscription lapsed. See _layout.tsx

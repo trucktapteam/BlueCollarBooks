@@ -33,7 +33,7 @@ import { formatMoneyCents, parseMoneyInputToCents } from '@/utils/money';
 import { selectTextOnFocus } from '@/utils/selectOnFocus';
 import { formatDateDisplay, formatDueDateDisplay, normalizeDateToISO, toISODateString } from '@/utils/date';
 
-const blueCollarBooksLogo = require('@/assets/images/blue-collar-books-logo.jpg');
+const blueCollarBooksLogo = require('@/assets/images/blue-collar-books-logo.png');
 
 // The line-item form fields bind to raw typed text (e.g. "$625" or "625.50")
 // rather than the stored cents number, so someone can type freely without the
