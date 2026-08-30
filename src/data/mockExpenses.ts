@@ -33,25 +33,16 @@ export type ExpenseReceiptInput = {
   objectUrl?: string;
 };
 
-export const expenseCategories = [
-  'Fuel',
-  'Repairs',
-  'Insurance',
-  'Permits',
-  'Tolls',
-  'Meals',
-  'Office',
-  'Software',
-  'Other',
-];
-
 // Blank-form defaults for a brand-new expense - date defaults to today in
 // new-expense.tsx; vendor/amount/notes are deliberately empty, not sample
 // data. This used to default to a fake vendor/amount ("Loves Travel Stop",
-// "$324") left over from local development.
+// "$324") left over from local development. category starts blank rather
+// than a hardcoded value since categories are now user-editable (see
+// mockCategories.ts) - new-expense.tsx fills it in once the user's own
+// category list has loaded.
 export const expenseDraft = {
   vendor: '',
-  category: expenseCategories[0],
+  category: '',
   amount: '$0',
   notes: '',
 };

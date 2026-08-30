@@ -9,6 +9,7 @@ import { onAuthChange } from './authStore';
 import { clearActivities, loadActivities } from './activityStore';
 import { clearBankAccounts, loadBankAccounts } from './mockBankAccounts';
 import { clearBusinessProfile, loadBusinessProfile } from './mockBusiness';
+import { clearCategories, loadCategories } from './mockCategories';
 import { clearCustomers, loadCustomers } from './mockCustomers';
 import { clearExpenses, loadExpenses } from './mockExpenses';
 import { clearInvoices, loadInvoices } from './mockInvoices';
@@ -33,6 +34,7 @@ onAuthChange((session) => {
     clearActivities();
     clearSubscription();
     clearPlaidTransactions();
+    clearCategories();
     return;
   }
 
@@ -44,4 +46,5 @@ onAuthChange((session) => {
   loadActivities(userId);
   loadSubscription(userId);
   loadPlaidTransactions(userId);
+  loadCategories(userId);
 });

@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { useSession } from '@/data/authStore';
-import { expenseCategories } from '@/data/mockExpenses';
+import { useCategories } from '@/data/mockCategories';
 import {
   categorizeTransaction,
   excludeTransaction,
@@ -21,6 +21,8 @@ import { suggestExpenseCategory } from '@/utils/suggestCategory';
 export default function TransactionsScreen() {
   const session = useSession();
   const transactions = usePlaidTransactions();
+  const categories = useCategories();
+  const categoryNames = categories.map((c) => c.name);
   const needsReview = getTransactionsNeedingReview(transactions).sort((a, b) => (a.date < b.date ? 1 : -1));
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState('');
@@ -90,7 +92,7 @@ export default function TransactionsScreen() {
       ) : (
         <View style={styles.list}>
           {needsReview.map((transaction) => (
-            <TransactionRow key={transaction.id} transaction={transaction} />
+            <TransactionRow key={transaction.id} transaction={transaction} categories={categoryNames} />
           ))}
         </View>
       )}
@@ -98,10 +100,11 @@ export default function TransactionsScreen() {
   );
 }
 
-function TransactionRow({ transaction }: { transaction: PlaidTransaction }) {
-  const [selectedCategory, setSelectedCategory] = useState(() =>
-    suggestExpenseCategory([transaction.plaidCategory])
-  );
+function TransactionRow({ transaction, categories }: { transaction: PlaidTransaction; categories: string[] }) {
+  const [selectedCategory, setSelectedCategory] = useState(() => {
+    const suggested = suggestExpenseCategory([transaction.plaidCategory]);
+    return categories.includes(suggested) ? suggested : (categories[0] ?? suggested);
+  });
   const [isSaving, setIsSaving] = useState(false);
   const [isExcluding, setIsExcluding] = useState(false);
   const [error, setError] = useState('');
@@ -146,7 +149,7 @@ function TransactionRow({ transaction }: { transaction: PlaidTransaction }) {
       </View>
 
       <View style={styles.categoryGrid}>
-        {expenseCategories.map((categoryName) => {
+        {categories.map((categoryName) => {
           const isActive = categoryName === selectedCategory;
           return (
             <Pressable

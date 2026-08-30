@@ -12,6 +12,7 @@ import {
   reattachExpenseReceipt,
   useExpenses,
 } from '@/data/mockExpenses';
+import { useCategories } from '@/data/mockCategories';
 import { getTransactionsNeedingReview, usePlaidTransactions } from '@/data/mockPlaidTransactions';
 import { formatMoneyCents } from '@/utils/money';
 import { formatDateDisplay } from '@/utils/date';
@@ -73,7 +74,15 @@ export default function ExpensesScreen() {
   const [query, setQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
 
-  const categories = ['All', 'Fuel', 'Repairs', 'Insurance', 'Permits', 'Tolls', 'Meals', 'Office', 'Software', 'Other'];
+  const savedCategories = useCategories();
+  // Category filter chips have to cover every value an expense might
+  // actually carry - including ones typed on a Plaid transaction row or a
+  // category the user has since deleted from Settings - not just the
+  // user's current saved list, or an old expense could silently vanish
+  // from view with no way to find it again.
+  const usedCategories = new Set(expenses.map((exp) => exp.category).filter(Boolean));
+  const categoryOptions = new Set([...savedCategories.map((c) => c.name), ...usedCategories]);
+  const categories = ['All', ...categoryOptions];
 
   const visibleExpenses = useMemo(() =>
     expenses.filter((exp) => {

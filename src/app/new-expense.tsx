@@ -5,7 +5,8 @@ import type { KeyboardTypeOptions } from 'react-native';
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
-import { expenseCategories, expenseDraft, saveExpense, useExpenses } from '@/data/mockExpenses';
+import { addCategory, useCategories } from '@/data/mockCategories';
+import { expenseDraft, saveExpense, useExpenses } from '@/data/mockExpenses';
 import { generateId } from '@/utils/id';
 import { formatMoneyCents, parseMoneyInputToCents } from '@/utils/money';
 import { selectTextOnFocus } from '@/utils/selectOnFocus';
@@ -14,6 +15,7 @@ import { formatDateDisplay, normalizeDateToISO, toISODateString } from '@/utils/
 export default function NewExpenseScreen() {
   const searchParams = useLocalSearchParams();
   const expenses = useExpenses();
+  const categories = useCategories();
   const [originalId, setOriginalId] = useState<string | undefined>(undefined);
   const [date, setDate] = useState(() => formatDateDisplay(toISODateString(new Date())));
   const [vendor, setVendor] = useState(expenseDraft.vendor);
@@ -21,6 +23,8 @@ export default function NewExpenseScreen() {
   const [category, setCategory] = useState(expenseDraft.category);
   const [notes, setNotes] = useState(expenseDraft.notes);
   const [showSavedToast, setShowSavedToast] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
 
   useEffect(() => {
     if (showSavedToast) {
@@ -28,6 +32,29 @@ export default function NewExpenseScreen() {
       return () => clearTimeout(timer);
     }
   }, [showSavedToast]);
+
+  // Default to the user's first category once their list has loaded - it
+  // can't be known synchronously at mount since categories load async from
+  // Supabase (see useCategories/bootstrap.ts). Only fills in a blank
+  // category, so this never overwrites what an edited expense already has.
+  useEffect(() => {
+    if (!category && categories.length > 0) {
+      setCategory(categories[0].name);
+    }
+  }, [category, categories]);
+
+  async function handleAddCategory() {
+    const name = newCategoryName.trim();
+    if (!name) return;
+    setIsAddingCategory(true);
+    try {
+      await addCategory(name);
+      setCategory(name);
+      setNewCategoryName('');
+    } finally {
+      setIsAddingCategory(false);
+    }
+  }
 
   useEffect(() => {
     const idParam = typeof searchParams.id === 'string' ? searchParams.id : '';
@@ -136,12 +163,12 @@ export default function NewExpenseScreen() {
         <View style={styles.categorySection}>
           <Text style={styles.fieldLabel}>Type</Text>
           <View style={styles.categoryGrid}>
-            {expenseCategories.map((categoryName) => {
+            {categories.map(({ id, name: categoryName }) => {
               const isActive = categoryName === category;
 
               return (
                 <Pressable
-                  key={categoryName}
+                  key={id}
                   style={[styles.categoryChip, isActive && styles.categoryChipActive]}
                   onPress={() => setCategory(categoryName)}
                 >
@@ -151,6 +178,24 @@ export default function NewExpenseScreen() {
                 </Pressable>
               );
             })}
+          </View>
+
+          <View style={styles.addCategoryRow}>
+            <TextInput
+              style={styles.addCategoryInput}
+              placeholder="Add a category (e.g. Equipment)"
+              placeholderTextColor="#6b6b6b"
+              value={newCategoryName}
+              onChangeText={setNewCategoryName}
+              onSubmitEditing={handleAddCategory}
+            />
+            <Pressable
+              style={styles.addCategoryButton}
+              onPress={handleAddCategory}
+              disabled={isAddingCategory || !newCategoryName.trim()}
+            >
+              <Text style={styles.addCategoryButtonText}>{isAddingCategory ? 'Adding…' : 'Add'}</Text>
+            </Pressable>
           </View>
         </View>
 
@@ -324,6 +369,36 @@ const styles = StyleSheet.create({
   },
   categoryChipTextActive: {
     color: '#ff7a00',
+  },
+  addCategoryRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 14,
+  },
+  addCategoryInput: {
+    backgroundColor: '#252525',
+    borderColor: '#383838',
+    borderRadius: 12,
+    borderWidth: 1,
+    color: '#ffffff',
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  addCategoryButton: {
+    backgroundColor: '#252525',
+    borderColor: 'rgba(255, 122, 0, 0.45)',
+    borderRadius: 12,
+    borderWidth: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+  },
+  addCategoryButtonText: {
+    color: '#ff7a00',
+    fontSize: 13,
+    fontWeight: '900',
   },
   notesSection: {
     marginTop: 18,

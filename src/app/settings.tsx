@@ -3,6 +3,7 @@ import { useActivities } from '@/data/activityStore';
 import { signOut, useSession } from '@/data/authStore';
 import { useBankAccounts } from '@/data/mockBankAccounts';
 import { type BusinessSettings, saveBusinessProfile, useBusinessProfile } from '@/data/mockBusiness';
+import { addCategory, deleteCategory, useCategories } from '@/data/mockCategories';
 import { useCustomers } from '@/data/mockCustomers';
 import { useExpenses } from '@/data/mockExpenses';
 import { useInvoices } from '@/data/mockInvoices';
@@ -44,6 +45,10 @@ function getTermOption(value?: string): TermOption {
 
 export default function SettingsScreen() {
   const profile = useBusinessProfile();
+  const categories = useCategories();
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null);
   const customers = useCustomers();
   const invoices = useInvoices();
   const expenses = useExpenses();
@@ -195,6 +200,27 @@ export default function SettingsScreen() {
     saveBusinessProfile({ logoDataUrl: null });
   }
 
+  async function handleAddCategory() {
+    const name = newCategoryName.trim();
+    if (!name) return;
+    setIsAddingCategory(true);
+    try {
+      await addCategory(name);
+      setNewCategoryName('');
+    } finally {
+      setIsAddingCategory(false);
+    }
+  }
+
+  async function handleDeleteCategory(categoryId: string) {
+    setDeletingCategoryId(categoryId);
+    try {
+      await deleteCategory(categoryId);
+    } finally {
+      setDeletingCategoryId(null);
+    }
+  }
+
   return (
     <AppShell activeNav="Settings">
       <Head>
@@ -304,6 +330,48 @@ export default function SettingsScreen() {
               onChangeText={setPaymentInstructions}
               multiline
             />
+          </View>
+        </SettingsCard>
+
+        <SettingsCard title="Expense Categories">
+          <Text style={styles.helperText}>
+            These show up as the Type options when adding an expense or categorizing a bank transaction. Remove one
+            any time - it won't touch expenses that already used it.
+          </Text>
+
+          <View style={styles.categoryChipGrid}>
+            {categories.map((category) => (
+              <View key={category.id} style={styles.categoryChipRow}>
+                <Text style={styles.categoryChipRowText}>{category.name}</Text>
+                <Pressable
+                  disabled={deletingCategoryId === category.id}
+                  onPress={() => handleDeleteCategory(category.id)}
+                  style={styles.categoryChipRemove}
+                >
+                  <Text style={styles.categoryChipRemoveText}>
+                    {deletingCategoryId === category.id ? '…' : '×'}
+                  </Text>
+                </Pressable>
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.addCategoryRow}>
+            <TextInput
+              style={styles.addCategoryInput}
+              placeholder="Add a category (e.g. Equipment)"
+              placeholderTextColor="#6b6b6b"
+              value={newCategoryName}
+              onChangeText={setNewCategoryName}
+              onSubmitEditing={handleAddCategory}
+            />
+            <Pressable
+              style={styles.secondaryButton}
+              onPress={handleAddCategory}
+              disabled={isAddingCategory || !newCategoryName.trim()}
+            >
+              <Text style={styles.secondaryButtonText}>{isAddingCategory ? 'Adding...' : 'Add Category'}</Text>
+            </Pressable>
           </View>
         </SettingsCard>
 
@@ -532,6 +600,60 @@ const styles = StyleSheet.create({
   },
   singleFieldSpacing: {
     marginTop: 4,
+  },
+  categoryChipGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  categoryChipRow: {
+    alignItems: 'center',
+    backgroundColor: '#252525',
+    borderColor: '#383838',
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 6,
+    paddingLeft: 14,
+    paddingVertical: 6,
+  },
+  categoryChipRowText: {
+    color: '#d4d4d4',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  categoryChipRemove: {
+    alignItems: 'center',
+    backgroundColor: '#333333',
+    borderRadius: 999,
+    height: 22,
+    justifyContent: 'center',
+    width: 22,
+  },
+  categoryChipRemoveText: {
+    color: '#a3a3a3',
+    fontSize: 15,
+    fontWeight: '900',
+    lineHeight: 16,
+  },
+  addCategoryRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 6,
+  },
+  addCategoryInput: {
+    backgroundColor: '#252525',
+    borderColor: '#383838',
+    borderRadius: 14,
+    borderWidth: 1,
+    color: '#ffffff',
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '700',
+    minWidth: 200,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   actionBar: {
     alignItems: 'center',

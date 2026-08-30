@@ -1,15 +1,13 @@
-import { expenseCategories } from '@/data/mockExpenses';
-
-// Best-effort mapping from Plaid's own category labels to this app's fixed
-// nine-value expense taxonomy (see expenseCategories in mockExpenses.ts).
-// Plaid's transactions carry a `personal_finance_category.primary` value
-// (their newer, more granular taxonomy) and/or a legacy `category` array -
-// neither lines up with ours, so this is a keyword match against whichever
-// string we got, not an exact lookup table. It only ever returns one of our
-// own category names (or 'Other') - never a raw Plaid label - so a bad
-// match just falls back to a normal, editable suggestion rather than
-// polluting the Money Out By Type report with an unfamiliar category.
-const KEYWORD_RULES: Array<{ category: (typeof expenseCategories)[number]; keywords: string[] }> = [
+// Best-effort mapping from Plaid's own category labels to this app's
+// default expense category names (see DEFAULT_CATEGORIES in
+// mockCategories.ts). Plaid's transactions carry a
+// `personal_finance_category.primary` value (their newer, more granular
+// taxonomy) and/or a legacy `category` array - neither lines up with ours,
+// so this is a keyword match against whichever string we got, not an exact
+// lookup table. Categories are user-editable, so the caller is responsible
+// for falling back to something that actually exists in the user's own
+// list if this suggestion isn't one of their categories anymore.
+const KEYWORD_RULES: Array<{ category: string; keywords: string[] }> = [
   { category: 'Fuel', keywords: ['gas station', 'gas_stations', 'fuel'] },
   {
     category: 'Repairs',
