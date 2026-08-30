@@ -1,11 +1,11 @@
 import { router } from 'expo-router';
 import Head from 'expo-router/head';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { useSession } from '@/data/authStore';
-import { useCategories } from '@/data/mockCategories';
+import { addCategory, useCategories } from '@/data/mockCategories';
 import {
   categorizeTransaction,
   excludeTransaction,
@@ -108,6 +108,25 @@ function TransactionRow({ transaction, categories }: { transaction: PlaidTransac
   const [isSaving, setIsSaving] = useState(false);
   const [isExcluding, setIsExcluding] = useState(false);
   const [error, setError] = useState('');
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [isSubmittingCategory, setIsSubmittingCategory] = useState(false);
+
+  async function handleAddCategory() {
+    const name = newCategoryName.trim();
+    if (!name) return;
+    setIsSubmittingCategory(true);
+    try {
+      await addCategory(name);
+      setSelectedCategory(name);
+      setNewCategoryName('');
+      setIsAddingCategory(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not add that category.');
+    } finally {
+      setIsSubmittingCategory(false);
+    }
+  }
 
   async function handleCategorize() {
     setError('');
@@ -162,7 +181,43 @@ function TransactionRow({ transaction, categories }: { transaction: PlaidTransac
             </Pressable>
           );
         })}
+
+        {!isAddingCategory && (
+          <Pressable disabled={isBusy} style={styles.newCategoryChip} onPress={() => setIsAddingCategory(true)}>
+            <Text style={styles.newCategoryChipText}>+ New</Text>
+          </Pressable>
+        )}
       </View>
+
+      {isAddingCategory && (
+        <View style={styles.addCategoryRow}>
+          <TextInput
+            autoFocus
+            style={styles.addCategoryInput}
+            placeholder="New category name"
+            placeholderTextColor="#6b6b6b"
+            value={newCategoryName}
+            onChangeText={setNewCategoryName}
+            onSubmitEditing={handleAddCategory}
+          />
+          <Pressable
+            style={styles.addCategoryButton}
+            onPress={handleAddCategory}
+            disabled={isSubmittingCategory || !newCategoryName.trim()}
+          >
+            <Text style={styles.addCategoryButtonText}>{isSubmittingCategory ? 'Adding…' : 'Add'}</Text>
+          </Pressable>
+          <Pressable
+            style={styles.cancelAddCategoryButton}
+            onPress={() => {
+              setIsAddingCategory(false);
+              setNewCategoryName('');
+            }}
+          >
+            <Text style={styles.cancelAddCategoryButtonText}>Cancel</Text>
+          </Pressable>
+        </View>
+      )}
 
       {!!error && <Text style={styles.rowErrorText}>{error}</Text>}
 
@@ -321,6 +376,60 @@ const styles = StyleSheet.create({
   },
   categoryChipTextActive: {
     color: '#ff7a00',
+  },
+  newCategoryChip: {
+    backgroundColor: 'transparent',
+    borderColor: 'rgba(255, 122, 0, 0.45)',
+    borderRadius: 999,
+    borderStyle: 'dashed',
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  newCategoryChipText: {
+    color: '#ff7a00',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  addCategoryRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  addCategoryInput: {
+    backgroundColor: '#252525',
+    borderColor: '#383838',
+    borderRadius: 12,
+    borderWidth: 1,
+    color: '#ffffff',
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
+    minWidth: 180,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  addCategoryButton: {
+    backgroundColor: '#252525',
+    borderColor: 'rgba(255, 122, 0, 0.45)',
+    borderRadius: 12,
+    borderWidth: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  addCategoryButtonText: {
+    color: '#ff7a00',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  cancelAddCategoryButton: {
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  cancelAddCategoryButtonText: {
+    color: '#a3a3a3',
+    fontSize: 13,
+    fontWeight: '800',
   },
   rowErrorText: {
     color: '#ff6b6b',
