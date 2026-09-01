@@ -248,6 +248,21 @@ export async function attachExpenseReceipt(expenseId: string, receiptInput?: Exp
     return;
   }
 
+  // The "Attach Receipt" button stays visible even once a receipt already
+  // exists (it doubles as "replace"), so clean up whatever was there first -
+  // otherwise the old DB row and its uploaded file are orphaned (silent
+  // Storage growth, and duplicate rows for the same expense).
+  const previousReceipt = expense.receipt;
+  if (previousReceipt) {
+    if (typeof URL !== 'undefined' && previousReceipt.objectUrl?.startsWith('blob:')) {
+      URL.revokeObjectURL(previousReceipt.objectUrl);
+    }
+    const { error } = await supabase.from('expense_receipts').delete().eq('id', previousReceipt.id);
+    if (error) {
+      console.error('Failed to delete previous receipt', error);
+    }
+  }
+
   const receipt: ExpenseReceipt = {
     id: generateId(),
     name: receiptInput?.name || `${expense.vendor.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-receipt.pdf`,
@@ -259,6 +274,9 @@ export async function attachExpenseReceipt(expenseId: string, receiptInput?: Exp
   };
 
   await upsertReceipt(expenseId, receipt);
+  if (previousReceipt?.storagePath && previousReceipt.storagePath !== receipt.storagePath) {
+    await removeReceiptFile(previousReceipt.storagePath);
+  }
 
   expensesSnapshot = expensesSnapshot.map((item) => (item.id === expenseId ? { ...item, receipt } : item));
   addActivity(`Receipt attached: ${expense.vendor} ${receipt.name}`);
