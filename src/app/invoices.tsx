@@ -12,12 +12,15 @@ import {
     calculateInvoiceBalance,
     deleteInvoiceAttachment,
     formatInvoiceAmount,
+    getInvoiceAttachmentViewUrl,
     type Invoice,
     type InvoiceAttachment,
     type InvoiceStatus,
     reattachInvoiceAttachment,
+    uploadInvoiceAttachmentFile,
     useInvoices,
 } from '@/data/mockInvoices';
+import { getCurrentUserId } from '@/data/authStore';
 import { formatDateDisplay, formatDueDateDisplay } from '@/utils/date';
 
 function formatFileSize(size?: number) {
@@ -41,15 +44,27 @@ function pickInvoiceAttachment(invoiceId: string, attachmentId?: string) {
 
   const input = document.createElement('input');
   input.type = 'file';
-  input.onchange = () => {
+  input.onchange = async () => {
     const file = input.files?.[0];
     if (!file) return;
+
+    const userId = getCurrentUserId();
+    let storagePath: string | undefined;
+    if (userId) {
+      try {
+        storagePath = await uploadInvoiceAttachmentFile(userId, invoiceId, file);
+      } catch {
+        window.alert('Could not upload the file. Please try again.');
+        return;
+      }
+    }
 
     const attachmentInput = {
       name: file.name,
       type: file.type || 'application/octet-stream',
       size: file.size,
       objectUrl: URL.createObjectURL(file),
+      storagePath,
     };
 
     if (attachmentId) {
@@ -61,12 +76,18 @@ function pickInvoiceAttachment(invoiceId: string, attachmentId?: string) {
   input.click();
 }
 
-function viewAttachment(attachment: InvoiceAttachment) {
-  if (typeof window === 'undefined' || !attachment.objectUrl) {
+async function viewAttachment(attachment: InvoiceAttachment) {
+  if (typeof window === 'undefined') {
     return;
   }
 
-  window.open(attachment.objectUrl, '_blank', 'noopener,noreferrer');
+  const url = await getInvoiceAttachmentViewUrl(attachment);
+  if (!url) {
+    window.alert('This file is no longer available. Try uploading it again.');
+    return;
+  }
+
+  window.open(url, '_blank', 'noopener,noreferrer');
 }
 
 function getStatusPillStyle(status: InvoiceStatus) {
@@ -246,7 +267,6 @@ export default function InvoicesScreen() {
                   <View style={styles.attachmentHeader}>
                     <View>
                       <Text style={styles.attachmentTitle}>📎 Attachments</Text>
-                      <Text style={styles.attachmentMeta}>Local file preview is temporary until cloud storage is added.</Text>
                     </View>
 
                     <Pressable style={styles.attachFileButton} onPress={() => pickInvoiceAttachment(invoice.id)}>
@@ -263,15 +283,15 @@ export default function InvoicesScreen() {
                             <Text style={styles.attachmentMeta}>
                               {attachment.type} • {formatFileSize(attachment.size)} • Uploaded {formatUploadDate(attachment.dateAdded)}
                             </Text>
-                            {!attachment.objectUrl && (
+                            {!attachment.objectUrl && !attachment.storagePath && (
                               <Text style={styles.attachmentNeedsText}>
-                                Preview unavailable after browser refresh.
+                                File unavailable - please upload it again.
                               </Text>
                             )}
                           </View>
 
                           <View style={styles.attachmentActions}>
-                            {attachment.objectUrl ? (
+                            {(attachment.objectUrl || attachment.storagePath) ? (
                               <Pressable
                                 style={styles.attachmentActionButton}
                                 onPress={() => viewAttachment(attachment)}

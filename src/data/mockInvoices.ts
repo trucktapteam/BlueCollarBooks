@@ -49,7 +49,12 @@ export type InvoiceAttachment = {
   type: string;
   dateAdded: string;
   size?: number;
+  // In-tab-only preview (URL.createObjectURL) - gone after refresh/new tab.
   objectUrl?: string;
+  // Path in the `receipts` Supabase Storage bucket (shared with expense
+  // receipts - same private, owner-scoped bucket) - durable across
+  // refreshes/devices.
+  storagePath?: string;
 };
 
 export type InvoiceAttachmentInput = {
@@ -57,6 +62,7 @@ export type InvoiceAttachmentInput = {
   type: string;
   size?: number;
   objectUrl?: string;
+  storagePath?: string;
 };
 
 export type ReceiveInvoicePaymentInput = {
@@ -114,7 +120,14 @@ type InvoiceRow = {
 
 type LineItemRow = { id: string; description: string; amount: number; position: number };
 type PaymentRow = { id: string; amount: number; payment_date: string | null; notes: string | null };
-type AttachmentRow = { id: string; name: string; type: string; date_added: string; size: number | null };
+type AttachmentRow = {
+  id: string;
+  name: string;
+  type: string;
+  date_added: string;
+  size: number | null;
+  storage_path: string | null;
+};
 
 function rowToInvoice(row: InvoiceRow): Invoice {
   return {
@@ -147,6 +160,7 @@ function rowToInvoice(row: InvoiceRow): Invoice {
       type: attachment.type,
       dateAdded: attachment.date_added,
       size: attachment.size ?? undefined,
+      storagePath: attachment.storage_path ?? undefined,
     })),
   };
 }
@@ -310,6 +324,54 @@ export async function saveInvoice(invoice: Invoice, originalInvoiceId?: string) 
   emitChange();
 }
 
+// Uploads the actual file bytes to the (shared, private) `receipts` Storage
+// bucket, namespaced under invoices/{invoiceId} so it doesn't collide with
+// expense receipt paths - both share the same bucket and RLS policies
+// (first path segment must match the signed-in user's own id).
+export async function uploadInvoiceAttachmentFile(userId: string, invoiceId: string, file: File): Promise<string> {
+  const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]+/g, '_');
+  const path = `${userId}/invoices/${invoiceId}/${Date.now()}-${safeName}`;
+
+  const { error } = await supabase.storage.from('receipts').upload(path, file, {
+    contentType: file.type || 'application/octet-stream',
+    upsert: false,
+  });
+
+  if (error) {
+    console.error('Failed to upload invoice attachment file', error);
+    throw error;
+  }
+
+  return path;
+}
+
+async function removeAttachmentFile(storagePath?: string) {
+  if (!storagePath) return;
+  const { error } = await supabase.storage.from('receipts').remove([storagePath]);
+  if (error) {
+    console.error('Failed to delete attachment file from storage', error);
+  }
+}
+
+// Resolves a viewable URL for an attachment: the in-tab blob if this is the
+// same session it was uploaded in, otherwise a short-lived signed URL from
+// Storage. Returns undefined if neither is available.
+export async function getInvoiceAttachmentViewUrl(attachment: InvoiceAttachment): Promise<string | undefined> {
+  if (attachment.objectUrl) {
+    return attachment.objectUrl;
+  }
+  if (!attachment.storagePath) {
+    return undefined;
+  }
+
+  const { data, error } = await supabase.storage.from('receipts').createSignedUrl(attachment.storagePath, 60);
+  if (error || !data) {
+    console.error('Failed to create signed attachment URL', error);
+    return undefined;
+  }
+  return data.signedUrl;
+}
+
 export async function addInvoiceAttachment(invoiceId: string, attachmentInput?: InvoiceAttachmentInput) {
   const userId = getCurrentUserId();
   if (!userId) {
@@ -329,6 +391,7 @@ export async function addInvoiceAttachment(invoiceId: string, attachmentInput?: 
     dateAdded: new Date().toISOString(),
     size: attachmentInput?.size,
     objectUrl: attachmentInput?.objectUrl,
+    storagePath: attachmentInput?.storagePath,
   };
 
   const { error } = await supabase.from('invoice_attachments').insert({
@@ -339,6 +402,7 @@ export async function addInvoiceAttachment(invoiceId: string, attachmentInput?: 
     type: attachment.type,
     date_added: attachment.dateAdded,
     size: attachment.size ?? null,
+    storage_path: attachment.storagePath ?? null,
   });
 
   if (error) {
@@ -369,6 +433,7 @@ export async function reattachInvoiceAttachment(
   if (typeof URL !== 'undefined' && attachment.objectUrl?.startsWith('blob:')) {
     URL.revokeObjectURL(attachment.objectUrl);
   }
+  const previousStoragePath = attachment.storagePath;
 
   const { error } = await supabase
     .from('invoice_attachments')
@@ -376,12 +441,16 @@ export async function reattachInvoiceAttachment(
       name: attachmentInput.name,
       type: attachmentInput.type,
       size: attachmentInput.size ?? null,
+      storage_path: attachmentInput.storagePath ?? null,
     })
     .eq('id', attachmentId);
 
   if (error) {
     console.error('Failed to reattach attachment', error);
     throw error;
+  }
+  if (previousStoragePath && previousStoragePath !== attachmentInput.storagePath) {
+    await removeAttachmentFile(previousStoragePath);
   }
 
   invoicesSnapshot = invoicesSnapshot.map((item) =>
@@ -396,6 +465,7 @@ export async function reattachInvoiceAttachment(
                   type: attachmentInput.type,
                   size: attachmentInput.size,
                   objectUrl: attachmentInput.objectUrl,
+                  storagePath: attachmentInput.storagePath,
                 }
               : file
           ),
@@ -424,6 +494,7 @@ export async function deleteInvoiceAttachment(invoiceId: string, attachmentId: s
     console.error('Failed to delete attachment', error);
     throw error;
   }
+  await removeAttachmentFile(attachment.storagePath);
 
   invoicesSnapshot = invoicesSnapshot.map((item) =>
     item.id === invoiceId
