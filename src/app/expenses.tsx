@@ -9,9 +9,12 @@ import {
   calculateTotalMonthlyExpenses,
   deleteExpenseReceipt,
   type ExpenseReceipt,
+  getReceiptViewUrl,
   reattachExpenseReceipt,
+  uploadReceiptFile,
   useExpenses,
 } from '@/data/mockExpenses';
+import { getCurrentUserId } from '@/data/authStore';
 import { useCategories } from '@/data/mockCategories';
 import { getTransactionsNeedingReview, usePlaidTransactions } from '@/data/mockPlaidTransactions';
 import { formatMoneyCents } from '@/utils/money';
@@ -38,15 +41,27 @@ function pickExpenseReceipt(expenseId: string, reattach = false) {
 
   const input = document.createElement('input');
   input.type = 'file';
-  input.onchange = () => {
+  input.onchange = async () => {
     const file = input.files?.[0];
     if (!file) return;
+
+    const userId = getCurrentUserId();
+    let storagePath: string | undefined;
+    if (userId) {
+      try {
+        storagePath = await uploadReceiptFile(userId, expenseId, file);
+      } catch {
+        window.alert('Could not upload the receipt file. Please try again.');
+        return;
+      }
+    }
 
     const receiptInput = {
       name: file.name,
       type: file.type || 'application/octet-stream',
       size: file.size,
       objectUrl: URL.createObjectURL(file),
+      storagePath,
     };
 
     if (reattach) {
@@ -58,12 +73,18 @@ function pickExpenseReceipt(expenseId: string, reattach = false) {
   input.click();
 }
 
-function viewReceipt(receipt: ExpenseReceipt) {
-  if (typeof window === 'undefined' || !receipt.objectUrl) {
+async function viewReceipt(receipt: ExpenseReceipt) {
+  if (typeof window === 'undefined') {
     return;
   }
 
-  window.open(receipt.objectUrl, '_blank', 'noopener,noreferrer');
+  const url = await getReceiptViewUrl(receipt);
+  if (!url) {
+    window.alert('This receipt is no longer available. Try uploading it again.');
+    return;
+  }
+
+  window.open(url, '_blank', 'noopener,noreferrer');
 }
 
 export default function ExpensesScreen() {
@@ -180,24 +201,23 @@ export default function ExpensesScreen() {
               <View style={styles.receiptSection}>
                 <View style={styles.receiptCopy}>
                   <Text style={styles.receiptTitle}>Receipt</Text>
-                  <Text style={styles.receiptMeta}>Local file preview is temporary until cloud storage is added.</Text>
                   <Text style={styles.receiptMeta}>
-                    {expense.receipt ? expense.receipt.name : 'No receipt attached yet. Use Attach Receipt to save receipt metadata locally.'}
+                    {expense.receipt ? expense.receipt.name : 'No receipt attached yet.'}
                   </Text>
                   {expense.receipt && (
                     <Text style={styles.receiptMeta}>
                       {expense.receipt.type} • {formatFileSize(expense.receipt.size)} • Uploaded {formatUploadDate(expense.receipt.dateAdded)}
                     </Text>
                   )}
-                  {expense.receipt && !expense.receipt.objectUrl && (
-                    <Text style={styles.receiptNeedsText}>Preview unavailable after browser refresh.</Text>
+                  {expense.receipt && !expense.receipt.objectUrl && !expense.receipt.storagePath && (
+                    <Text style={styles.receiptNeedsText}>File unavailable - please upload it again.</Text>
                   )}
                 </View>
 
                 <View style={styles.receiptActions}>
                   {expense.receipt && (
                     <>
-                      {expense.receipt.objectUrl ? (
+                      {(expense.receipt.objectUrl || expense.receipt.storagePath) ? (
                         <Pressable
                           style={styles.receiptActionButton}
                           onPress={() => expense.receipt && viewReceipt(expense.receipt)}
