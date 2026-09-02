@@ -1,7 +1,17 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
 import { useState } from 'react';
-import { ActivityIndicator, Image, Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 
 import { signInWithPassword, signUpWithPassword } from '@/data/authStore';
 
@@ -13,6 +23,8 @@ export default function LoginScreen() {
   // Sign In - the whole point of that button was to start a trial, not to
   // make a first-time visitor find the toggle themselves.
   const { mode: modeParam } = useLocalSearchParams<{ mode?: string }>();
+  const { width } = useWindowDimensions();
+  const isCompact = width < 500;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [mode, setMode] = useState<'sign-in' | 'sign-up'>(modeParam === 'signup' ? 'sign-up' : 'sign-in');
@@ -56,8 +68,11 @@ export default function LoginScreen() {
       </Head>
       <View style={styles.centerContainer}>
         <View style={styles.card}>
-          <Image source={defaultLogo} style={styles.cardLogo} />
-          <Text style={styles.title}>{mode === 'sign-in' ? 'Sign in to Blue Collar Books' : 'Create your account'}</Text>
+          {!isCompact && <Image source={defaultLogo} style={styles.cardLogo} />}
+          {isCompact && <Image source={defaultLogo} style={styles.cardLogoCompact} />}
+          <Text style={[styles.title, isCompact && styles.titleCompact]}>
+            {mode === 'sign-in' ? 'Sign in to Blue Collar Books' : 'Create your account'}
+          </Text>
           <Text style={styles.helper}>
             {mode === 'sign-in' ? 'First time here? Use Create Account below.' : 'One account is all this app needs right now.'}
           </Text>
@@ -126,7 +141,8 @@ const styles = StyleSheet.create({
   logo: { width: 140, height: 56, resizeMode: 'contain' },
   centerContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
   card: {
-    width: 560,
+    width: '100%',
+    maxWidth: 560,
     backgroundColor: '#1e1e1e',
     borderColor: '#323232',
     borderRadius: 18,
@@ -135,6 +151,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   title: { color: '#fff', fontSize: 20, fontWeight: '900', marginBottom: 6 },
+  titleCompact: { marginTop: 4 },
   helper: { color: '#a3a3a3', fontSize: 12, marginBottom: 12 },
   field: { marginBottom: 12 },
   label: { color: '#a3a3a3', fontSize: 12, marginBottom: 6 },
@@ -167,5 +184,12 @@ const styles = StyleSheet.create({
     height: 54,
     resizeMode: 'contain',
     opacity: 0.95,
+  },
+  cardLogoCompact: {
+    width: 120,
+    height: 46,
+    resizeMode: 'contain',
+    opacity: 0.95,
+    marginBottom: 8,
   },
 });

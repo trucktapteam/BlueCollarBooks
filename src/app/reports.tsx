@@ -1,5 +1,5 @@
 import Head from 'expo-router/head';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { useBusinessProfile } from '@/data/mockBusiness';
@@ -56,6 +56,8 @@ function buildInvoiceDueDate(invoice: Invoice) {
 }
 
 export default function ReportsScreen() {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 760;
   const profile = useBusinessProfile();
   const invoices = useInvoices();
   const expenses = useExpenses();
@@ -127,12 +129,12 @@ export default function ReportsScreen() {
         <meta name="robots" content="noindex, nofollow" />
       </Head>
       <View style={styles.pageHeader}>
-        <View>
+        <View style={styles.pageHeaderText}>
           <Text style={styles.eyebrow}>Reports</Text>
-          <Text style={styles.heading}>Money Report</Text>
+          <Text style={[styles.heading, isCompact && styles.headingCompact]}>Money Report</Text>
         </View>
 
-        <View style={styles.exportGrid}>
+        <View style={[styles.exportGrid, isCompact && styles.exportGridCompact]}>
           <Pressable style={styles.exportButton} onPress={exportProfitAndLossCsv}>
             <Text style={styles.exportButtonText}>Export Money CSV</Text>
           </Pressable>
@@ -183,12 +185,14 @@ export default function ReportsScreen() {
       </View>
 
       <View style={styles.netProfitCard}>
-        <View>
+        <View style={styles.pageHeaderText}>
           <Text style={styles.netProfitLabel}>Profit</Text>
           <Text style={styles.netProfitSubtext}>Money in minus money out for {currentYear}</Text>
         </View>
 
-        <Text style={styles.netProfitValue}>{formatInvoiceAmount(netProfit)}</Text>
+        <Text style={[styles.netProfitValue, isCompact && styles.netProfitValueCompact]}>
+          {formatInvoiceAmount(netProfit)}
+        </Text>
       </View>
     </AppShell>
   );
@@ -198,9 +202,14 @@ const styles = StyleSheet.create({
   pageHeader: {
     alignItems: 'center',
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 24,
     justifyContent: 'space-between',
     marginBottom: 28,
+  },
+  pageHeaderText: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   eyebrow: {
     color: '#ff7a00',
@@ -213,6 +222,9 @@ const styles = StyleSheet.create({
     fontSize: 34,
     fontWeight: '900',
     letterSpacing: 0,
+  },
+  headingCompact: {
+    fontSize: 24,
   },
   exportButton: {
     backgroundColor: '#ff7a00',
@@ -230,6 +242,11 @@ const styles = StyleSheet.create({
     gap: 10,
     justifyContent: 'flex-end',
     maxWidth: 560,
+  },
+  exportGridCompact: {
+    justifyContent: 'flex-start',
+    maxWidth: '100%',
+    width: '100%',
   },
   exportButtonText: {
     color: '#111111',
@@ -337,6 +354,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     borderWidth: 1,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 24,
     justifyContent: 'space-between',
     padding: 28,
@@ -356,5 +374,8 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 42,
     fontWeight: '900',
+  },
+  netProfitValueCompact: {
+    fontSize: 32,
   },
 });

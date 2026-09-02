@@ -1,6 +1,15 @@
 import Head from 'expo-router/head';
 import { useState } from 'react';
-import { ActivityIndicator, Image, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 
 import { signOut, useSession } from '@/data/authStore';
 import { useSubscription } from '@/data/subscriptionStore';
@@ -11,6 +20,8 @@ const defaultLogo = require('@/assets/images/blue-collar-books-logo.png');
 // they're brand new, or their trial/subscription lapsed. See _layout.tsx
 // for the redirect logic that sends people here.
 export default function SubscribeScreen() {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 500;
   const session = useSession();
   const subscription = useSubscription();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -55,8 +66,11 @@ export default function SubscribeScreen() {
       </Head>
       <View style={styles.centerContainer}>
         <View style={styles.card}>
-          <Image source={defaultLogo} style={styles.cardLogo} />
-          <Text style={styles.title}>{lapsed ? 'Your subscription needs attention' : 'Start your free trial'}</Text>
+          {!isCompact && <Image source={defaultLogo} style={styles.cardLogo} />}
+          {isCompact && <Image source={defaultLogo} style={styles.cardLogoCompact} />}
+          <Text style={[styles.title, isCompact && styles.titleCompact]}>
+            {lapsed ? 'Your subscription needs attention' : 'Start your free trial'}
+          </Text>
           <Text style={styles.helper}>
             {lapsed
               ? 'Your Blue Collar Books subscription is inactive. Start a new one to get back in.'
@@ -90,7 +104,8 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#121212' },
   centerContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
   card: {
-    width: 560,
+    width: '100%',
+    maxWidth: 560,
     backgroundColor: '#1e1e1e',
     borderColor: '#323232',
     borderRadius: 18,
@@ -99,6 +114,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   title: { color: '#fff', fontSize: 20, fontWeight: '900', marginBottom: 6 },
+  titleCompact: { marginTop: 4 },
   helper: { color: '#a3a3a3', fontSize: 12, marginBottom: 16 },
   errorText: { color: '#ff6b6b', fontSize: 13, fontWeight: '700', marginBottom: 12 },
   primaryButton: {
@@ -120,5 +136,12 @@ const styles = StyleSheet.create({
     height: 54,
     resizeMode: 'contain',
     opacity: 0.95,
+  },
+  cardLogoCompact: {
+    width: 120,
+    height: 46,
+    resizeMode: 'contain',
+    opacity: 0.95,
+    marginBottom: 8,
   },
 });
