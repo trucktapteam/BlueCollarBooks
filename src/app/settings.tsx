@@ -13,7 +13,7 @@ import { router } from 'expo-router';
 import Head from 'expo-router/head';
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import { Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 
 const subscriptionStatusLabels: Record<string, string> = {
   trialing: 'Free trial active',
@@ -44,6 +44,8 @@ function getTermOption(value?: string): TermOption {
 }
 
 export default function SettingsScreen() {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 760;
   const profile = useBusinessProfile();
   const categories = useCategories();
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -233,9 +235,9 @@ export default function SettingsScreen() {
         </View>
       )}
       <View style={styles.pageHeader}>
-        <View>
+        <View style={styles.pageHeaderText}>
           <Text style={styles.eyebrow}>Settings</Text>
-          <Text style={styles.heading}>Business Profile</Text>
+          <Text style={[styles.heading, isCompact && styles.headingCompact]}>Business Profile</Text>
         </View>
 
         <Pressable style={styles.backButton} onPress={() => router.push('/dashboard')}>
@@ -356,9 +358,9 @@ export default function SettingsScreen() {
             ))}
           </View>
 
-          <View style={styles.addCategoryRow}>
+          <View style={[styles.addCategoryRow, isCompact && styles.addCategoryRowCompact]}>
             <TextInput
-              style={styles.addCategoryInput}
+              style={[styles.addCategoryInput, isCompact && styles.addCategoryInputCompact]}
               placeholder="Add a category (e.g. Equipment)"
               placeholderTextColor="#6b6b6b"
               value={newCategoryName}
@@ -366,7 +368,7 @@ export default function SettingsScreen() {
               onSubmitEditing={handleAddCategory}
             />
             <Pressable
-              style={styles.secondaryButton}
+              style={[styles.secondaryButton, isCompact && styles.addCategoryButtonCompact]}
               onPress={handleAddCategory}
               disabled={isAddingCategory || !newCategoryName.trim()}
             >
@@ -424,8 +426,10 @@ export default function SettingsScreen() {
 }
 
 function SettingsCard({ title, children }: { title: string; children: ReactNode }) {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 760;
   return (
-    <View style={styles.settingsCard}>
+    <View style={[styles.settingsCard, isCompact && styles.settingsCardCompact]}>
       <Text style={styles.cardTitle}>{title}</Text>
       <View style={styles.cardContent}>{children}</View>
     </View>
@@ -460,9 +464,14 @@ const styles = StyleSheet.create({
   pageHeader: {
     alignItems: 'center',
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 24,
     justifyContent: 'space-between',
     marginBottom: 28,
+  },
+  pageHeaderText: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   eyebrow: {
     color: '#ff7a00',
@@ -475,6 +484,9 @@ const styles = StyleSheet.create({
     fontSize: 34,
     fontWeight: '900',
     letterSpacing: 0,
+  },
+  headingCompact: {
+    fontSize: 24,
   },
   backButton: {
     backgroundColor: '#252525',
@@ -499,6 +511,9 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     borderWidth: 1,
     padding: 28,
+  },
+  settingsCardCompact: {
+    padding: 16,
   },
   cardTitle: {
     color: '#ffffff',
@@ -642,6 +657,9 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 6,
   },
+  addCategoryRowCompact: {
+    flexDirection: 'column',
+  },
   addCategoryInput: {
     backgroundColor: '#252525',
     borderColor: '#383838',
@@ -654,6 +672,13 @@ const styles = StyleSheet.create({
     minWidth: 200,
     paddingHorizontal: 14,
     paddingVertical: 12,
+  },
+  addCategoryInputCompact: {
+    minWidth: '100%',
+  },
+  addCategoryButtonCompact: {
+    alignItems: 'center',
+    alignSelf: 'stretch',
   },
   actionBar: {
     alignItems: 'center',
