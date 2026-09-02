@@ -237,7 +237,7 @@ export default function DashboardScreen() {
           <Text style={styles.dashboardHeading}>Know your cash, who owes you, and what needs attention today.</Text>
         </View>
         <TextInput
-          style={styles.dashboardSearchInput}
+          style={[styles.dashboardSearchInput, isCompact && styles.dashboardSearchInputCompact]}
           placeholder="Search invoices, customers, expenses..."
           placeholderTextColor="#6b6b6b"
           value={dashboardQuery}
@@ -282,8 +282,8 @@ export default function DashboardScreen() {
       ) : (
         <View style={styles.heroCard}>
           <Text style={styles.heroLabel}>📈 Profit This Month</Text>
-          <Text style={styles.heroValue}>{formattedProfitThisMonth}</Text>
-          {(profile.logoDataUrl || profile.logoModule) && (
+          <Text style={[styles.heroValue, isCompact && styles.heroValueCompact]}>{formattedProfitThisMonth}</Text>
+          {!isCompact && (profile.logoDataUrl || profile.logoModule) && (
             <Image
               source={profile.logoDataUrl ? { uri: profile.logoDataUrl } : profile.logoModule}
               style={styles.heroLogo}
@@ -745,6 +745,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0,
     lineHeight: 64,
   },
+  heroValueCompact: {
+    fontSize: 40,
+    lineHeight: 46,
+  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -823,6 +827,7 @@ const styles = StyleSheet.create({
   dashboardHeader: {
     alignItems: 'center',
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 20,
     justifyContent: 'space-between',
     marginBottom: 24,
@@ -849,6 +854,9 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 260,
     padding: 12,
+  },
+  dashboardSearchInputCompact: {
+    minWidth: '100%',
   },
   desktopAttentionSection: {
     flex: 1,

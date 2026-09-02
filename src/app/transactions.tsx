@@ -265,6 +265,7 @@ const styles = StyleSheet.create({
   },
   headerActions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
   },
   syncButton: {

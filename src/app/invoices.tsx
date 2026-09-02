@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import Head from 'expo-router/head';
 import { useMemo, useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { ReceivePaymentModal } from '@/components/ReceivePaymentModal';
@@ -140,6 +140,8 @@ function openMailTo(href: string) {
 }
 
 export default function InvoicesScreen() {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 760;
   const invoices = useInvoices();
   const customers = useCustomers();
   const profile = useBusinessProfile();
@@ -176,9 +178,9 @@ export default function InvoicesScreen() {
         <meta name="robots" content="noindex, nofollow" />
       </Head>
       <View style={styles.pageHeader}>
-        <View>
+        <View style={styles.pageHeaderText}>
           <Text style={styles.eyebrow}>Invoices</Text>
-          <Text style={styles.heading}>Get paid without chasing paperwork.</Text>
+          <Text style={[styles.heading, isCompact && styles.headingCompact]}>Get paid without chasing paperwork.</Text>
         </View>
 
         <Pressable style={styles.newInvoiceButton} onPress={() => router.push('/new-invoice')}>
@@ -207,16 +209,18 @@ export default function InvoicesScreen() {
         </View>
       </View>
 
-      <View style={styles.invoiceCard}>
-        <View style={styles.tableHeader}>
-          <Text style={[styles.tableHeaderText, styles.invoiceColumn]}>Invoice #</Text>
-          <Text style={[styles.tableHeaderText, styles.customerColumn]}>Customer</Text>
-          <Text style={[styles.tableHeaderText, styles.amountColumn]}>Amount</Text>
-          <Text style={[styles.tableHeaderText, styles.statusColumn]}>Status</Text>
-          <Text style={[styles.tableHeaderText, styles.dateColumn]}>Date Sent</Text>
-          <Text style={[styles.tableHeaderText, styles.dateColumn]}>Due Date</Text>
-          <Text style={[styles.tableHeaderText, styles.actionColumn]}>Tools</Text>
-        </View>
+      <View style={[styles.invoiceCard, isCompact && styles.invoiceCardCompact]}>
+        {!isCompact && (
+          <View style={styles.tableHeader}>
+            <Text style={[styles.tableHeaderText, styles.invoiceColumn]}>Invoice #</Text>
+            <Text style={[styles.tableHeaderText, styles.customerColumn]}>Customer</Text>
+            <Text style={[styles.tableHeaderText, styles.amountColumn]}>Amount</Text>
+            <Text style={[styles.tableHeaderText, styles.statusColumn]}>Status</Text>
+            <Text style={[styles.tableHeaderText, styles.dateColumn]}>Date Sent</Text>
+            <Text style={[styles.tableHeaderText, styles.dateColumn]}>Due Date</Text>
+            <Text style={[styles.tableHeaderText, styles.actionColumn]}>Tools</Text>
+          </View>
+        )}
 
         <View style={styles.invoiceList}>
           {visibleInvoices.map((invoice) => {
@@ -225,43 +229,69 @@ export default function InvoicesScreen() {
             invoice.customerId ? customer.id === invoice.customerId : customer.name === invoice.customer
           )?.email;
 
+            const actionButtons = (
+              <>
+                <Pressable style={styles.editButton} onPress={() => router.push(`/new-invoice?invoiceId=${encodeURIComponent(invoice.id)}`)}>
+                  <Text style={styles.editButtonText}>Edit</Text>
+                </Pressable>
+                <Pressable
+                  disabled={!customerEmail}
+                  style={[styles.emailButton, !customerEmail && styles.emailButtonDisabled]}
+                  onPress={() => customerEmail && openMailTo(buildInvoiceMailto(invoice, customerEmail, profile.businessName))}
+                >
+                  <Text style={[styles.emailButtonText, !customerEmail && styles.emailButtonTextDisabled]}>
+                    {customerEmail ? 'Email Invoice' : 'No email'}
+                  </Text>
+                </Pressable>
+                {balance > 0 && (
+                  <Pressable style={styles.receivePaymentButton} onPress={() => setPaymentInvoiceId(invoice.id)}>
+                    <Text style={styles.receivePaymentButtonText}>Record Payment</Text>
+                  </Pressable>
+                )}
+                {balance <= 0 && <Text style={styles.paidActionText}>Paid</Text>}
+              </>
+            );
+
             return (
               <View key={invoice.id} style={styles.invoiceItem}>
-                <View style={styles.invoiceRow}>
-                  <Text style={[styles.invoiceText, styles.invoiceColumn]}>#{invoice.invoice}</Text>
-                  <Text style={[styles.invoiceText, styles.customerColumn]}>{invoice.customer}</Text>
-                  <View style={styles.amountColumn}>
-                    <Text style={styles.invoiceAmount}>{formatInvoiceAmount(balance)}</Text>
-                    <Text style={styles.invoiceMeta}>of {formatInvoiceAmount(invoice.amount)}</Text>
-                  </View>
-                  <View style={styles.statusColumn}>
-                    <View style={getStatusPillStyle(invoice.status)}>
-                      <Text style={getStatusTextStyle(invoice.status)}>{invoice.status}</Text>
+                {isCompact ? (
+                  <View style={styles.invoiceRowCompact}>
+                    <View style={styles.invoiceRowCompactTop}>
+                      <Text style={styles.invoiceText}>#{invoice.invoice} {invoice.customer}</Text>
+                      <View style={getStatusPillStyle(invoice.status)}>
+                        <Text style={getStatusTextStyle(invoice.status)}>{invoice.status}</Text>
+                      </View>
                     </View>
+                    <View style={styles.invoiceRowCompactTop}>
+                      <View>
+                        <Text style={styles.invoiceAmount}>{formatInvoiceAmount(balance)}</Text>
+                        <Text style={styles.invoiceMeta}>of {formatInvoiceAmount(invoice.amount)}</Text>
+                      </View>
+                      <View style={styles.invoiceRowCompactDates}>
+                        <Text style={styles.invoiceMeta}>Sent {formatDateDisplay(invoice.invoiceDate)}</Text>
+                        <Text style={styles.invoiceMeta}>Due {buildInvoiceDueDate(invoice)}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.actionColumnCompact}>{actionButtons}</View>
                   </View>
-                  <Text style={[styles.invoiceMeta, styles.dateColumn]}>{formatDateDisplay(invoice.invoiceDate)}</Text>
-                  <Text style={[styles.invoiceMeta, styles.dateColumn]}>{buildInvoiceDueDate(invoice)}</Text>
-                  <View style={styles.actionColumn}>
-                    <Pressable style={styles.editButton} onPress={() => router.push(`/new-invoice?invoiceId=${encodeURIComponent(invoice.id)}`)}>
-                      <Text style={styles.editButtonText}>Edit</Text>
-                    </Pressable>
-                    <Pressable
-                      disabled={!customerEmail}
-                      style={[styles.emailButton, !customerEmail && styles.emailButtonDisabled]}
-                      onPress={() => customerEmail && openMailTo(buildInvoiceMailto(invoice, customerEmail, profile.businessName))}
-                    >
-                      <Text style={[styles.emailButtonText, !customerEmail && styles.emailButtonTextDisabled]}>
-                        {customerEmail ? 'Email Invoice' : 'No email'}
-                      </Text>
-                    </Pressable>
-                    {balance > 0 && (
-                      <Pressable style={styles.receivePaymentButton} onPress={() => setPaymentInvoiceId(invoice.id)}>
-                        <Text style={styles.receivePaymentButtonText}>Record Payment</Text>
-                      </Pressable>
-                    )}
-                    {balance <= 0 && <Text style={styles.paidActionText}>Paid</Text>}
+                ) : (
+                  <View style={styles.invoiceRow}>
+                    <Text style={[styles.invoiceText, styles.invoiceColumn]}>#{invoice.invoice}</Text>
+                    <Text style={[styles.invoiceText, styles.customerColumn]}>{invoice.customer}</Text>
+                    <View style={styles.amountColumn}>
+                      <Text style={styles.invoiceAmount}>{formatInvoiceAmount(balance)}</Text>
+                      <Text style={styles.invoiceMeta}>of {formatInvoiceAmount(invoice.amount)}</Text>
+                    </View>
+                    <View style={styles.statusColumn}>
+                      <View style={getStatusPillStyle(invoice.status)}>
+                        <Text style={getStatusTextStyle(invoice.status)}>{invoice.status}</Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.invoiceMeta, styles.dateColumn]}>{formatDateDisplay(invoice.invoiceDate)}</Text>
+                    <Text style={[styles.invoiceMeta, styles.dateColumn]}>{buildInvoiceDueDate(invoice)}</Text>
+                    <View style={styles.actionColumn}>{actionButtons}</View>
                   </View>
-                </View>
+                )}
 
                 <View style={styles.attachmentSection}>
                   <View style={styles.attachmentHeader}>
@@ -342,9 +372,14 @@ const styles = StyleSheet.create({
   pageHeader: {
     alignItems: 'center',
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 24,
     justifyContent: 'space-between',
     marginBottom: 28,
+  },
+  pageHeaderText: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   eyebrow: {
     color: '#ff7a00',
@@ -357,6 +392,9 @@ const styles = StyleSheet.create({
     fontSize: 34,
     fontWeight: '900',
     letterSpacing: 0,
+  },
+  headingCompact: {
+    fontSize: 24,
   },
   newInvoiceButton: {
     backgroundColor: '#ff7a00',
@@ -379,6 +417,9 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     borderWidth: 1,
     padding: 28,
+  },
+  invoiceCardCompact: {
+    padding: 16,
   },
   tableHeader: {
     borderBottomColor: '#323232',
@@ -431,6 +472,29 @@ const styles = StyleSheet.create({
     gap: 16,
     paddingHorizontal: 16,
     paddingVertical: 16,
+  },
+  invoiceRowCompact: {
+    backgroundColor: '#252525',
+    borderColor: '#353535',
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 10,
+    padding: 16,
+  },
+  invoiceRowCompactTop: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    justifyContent: 'space-between',
+  },
+  invoiceRowCompactDates: {
+    alignItems: 'flex-end',
+  },
+  actionColumnCompact: {
+    alignItems: 'flex-start',
+    gap: 8,
+    marginTop: 4,
   },
   invoiceColumn: {
     flex: 0.8,
@@ -596,6 +660,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
     justifyContent: 'space-between',
     paddingHorizontal: 12,
@@ -640,6 +705,7 @@ const styles = StyleSheet.create({
   },
   attachmentActions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
   },
   attachmentActionButton: {

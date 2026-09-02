@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import Head from 'expo-router/head';
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { ReceivePaymentModal } from '@/components/ReceivePaymentModal';
@@ -62,6 +62,8 @@ function buildCustomerSummaries(customers: Customer[], invoices: Invoice[]): Cus
 }
 
 export default function CustomersScreen() {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 760;
   const customers = useCustomers();
   const invoices = useInvoices();
   const customerSummaries = useMemo(() => buildCustomerSummaries(customers, invoices), [customers, invoices]);
@@ -100,9 +102,9 @@ export default function CustomersScreen() {
         <meta name="robots" content="noindex, nofollow" />
       </Head>
       <View style={styles.pageHeader}>
-        <View>
+        <View style={styles.pageHeaderText}>
           <Text style={styles.eyebrow}>Customers</Text>
-          <Text style={styles.heading}>Know who owes what.</Text>
+          <Text style={[styles.heading, isCompact && styles.headingCompact]}>Know who owes what.</Text>
         </View>
 
         <Pressable style={styles.newCustomerButton} onPress={() => router.push('/new-customer')}>
@@ -128,20 +130,36 @@ export default function CustomersScreen() {
         </View>
       </View>
 
-      <View style={styles.customerCard}>
-        <View style={styles.tableHeader}>
-          <Text style={[styles.tableHeaderText, styles.customerColumn]}>Customer</Text>
-          <Text style={[styles.tableHeaderText, styles.revenueColumn]}>Money Made</Text>
-          <Text style={[styles.tableHeaderText, styles.waitingColumn]}>Waiting To Be Paid</Text>
-          <Text style={[styles.tableHeaderText, styles.countColumn]}>Jobs</Text>
-          <Text style={[styles.tableHeaderText, styles.dateColumn]}>Last Bill</Text>
-        </View>
+      <View style={[styles.customerCard, isCompact && styles.customerCardCompact]}>
+        {!isCompact && (
+          <View style={styles.tableHeader}>
+            <Text style={[styles.tableHeaderText, styles.customerColumn]}>Customer</Text>
+            <Text style={[styles.tableHeaderText, styles.revenueColumn]}>Money Made</Text>
+            <Text style={[styles.tableHeaderText, styles.waitingColumn]}>Waiting To Be Paid</Text>
+            <Text style={[styles.tableHeaderText, styles.countColumn]}>Jobs</Text>
+            <Text style={[styles.tableHeaderText, styles.dateColumn]}>Last Bill</Text>
+          </View>
+        )}
 
         <View style={styles.customerList}>
           {visibleCustomerSummaries.map((customer) => {
             const isSelected = customer.id === selectedCustomer?.id;
 
-            return (
+            return isCompact ? (
+              <Pressable
+                key={customer.id}
+                style={[styles.customerRowCompact, isSelected && styles.customerRowActive]}
+                onPress={() => setSelectedCustomerId(customer.id)}
+              >
+                <Text style={styles.customerName}>{customer.name}</Text>
+                {!!customer.contact && <Text style={styles.customerMeta}>{customer.contact}</Text>}
+                <View style={styles.customerRowCompactStats}>
+                  <Text style={styles.customerMeta}>Made {customer.totalRevenue}</Text>
+                  <Text style={styles.customerMeta}>Owed {customer.waitingToBePaid}</Text>
+                  <Text style={styles.customerMeta}>{customer.invoiceCount} job{customer.invoiceCount === 1 ? '' : 's'}</Text>
+                </View>
+              </Pressable>
+            ) : (
               <Pressable
                 key={customer.id}
                 style={[styles.customerRow, isSelected && styles.customerRowActive]}
@@ -162,7 +180,7 @@ export default function CustomersScreen() {
       </View>
 
       {selectedCustomer && (
-        <View style={styles.detailCard}>
+        <View style={[styles.detailCard, isCompact && styles.detailCardCompact]}>
           <View style={styles.detailHeader}>
             <View>
               <Text style={styles.detailEyebrow}>Customer</Text>
@@ -175,7 +193,7 @@ export default function CustomersScreen() {
             </View>
           </View>
 
-          <View style={styles.detailActions}>
+          <View style={[styles.detailActions, isCompact && styles.detailActionsCompact]}>
             <Pressable
               style={styles.primaryActionButton}
               onPress={() => router.push(`/new-customer?customerId=${encodeURIComponent(selectedCustomer.id)}`)}
@@ -219,7 +237,7 @@ export default function CustomersScreen() {
                   const balance = calculateInvoiceBalance(invoice);
 
                   return (
-                    <View key={invoice.id} style={styles.invoiceRow}>
+                    <View key={invoice.id} style={[styles.invoiceRow, isCompact && styles.invoiceRowCompact]}>
                       <View style={styles.invoicePrimary}>
                         <Text style={styles.invoiceTitle}>#{invoice.invoice}</Text>
                         <Text style={styles.invoiceSubtitle}>{formatDateDisplay(invoice.invoiceDate)}</Text>
@@ -277,9 +295,14 @@ const styles = StyleSheet.create({
   pageHeader: {
     alignItems: 'center',
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 24,
     justifyContent: 'space-between',
     marginBottom: 28,
+  },
+  pageHeaderText: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   eyebrow: {
     color: '#ff7a00',
@@ -292,6 +315,9 @@ const styles = StyleSheet.create({
     fontSize: 34,
     fontWeight: '900',
     letterSpacing: 0,
+  },
+  headingCompact: {
+    fontSize: 24,
   },
   newCustomerButton: {
     backgroundColor: '#ff7a00',
@@ -314,6 +340,9 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     borderWidth: 1,
     padding: 28,
+  },
+  customerCardCompact: {
+    padding: 16,
   },
   tableHeader: {
     borderBottomColor: '#323232',
@@ -367,6 +396,20 @@ const styles = StyleSheet.create({
   customerRowActive: {
     borderColor: 'rgba(255, 122, 0, 0.52)',
   },
+  customerRowCompact: {
+    backgroundColor: '#252525',
+    borderColor: '#353535',
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 6,
+    padding: 16,
+  },
+  customerRowCompactStats: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 4,
+  },
   customerColumn: {
     flex: 1.7,
   },
@@ -411,11 +454,16 @@ const styles = StyleSheet.create({
     marginTop: 24,
     padding: 28,
   },
+  detailCardCompact: {
+    padding: 16,
+  },
   detailHeader: {
     alignItems: 'center',
     borderBottomColor: '#323232',
     borderBottomWidth: 1,
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
     justifyContent: 'space-between',
     marginBottom: 18,
     paddingBottom: 18,
@@ -437,8 +485,12 @@ const styles = StyleSheet.create({
   },
   detailActions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
     marginTop: 18,
+  },
+  detailActionsCompact: {
+    alignItems: 'stretch',
   },
   primaryActionButton: {
     backgroundColor: '#ff7a00',
@@ -533,9 +585,13 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 14,
     paddingHorizontal: 16,
     paddingVertical: 14,
+  },
+  invoiceRowCompact: {
+    alignItems: 'flex-start',
   },
   invoicePrimary: {
     flex: 1,

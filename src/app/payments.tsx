@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import Head from 'expo-router/head';
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { formatInvoiceAmount, type InvoicePayment, useInvoices } from '@/data/mockInvoices';
@@ -18,6 +18,8 @@ function formatPaymentDate(date: string) {
 }
 
 export default function PaymentsScreen() {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 760;
   const [query, setQuery] = useState('');
   const invoices = useInvoices();
 
@@ -71,14 +73,14 @@ export default function PaymentsScreen() {
         <meta name="robots" content="noindex, nofollow" />
       </Head>
       <View style={styles.pageHeader}>
-        <View>
+        <View style={styles.pageHeaderText}>
           <Text style={styles.eyebrow}>Payments</Text>
-          <Text style={styles.heading}>See every dollar that came in.</Text>
+          <Text style={[styles.heading, isCompact && styles.headingCompact]}>See every dollar that came in.</Text>
         </View>
       </View>
 
       <View style={styles.summaryCard}>
-        <View style={styles.summaryRow}>
+        <View style={[styles.summaryRow, isCompact && styles.summaryRowCompact]}>
           <View>
             <Text style={styles.summaryLabel}>✔ Payments This Month</Text>
             <Text style={styles.summaryValue}>{paymentsThisMonth}</Text>
@@ -101,30 +103,49 @@ export default function PaymentsScreen() {
         />
       </View>
 
-      <View style={styles.paymentCard}>
-        <View style={styles.tableHeader}>
-          <Text style={[styles.tableHeaderText, styles.dateColumn]}>Date Received</Text>
-          <Text style={[styles.tableHeaderText, styles.customerColumn]}>Customer</Text>
-          <Text style={[styles.tableHeaderText, styles.invoiceColumn]}>Invoice #</Text>
-          <Text style={[styles.tableHeaderText, styles.amountColumn]}>Amount</Text>
-          <Text style={[styles.tableHeaderText, styles.notesColumn]}>Notes</Text>
-        </View>
+      <View style={[styles.paymentCard, isCompact && styles.paymentCardCompact]}>
+        {!isCompact && (
+          <View style={styles.tableHeader}>
+            <Text style={[styles.tableHeaderText, styles.dateColumn]}>Date Received</Text>
+            <Text style={[styles.tableHeaderText, styles.customerColumn]}>Customer</Text>
+            <Text style={[styles.tableHeaderText, styles.invoiceColumn]}>Invoice #</Text>
+            <Text style={[styles.tableHeaderText, styles.amountColumn]}>Amount</Text>
+            <Text style={[styles.tableHeaderText, styles.notesColumn]}>Notes</Text>
+          </View>
+        )}
 
         <View style={styles.paymentList}>
           {visiblePayments.length > 0 ? (
-            visiblePayments.map((payment) => (
-              <Pressable
-                key={payment.id}
-                style={styles.paymentRow}
-                onPress={() => router.push(`/new-invoice?invoiceId=${encodeURIComponent(payment.invoiceId)}`)}
-              >
-                <Text style={[styles.paymentMeta, styles.dateColumn]}>{formatPaymentDate(payment.date)}</Text>
-                <Text style={[styles.paymentText, styles.customerColumn]}>{payment.customer}</Text>
-                <Text style={[styles.paymentText, styles.invoiceColumn]}>#{payment.invoiceNumber}</Text>
-                <Text style={[styles.paymentAmount, styles.amountColumn]}>{formatInvoiceAmount(payment.amount)}</Text>
-                <Text style={[styles.paymentMeta, styles.notesColumn]} numberOfLines={1}>{payment.notes ?? '-'}</Text>
-              </Pressable>
-            ))
+            visiblePayments.map((payment) =>
+              isCompact ? (
+                <Pressable
+                  key={payment.id}
+                  style={styles.paymentRowCompact}
+                  onPress={() => router.push(`/new-invoice?invoiceId=${encodeURIComponent(payment.invoiceId)}`)}
+                >
+                  <View style={styles.paymentRowCompactTop}>
+                    <Text style={styles.paymentText}>{payment.customer}</Text>
+                    <Text style={styles.paymentAmount}>{formatInvoiceAmount(payment.amount)}</Text>
+                  </View>
+                  <View style={styles.paymentRowCompactTop}>
+                    <Text style={styles.paymentMeta}>#{payment.invoiceNumber} • {formatPaymentDate(payment.date)}</Text>
+                  </View>
+                  {!!payment.notes && <Text style={styles.paymentMeta}>{payment.notes}</Text>}
+                </Pressable>
+              ) : (
+                <Pressable
+                  key={payment.id}
+                  style={styles.paymentRow}
+                  onPress={() => router.push(`/new-invoice?invoiceId=${encodeURIComponent(payment.invoiceId)}`)}
+                >
+                  <Text style={[styles.paymentMeta, styles.dateColumn]}>{formatPaymentDate(payment.date)}</Text>
+                  <Text style={[styles.paymentText, styles.customerColumn]}>{payment.customer}</Text>
+                  <Text style={[styles.paymentText, styles.invoiceColumn]}>#{payment.invoiceNumber}</Text>
+                  <Text style={[styles.paymentAmount, styles.amountColumn]}>{formatInvoiceAmount(payment.amount)}</Text>
+                  <Text style={[styles.paymentMeta, styles.notesColumn]} numberOfLines={1}>{payment.notes ?? '-'}</Text>
+                </Pressable>
+              )
+            )
           ) : (
             <View style={styles.emptyRow}>
               <Text style={styles.emptyText}>No payments recorded yet.</Text>
@@ -140,9 +161,14 @@ const styles = StyleSheet.create({
   pageHeader: {
     alignItems: 'center',
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 24,
     justifyContent: 'space-between',
     marginBottom: 28,
+  },
+  pageHeaderText: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   eyebrow: {
     color: '#ff7a00',
@@ -155,6 +181,9 @@ const styles = StyleSheet.create({
     fontSize: 34,
     fontWeight: '900',
     letterSpacing: 0,
+  },
+  headingCompact: {
+    fontSize: 24,
   },
   summaryCard: {
     backgroundColor: '#202020',
@@ -170,7 +199,11 @@ const styles = StyleSheet.create({
   },
   summaryRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 24,
+  },
+  summaryRowCompact: {
+    gap: 16,
   },
   summaryLabel: {
     color: '#a3a3a3',
@@ -199,6 +232,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 28,
   },
+  paymentCardCompact: {
+    padding: 16,
+  },
   tableHeader: {
     borderBottomColor: '#323232',
     borderBottomWidth: 1,
@@ -226,6 +262,21 @@ const styles = StyleSheet.create({
     gap: 16,
     paddingHorizontal: 16,
     paddingVertical: 16,
+  },
+  paymentRowCompact: {
+    backgroundColor: '#252525',
+    borderColor: '#353535',
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 6,
+    padding: 16,
+  },
+  paymentRowCompactTop: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    justifyContent: 'space-between',
   },
   dateColumn: {
     flex: 1,

@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import Head from 'expo-router/head';
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import {
@@ -88,6 +88,8 @@ async function viewReceipt(receipt: ExpenseReceipt) {
 }
 
 export default function ExpensesScreen() {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 760;
   const expenses = useExpenses();
   const plaidTransactions = usePlaidTransactions();
   const transactionsNeedingReview = getTransactionsNeedingReview(plaidTransactions);
@@ -125,9 +127,9 @@ export default function ExpensesScreen() {
         <meta name="robots" content="noindex, nofollow" />
       </Head>
       <View style={styles.pageHeader}>
-        <View>
+        <View style={styles.pageHeaderText}>
           <Text style={styles.eyebrow}>Expenses</Text>
-          <Text style={styles.heading}>Track what it costs to get the work done.</Text>
+          <Text style={[styles.heading, isCompact && styles.headingCompact]}>Track what it costs to get the work done.</Text>
         </View>
 
         <Pressable style={styles.addExpenseButton} onPress={() => router.push('/new-expense')}>
@@ -142,7 +144,7 @@ export default function ExpensesScreen() {
 
       {transactionsNeedingReview.length > 0 && (
         <Pressable style={styles.reviewBanner} onPress={() => router.push('/transactions')}>
-          <View>
+          <View style={styles.pageHeaderText}>
             <Text style={styles.reviewBannerTitle}>
               {transactionsNeedingReview.length} bank transaction{transactionsNeedingReview.length === 1 ? '' : 's'} waiting to be categorized
             </Text>
@@ -170,35 +172,59 @@ export default function ExpensesScreen() {
         </View>
       </View>
 
-      <View style={styles.expenseCard}>
-        <View style={styles.tableHeader}>
-          <Text style={[styles.tableHeaderText, styles.dateColumn]}>Date</Text>
-          <Text style={[styles.tableHeaderText, styles.vendorColumn]}>Vendor</Text>
-          <Text style={[styles.tableHeaderText, styles.categoryColumn]}>Type</Text>
-          <Text style={[styles.tableHeaderText, styles.amountColumn]}>Amount</Text>
-          <Text style={[styles.tableHeaderText, styles.notesColumn]}>Notes</Text>
-          <Text style={[styles.tableHeaderText, styles.actionColumn]}>Tools</Text>
-        </View>
+      <View style={[styles.expenseCard, isCompact && styles.expenseCardCompact]}>
+        {!isCompact && (
+          <View style={styles.tableHeader}>
+            <Text style={[styles.tableHeaderText, styles.dateColumn]}>Date</Text>
+            <Text style={[styles.tableHeaderText, styles.vendorColumn]}>Vendor</Text>
+            <Text style={[styles.tableHeaderText, styles.categoryColumn]}>Type</Text>
+            <Text style={[styles.tableHeaderText, styles.amountColumn]}>Amount</Text>
+            <Text style={[styles.tableHeaderText, styles.notesColumn]}>Notes</Text>
+            <Text style={[styles.tableHeaderText, styles.actionColumn]}>Tools</Text>
+          </View>
+        )}
 
         <View style={styles.expenseList}>
           {visibleExpenses.map((expense) => (
             <View key={expense.id} style={styles.expenseItem}>
-              <View style={styles.expenseRow}>
-                <Text style={[styles.expenseMeta, styles.dateColumn]}>{formatDateDisplay(expense.date)}</Text>
-                <Text style={[styles.expenseText, styles.vendorColumn]}>{expense.vendor}</Text>
-                <View style={styles.categoryColumn}>
-                  <View style={styles.categoryPill}>
-                    <Text style={styles.categoryText}>{expense.category}</Text>
+              {isCompact ? (
+                <View style={styles.expenseRowCompact}>
+                  <View style={styles.expenseRowCompactTop}>
+                    <Text style={styles.expenseText}>{expense.vendor}</Text>
+                    <Text style={styles.expenseAmount}>{formatMoneyCents(expense.amount)}</Text>
                   </View>
+                  <View style={styles.expenseRowCompactMeta}>
+                    <Text style={styles.expenseMeta}>{formatDateDisplay(expense.date)}</Text>
+                    <View style={styles.categoryPill}>
+                      <Text style={styles.categoryText}>{expense.category}</Text>
+                    </View>
+                  </View>
+                  {!!expense.notes && <Text style={styles.expenseMeta}>{expense.notes}</Text>}
+                  <Pressable
+                    style={styles.editButtonCompact}
+                    onPress={() => router.push(`/new-expense?id=${encodeURIComponent(expense.id ?? '')}`)}
+                  >
+                    <Text style={styles.editButtonText}>Edit</Text>
+                  </Pressable>
                 </View>
-                <Text style={[styles.expenseAmount, styles.amountColumn]}>{formatMoneyCents(expense.amount)}</Text>
-                <Text style={[styles.expenseMeta, styles.notesColumn]}>{expense.notes}</Text>
-                <Pressable style={styles.editButton} onPress={() => router.push(`/new-expense?id=${encodeURIComponent(expense.id ?? '')}`)}>
-                  <Text style={styles.editButtonText}>Edit</Text>
-                </Pressable>
-              </View>
+              ) : (
+                <View style={styles.expenseRow}>
+                  <Text style={[styles.expenseMeta, styles.dateColumn]}>{formatDateDisplay(expense.date)}</Text>
+                  <Text style={[styles.expenseText, styles.vendorColumn]}>{expense.vendor}</Text>
+                  <View style={styles.categoryColumn}>
+                    <View style={styles.categoryPill}>
+                      <Text style={styles.categoryText}>{expense.category}</Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.expenseAmount, styles.amountColumn]}>{formatMoneyCents(expense.amount)}</Text>
+                  <Text style={[styles.expenseMeta, styles.notesColumn]}>{expense.notes}</Text>
+                  <Pressable style={styles.editButton} onPress={() => router.push(`/new-expense?id=${encodeURIComponent(expense.id ?? '')}`)}>
+                    <Text style={styles.editButtonText}>Edit</Text>
+                  </Pressable>
+                </View>
+              )}
 
-              <View style={styles.receiptSection}>
+              <View style={[styles.receiptSection, isCompact && styles.receiptSectionCompact]}>
                 <View style={styles.receiptCopy}>
                   <Text style={styles.receiptTitle}>Receipt</Text>
                   <Text style={styles.receiptMeta}>
@@ -214,7 +240,7 @@ export default function ExpensesScreen() {
                   )}
                 </View>
 
-                <View style={styles.receiptActions}>
+                <View style={[styles.receiptActions, isCompact && styles.receiptActionsCompact]}>
                   {expense.receipt && (
                     <>
                       {(expense.receipt.objectUrl || expense.receipt.storagePath) ? (
@@ -265,6 +291,7 @@ const styles = StyleSheet.create({
   pageHeader: {
     alignItems: 'center',
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 24,
     justifyContent: 'space-between',
     marginBottom: 28,
@@ -275,11 +302,18 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginBottom: 8,
   },
+  pageHeaderText: {
+    flexShrink: 1,
+    minWidth: 0,
+  },
   heading: {
     color: '#ffffff',
     fontSize: 34,
     fontWeight: '900',
     letterSpacing: 0,
+  },
+  headingCompact: {
+    fontSize: 24,
   },
   addExpenseButton: {
     backgroundColor: '#ff7a00',
@@ -326,6 +360,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 16,
     justifyContent: 'space-between',
     marginBottom: 24,
@@ -353,6 +388,9 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     borderWidth: 1,
     padding: 28,
+  },
+  expenseCardCompact: {
+    padding: 16,
   },
   tableHeader: {
     borderBottomColor: '#323232',
@@ -405,6 +443,34 @@ const styles = StyleSheet.create({
     gap: 16,
     paddingHorizontal: 16,
     paddingVertical: 16,
+  },
+  expenseRowCompact: {
+    backgroundColor: '#252525',
+    borderColor: '#353535',
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 8,
+    padding: 16,
+  },
+  expenseRowCompactTop: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  expenseRowCompactMeta: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+  },
+  editButtonCompact: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#252525',
+    borderColor: '#343434',
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   dateColumn: {
     flex: 1,
@@ -479,6 +545,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
+  receiptSectionCompact: {
+    alignItems: 'flex-start',
+    flexDirection: 'column',
+  },
   receiptTitle: {
     color: '#ffffff',
     fontSize: 15,
@@ -519,6 +589,10 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
     justifyContent: 'flex-end',
+  },
+  receiptActionsCompact: {
+    justifyContent: 'flex-start',
+    marginTop: 8,
   },
   receiptActionButton: {
     backgroundColor: '#252525',
