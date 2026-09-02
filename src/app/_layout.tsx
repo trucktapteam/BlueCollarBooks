@@ -2,7 +2,6 @@ import { DarkTheme, DefaultTheme, Stack, ThemeProvider, router, usePathname } fr
 import { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { useAuthInitialized, useSession } from '@/data/authStore';
 import { hasAccess, useSubscription, useSubscriptionInitialized } from '@/data/subscriptionStore';
 // Side-effect only import: registers the auth listener that loads/clears
@@ -65,7 +64,6 @@ export default function TabLayout() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
       <Stack screenOptions={{ headerShown: false }} />
     </ThemeProvider>
   );
