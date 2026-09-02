@@ -203,16 +203,16 @@ export default function NewExpenseScreen() {
           <Field label="Notes" value={notes} onChangeText={setNotes} multiline />
         </View>
 
-        <Pressable style={styles.receiptCard}>
+        <View style={styles.receiptCard}>
           <View style={styles.receiptIcon}>
             <Text style={styles.receiptIconText}>+</Text>
           </View>
 
           <View style={styles.receiptCopy}>
             <Text style={styles.receiptTitle}>Attach receipt</Text>
-            <Text style={styles.receiptText}>Upload a fuel receipt, repair ticket, or vendor invoice later.</Text>
+            <Text style={styles.receiptText}>Save this expense first, then attach the receipt from the Expenses list.</Text>
           </View>
-        </Pressable>
+        </View>
 
         <View style={[styles.bottomActionBar, Platform.OS === 'web' && styles.bottomActionBarSticky]}>
           <View>

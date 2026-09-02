@@ -553,16 +553,16 @@ export default function NewInvoiceScreen() {
                 ))}
               </View>
 
-              <Pressable style={styles.attachCard}>
+              <View style={styles.attachCard}>
                 <View style={styles.attachIcon}>
                   <Text style={styles.attachIconText}>+</Text>
                 </View>
 
                 <View style={styles.attachCopy}>
                   <Text style={styles.attachTitle}>Attach signed paperwork</Text>
-                  <Text style={styles.attachText}>Upload BOLs, rate confirmations, or signed delivery paperwork later.</Text>
+                  <Text style={styles.attachText}>Save this invoice first, then attach BOLs, rate confirmations, or paperwork from the Invoices list.</Text>
                 </View>
-              </Pressable>
+              </View>
 
               <View style={styles.totalSection}>
                 <Text style={styles.totalLabel}>Customer Owes</Text>
