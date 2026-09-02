@@ -90,6 +90,7 @@ export default function NewInvoiceScreen() {
   const [lineItems, setLineItems] = useState<LineItemDraft[]>(() => toLineItemDrafts(invoiceLineItems));
   const [showSavedToast, setShowSavedToast] = useState(false);
   const showSideActions = Platform.OS === 'web' && width >= 1100;
+  const isCompact = width < 760;
 
   useEffect(() => {
     if (showSavedToast) {
@@ -383,9 +384,9 @@ export default function NewInvoiceScreen() {
         </View>
       )}
       <View style={styles.pageHeader}>
-        <View>
+        <View style={styles.pageHeaderText}>
           <Text style={styles.eyebrow}>Invoices</Text>
-          <Text style={styles.heading}>{originalInvoiceId ? 'Edit Invoice' : 'Make Invoice'}</Text>
+          <Text style={[styles.heading, isCompact && styles.headingCompact]}>{originalInvoiceId ? 'Edit Invoice' : 'Make Invoice'}</Text>
         </View>
 
         <Pressable style={styles.backButton} onPress={() => router.push('/invoices')}>
@@ -395,7 +396,7 @@ export default function NewInvoiceScreen() {
 
       <View style={[styles.invoiceLayout, showSideActions && styles.invoiceLayoutDesktop]}>
         <View style={styles.invoiceFormColumn}>
-          <View style={styles.formCard}>
+          <View style={[styles.formCard, isCompact && styles.formCardCompact]}>
                 <View style={styles.compactRow}>
                 <Field label="Invoice #" value={number} onChangeText={setNumber} />
                 <Field label="Invoice Date" value={date} onChangeText={setDate} />
@@ -523,34 +524,64 @@ export default function NewInvoiceScreen() {
               </View>
 
               <View style={styles.lineItemTable}>
-                <View style={styles.lineItemHeader}>
-                  <Text style={[styles.tableHeaderText, styles.descriptionColumn]}>Description</Text>
-                  <Text style={[styles.tableHeaderText, styles.amountColumn]}>Amount</Text>
-                </View>
-
-                {lineItems.map((item, index) => (
-                  <View key={item.id} style={styles.lineItemRow}>
-                    <TextInput
-                      onChangeText={(value) => updateLineItem(index, 'description', value)}
-                      style={[styles.lineItemText, styles.descriptionColumn]}
-                      value={item.description}
-                    />
-                    <TextInput
-                      keyboardType="decimal-pad"
-                      onChangeText={(value) => updateLineItem(index, 'amount', value)}
-                      onFocus={selectTextOnFocus}
-                      style={[styles.lineItemAmount, styles.amountColumn]}
-                      value={item.amount}
-                    />
-                    <Pressable
-                      accessibilityLabel={`Remove line item ${index + 1}`}
-                      style={styles.removeLineButton}
-                      onPress={() => handleRemoveLineItem(index)}
-                    >
-                      <Text style={styles.removeLineButtonText}>Remove</Text>
-                    </Pressable>
+                {!isCompact && (
+                  <View style={styles.lineItemHeader}>
+                    <Text style={[styles.tableHeaderText, styles.descriptionColumn]}>Description</Text>
+                    <Text style={[styles.tableHeaderText, styles.amountColumn]}>Amount</Text>
                   </View>
-                ))}
+                )}
+
+                {lineItems.map((item, index) =>
+                  isCompact ? (
+                    <View key={item.id} style={styles.lineItemRowCompact}>
+                      <TextInput
+                        onChangeText={(value) => updateLineItem(index, 'description', value)}
+                        style={styles.lineItemText}
+                        placeholder="Description"
+                        placeholderTextColor="#6b6b6b"
+                        value={item.description}
+                      />
+                      <View style={styles.lineItemRowCompactBottom}>
+                        <TextInput
+                          keyboardType="decimal-pad"
+                          onChangeText={(value) => updateLineItem(index, 'amount', value)}
+                          onFocus={selectTextOnFocus}
+                          style={styles.lineItemAmountCompact}
+                          value={item.amount}
+                        />
+                        <Pressable
+                          accessibilityLabel={`Remove line item ${index + 1}`}
+                          style={styles.removeLineButton}
+                          onPress={() => handleRemoveLineItem(index)}
+                        >
+                          <Text style={styles.removeLineButtonText}>Remove</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  ) : (
+                    <View key={item.id} style={styles.lineItemRow}>
+                      <TextInput
+                        onChangeText={(value) => updateLineItem(index, 'description', value)}
+                        style={[styles.lineItemText, styles.descriptionColumn]}
+                        value={item.description}
+                      />
+                      <TextInput
+                        keyboardType="decimal-pad"
+                        onChangeText={(value) => updateLineItem(index, 'amount', value)}
+                        onFocus={selectTextOnFocus}
+                        style={[styles.lineItemAmount, styles.amountColumn]}
+                        value={item.amount}
+                      />
+                      <Pressable
+                        accessibilityLabel={`Remove line item ${index + 1}`}
+                        style={styles.removeLineButton}
+                        onPress={() => handleRemoveLineItem(index)}
+                      >
+                        <Text style={styles.removeLineButtonText}>Remove</Text>
+                      </Pressable>
+                    </View>
+                  )
+                )}
               </View>
 
               <View style={styles.attachCard}>
@@ -1069,9 +1100,14 @@ const styles = StyleSheet.create({
   pageHeader: {
     alignItems: 'center',
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 24,
     justifyContent: 'space-between',
     marginBottom: 28,
+  },
+  pageHeaderText: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   eyebrow: {
     color: '#ff7a00',
@@ -1084,6 +1120,9 @@ const styles = StyleSheet.create({
     fontSize: 34,
     fontWeight: '900',
     letterSpacing: 0,
+  },
+  headingCompact: {
+    fontSize: 24,
   },
   backButton: {
     backgroundColor: '#252525',
@@ -1166,6 +1205,9 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     borderWidth: 1,
     padding: 28,
+  },
+  formCardCompact: {
+    padding: 16,
   },
   compactRow: {
     flexDirection: 'row',
@@ -1419,6 +1461,25 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 17,
     fontWeight: '900',
+  },
+  lineItemRowCompact: {
+    backgroundColor: '#252525',
+    borderColor: '#353535',
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 10,
+    padding: 16,
+  },
+  lineItemRowCompactBottom: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  lineItemAmountCompact: {
+    color: '#ffffff',
+    fontSize: 17,
+    fontWeight: '900',
+    flex: 1,
   },
   removeLineButton: {
     backgroundColor: '#2b2b2b',

@@ -1,13 +1,15 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
 import { useEffect, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { saveCustomer, useCustomers } from '@/data/mockCustomers';
 import { generateId } from '@/utils/id';
 
 export default function NewCustomerScreen() {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 760;
   const searchParams = useLocalSearchParams();
   const customers = useCustomers();
   const [originalId, setOriginalId] = useState('');
@@ -90,9 +92,9 @@ export default function NewCustomerScreen() {
         </View>
       )}
       <View style={styles.pageHeader}>
-        <View>
+        <View style={styles.pageHeaderText}>
           <Text style={styles.eyebrow}>Customers</Text>
-          <Text style={styles.heading}>{originalId ? 'Edit Customer' : 'Add Customer'}</Text>
+          <Text style={[styles.heading, isCompact && styles.headingCompact]}>{originalId ? 'Edit Customer' : 'Add Customer'}</Text>
         </View>
 
         <Pressable style={styles.cancelTopButton} onPress={() => router.push('/customers')}>
@@ -100,7 +102,7 @@ export default function NewCustomerScreen() {
         </Pressable>
       </View>
 
-      <View style={styles.formCard}>
+      <View style={[styles.formCard, isCompact && styles.formCardCompact]}>
         <View style={styles.formGrid}>
           <Field label="Company Name" value={companyName} onChangeText={setCompanyName} />
           <Field label="Contact Name" value={contactName} onChangeText={setContactName} />
@@ -116,22 +118,30 @@ export default function NewCustomerScreen() {
           <Field label="Notes" value={notes} onChangeText={setNotes} multiline />
         </View>
 
-        <View style={[styles.bottomActionBar, Platform.OS === 'web' && styles.bottomActionBarSticky]}>
-          <View>
-            <Text style={styles.actionLabel}>Customer ready.</Text>
-            <Text style={styles.actionSubtext}>Ready to use for invoices and payment tracking.</Text>
-          </View>
+        <View
+          style={[
+            styles.bottomActionBar,
+            Platform.OS === 'web' && !isCompact && styles.bottomActionBarSticky,
+            isCompact && styles.bottomActionBarCompact,
+          ]}
+        >
+          {!isCompact && (
+            <View>
+              <Text style={styles.actionLabel}>Customer ready.</Text>
+              <Text style={styles.actionSubtext}>Ready to use for invoices and payment tracking.</Text>
+            </View>
+          )}
 
-          <View style={styles.actionRow}>
-            <Pressable style={styles.secondaryButton} onPress={handleCancel}>
+          <View style={[styles.actionRow, isCompact && styles.actionRowCompact]}>
+            <Pressable style={[styles.secondaryButton, isCompact && styles.actionButtonCompact]} onPress={handleCancel}>
               <Text style={styles.secondaryButtonText}>Cancel</Text>
             </Pressable>
 
-            <Pressable style={styles.primaryButton} onPress={handleSave}>
+            <Pressable style={[styles.primaryButton, isCompact && styles.actionButtonCompact]} onPress={handleSave}>
               <Text style={styles.primaryButtonText}>Save</Text>
             </Pressable>
 
-            <Pressable style={styles.secondaryButton} onPress={handleSaveAndClose}>
+            <Pressable style={[styles.secondaryButton, isCompact && styles.actionButtonCompact]} onPress={handleSaveAndClose}>
               <Text style={styles.secondaryButtonText}>Save & Go Back</Text>
             </Pressable>
           </View>
@@ -173,9 +183,14 @@ const styles = StyleSheet.create({
   pageHeader: {
     alignItems: 'center',
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 24,
     justifyContent: 'space-between',
     marginBottom: 28,
+  },
+  pageHeaderText: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   eyebrow: {
     color: '#ff7a00',
@@ -188,6 +203,9 @@ const styles = StyleSheet.create({
     fontSize: 34,
     fontWeight: '900',
     letterSpacing: 0,
+  },
+  headingCompact: {
+    fontSize: 24,
   },
   cancelTopButton: {
     backgroundColor: '#252525',
@@ -208,6 +226,9 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     borderWidth: 1,
     padding: 28,
+  },
+  formCardCompact: {
+    padding: 16,
   },
   formGrid: {
     flexDirection: 'row',
@@ -262,6 +283,9 @@ const styles = StyleSheet.create({
     bottom: 24,
     zIndex: 60,
   },
+  bottomActionBarCompact: {
+    padding: 12,
+  },
   actionLabel: {
     color: '#ffffff',
     fontSize: 16,
@@ -277,6 +301,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 14,
     justifyContent: 'flex-end',
+  },
+  actionRowCompact: {
+    flexDirection: 'column',
+    width: '100%',
+  },
+  actionButtonCompact: {
+    alignItems: 'center',
+    width: '100%',
   },
   secondaryButton: {
     backgroundColor: '#2b2b2b',

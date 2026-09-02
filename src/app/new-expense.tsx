@@ -2,7 +2,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
 import { useEffect, useState } from 'react';
 import type { KeyboardTypeOptions } from 'react-native';
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { addCategory, useCategories } from '@/data/mockCategories';
@@ -13,6 +13,8 @@ import { selectTextOnFocus } from '@/utils/selectOnFocus';
 import { formatDateDisplay, normalizeDateToISO, toISODateString } from '@/utils/date';
 
 export default function NewExpenseScreen() {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 760;
   const searchParams = useLocalSearchParams();
   const expenses = useExpenses();
   const categories = useCategories();
@@ -143,9 +145,9 @@ export default function NewExpenseScreen() {
         </View>
       )}
       <View style={styles.pageHeader}>
-        <View>
+        <View style={styles.pageHeaderText}>
           <Text style={styles.eyebrow}>Expenses</Text>
-          <Text style={styles.heading}>{originalId ? 'Edit Money Out' : 'Add Money Out'}</Text>
+          <Text style={[styles.heading, isCompact && styles.headingCompact]}>{originalId ? 'Edit Money Out' : 'Add Money Out'}</Text>
         </View>
 
         <Pressable style={styles.cancelTopButton} onPress={() => router.push('/expenses')}>
@@ -153,7 +155,7 @@ export default function NewExpenseScreen() {
         </Pressable>
       </View>
 
-      <View style={styles.formCard}>
+      <View style={[styles.formCard, isCompact && styles.formCardCompact]}>
         <View style={styles.formGrid}>
           <Field label="Date" value={date} onChangeText={setDate} />
           <Field label="Vendor" value={vendor} onChangeText={setVendor} />
@@ -214,22 +216,30 @@ export default function NewExpenseScreen() {
           </View>
         </View>
 
-        <View style={[styles.bottomActionBar, Platform.OS === 'web' && styles.bottomActionBarSticky]}>
-          <View>
-            <Text style={styles.actionLabel}>Money out ready.</Text>
-            <Text style={styles.actionSubtext}>Reflected in your dashboard and reports.</Text>
-          </View>
+        <View
+          style={[
+            styles.bottomActionBar,
+            Platform.OS === 'web' && !isCompact && styles.bottomActionBarSticky,
+            isCompact && styles.bottomActionBarCompact,
+          ]}
+        >
+          {!isCompact && (
+            <View>
+              <Text style={styles.actionLabel}>Money out ready.</Text>
+              <Text style={styles.actionSubtext}>Reflected in your dashboard and reports.</Text>
+            </View>
+          )}
 
-          <View style={styles.actionRow}>
-            <Pressable style={styles.secondaryButton} onPress={handleCancel}>
+          <View style={[styles.actionRow, isCompact && styles.actionRowCompact]}>
+            <Pressable style={[styles.secondaryButton, isCompact && styles.actionButtonCompact]} onPress={handleCancel}>
               <Text style={styles.secondaryButtonText}>Cancel</Text>
             </Pressable>
 
-            <Pressable style={styles.primaryButton} onPress={handleSave}>
+            <Pressable style={[styles.primaryButton, isCompact && styles.actionButtonCompact]} onPress={handleSave}>
               <Text style={styles.primaryButtonText}>Save</Text>
             </Pressable>
 
-            <Pressable style={styles.secondaryButton} onPress={handleSaveAndClose}>
+            <Pressable style={[styles.secondaryButton, isCompact && styles.actionButtonCompact]} onPress={handleSaveAndClose}>
               <Text style={styles.secondaryButtonText}>Save & Go Back</Text>
             </Pressable>
           </View>
@@ -274,9 +284,14 @@ const styles = StyleSheet.create({
   pageHeader: {
     alignItems: 'center',
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 24,
     justifyContent: 'space-between',
     marginBottom: 28,
+  },
+  pageHeaderText: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   eyebrow: {
     color: '#ff7a00',
@@ -289,6 +304,9 @@ const styles = StyleSheet.create({
     fontSize: 34,
     fontWeight: '900',
     letterSpacing: 0,
+  },
+  headingCompact: {
+    fontSize: 24,
   },
   cancelTopButton: {
     backgroundColor: '#252525',
@@ -309,6 +327,9 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     borderWidth: 1,
     padding: 28,
+  },
+  formCardCompact: {
+    padding: 16,
   },
   formGrid: {
     flexDirection: 'row',
@@ -462,6 +483,9 @@ const styles = StyleSheet.create({
     bottom: 24,
     zIndex: 60,
   },
+  bottomActionBarCompact: {
+    padding: 12,
+  },
   actionLabel: {
     color: '#ffffff',
     fontSize: 16,
@@ -477,6 +501,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 14,
     justifyContent: 'flex-end',
+  },
+  actionRowCompact: {
+    flexDirection: 'column',
+    width: '100%',
+  },
+  actionButtonCompact: {
+    alignItems: 'center',
+    width: '100%',
   },
   secondaryButton: {
     backgroundColor: '#2b2b2b',
