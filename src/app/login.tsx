@@ -13,25 +13,21 @@ import {
   useWindowDimensions,
 } from 'react-native';
 
-import { signInWithPassword, signUpWithPassword } from '@/data/authStore';
+import { signInWithPassword } from '@/data/authStore';
 import { supabase } from '@/lib/supabase';
 
 const defaultLogo = require('@/assets/images/blue-collar-books-logo.png');
 
-// Supabase Auth has new signups disabled at the project level (see
-// CLAUDE.md / project notes) - that's the actual mechanism preventing new
-// accounts and is intentionally left alone here. supabase-js surfaces that
-// as a plain error with this message text. This screen only changes what a
-// visitor sees when they hit it - swapping the raw error for a branded
-// "Coming Soon" waitlist card instead of leaving the block itself alone.
-function isSignupsDisabledError(error: unknown) {
-  const message = error instanceof Error ? error.message : '';
-  return /sign.?ups?\s+not\s+allowed/i.test(message);
-}
-
 type WaitlistStatus = 'idle' | 'submitting' | 'success' | 'error';
 
-function ComingSoonWaitlist() {
+// Supabase Auth has new signups disabled at the project level (see
+// CLAUDE.md / project notes) - that's the actual mechanism preventing new
+// accounts, and it's untouched here. Since that block is always on right
+// now, "Create Account" leads straight to this waitlist card instead of a
+// password form that would just fail on submit - no point making someone
+// fill in a password for an account that can't be created, then hitting
+// them with an error that asks for their email a second time.
+function ComingSoonWaitlist({ onBackToSignIn }: { onBackToSignIn: () => void }) {
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<WaitlistStatus>('idle');
   const [errorText, setErrorText] = useState('');
@@ -71,6 +67,10 @@ function ComingSoonWaitlist() {
         <Image source={defaultLogo} style={styles.comingSoonLogo} />
         <Text style={styles.title}>Thanks, we'll be in touch!</Text>
         <Text style={styles.helper}>We'll email you the moment Blue Collar Books is ready.</Text>
+
+        <Pressable style={styles.switchModeButton} onPress={onBackToSignIn}>
+          <Text style={styles.switchModeText}>Already have an account? Sign In</Text>
+        </Pressable>
       </View>
     );
   }
@@ -105,7 +105,15 @@ function ComingSoonWaitlist() {
         onPress={handleSubmit}
         disabled={status === 'submitting'}
       >
-        {status === 'submitting' ? <ActivityIndicator color="#111111" /> : <Text style={styles.primaryButtonText}>Submit</Text>}
+        {status === 'submitting' ? (
+          <ActivityIndicator color="#111111" />
+        ) : (
+          <Text style={styles.primaryButtonText}>Submit</Text>
+        )}
+      </Pressable>
+
+      <Pressable style={styles.switchModeButton} onPress={onBackToSignIn}>
+        <Text style={styles.switchModeText}>Already have an account? Sign In</Text>
       </Pressable>
     </View>
   );
@@ -113,9 +121,9 @@ function ComingSoonWaitlist() {
 
 export default function LoginScreen() {
   // The marketing homepage's "Start Free Trial" button links here with
-  // ?mode=signup so people land straight on Create Account instead of
-  // Sign In - the whole point of that button was to start a trial, not to
-  // make a first-time visitor find the toggle themselves.
+  // ?mode=signup so people land straight on the Coming Soon waitlist
+  // instead of Sign In - that button's whole point was to start a trial,
+  // and since signups are disabled, waitlist is the closest thing to that.
   const { mode: modeParam } = useLocalSearchParams<{ mode?: string }>();
   const { width } = useWindowDimensions();
   const isCompact = width < 500;
@@ -124,12 +132,9 @@ export default function LoginScreen() {
   const [mode, setMode] = useState<'sign-in' | 'sign-up'>(modeParam === 'signup' ? 'sign-up' : 'sign-in');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [confirmMessage, setConfirmMessage] = useState('');
-  const [signupsDisabled, setSignupsDisabled] = useState(false);
 
   async function handleSubmit() {
     setErrorMessage('');
-    setConfirmMessage('');
 
     if (!email.trim() || !password) {
       setErrorMessage('Enter an email and password.');
@@ -139,20 +144,9 @@ export default function LoginScreen() {
     setIsSubmitting(true);
 
     try {
-      if (mode === 'sign-up') {
-        await signUpWithPassword(email.trim(), password);
-        setConfirmMessage('Account created. Check your email if confirmation is required, then sign in.');
-        setMode('sign-in');
-        return;
-      }
-
       await signInWithPassword(email.trim(), password);
       router.replace('/dashboard');
     } catch (error) {
-      if (mode === 'sign-up' && isSignupsDisabledError(error)) {
-        setSignupsDisabled(true);
-        return;
-      }
       setErrorMessage(error instanceof Error ? error.message : 'Something went wrong. Try again.');
     } finally {
       setIsSubmitting(false);
@@ -166,72 +160,59 @@ export default function LoginScreen() {
         <meta name="robots" content="noindex, nofollow" />
       </Head>
       <View style={styles.centerContainer}>
-        {signupsDisabled ? (
-          <ComingSoonWaitlist />
+        {mode === 'sign-up' ? (
+          <ComingSoonWaitlist onBackToSignIn={() => setMode('sign-in')} />
         ) : (
-        <View style={styles.card}>
-          {!isCompact && <Image source={defaultLogo} style={styles.cardLogo} />}
-          {isCompact && <Image source={defaultLogo} style={styles.cardLogoCompact} />}
-          <Text style={[styles.title, isCompact && styles.titleCompact]}>
-            {mode === 'sign-in' ? 'Sign in to Blue Collar Books' : 'Create your account'}
-          </Text>
-          <Text style={styles.helper}>
-            {mode === 'sign-in' ? 'First time here? Use Create Account below.' : 'One account is all this app needs right now.'}
-          </Text>
+          <View style={styles.card}>
+            {!isCompact && <Image source={defaultLogo} style={styles.cardLogo} />}
+            {isCompact && <Image source={defaultLogo} style={styles.cardLogoCompact} />}
+            <Text style={[styles.title, isCompact && styles.titleCompact]}>Sign in to Blue Collar Books</Text>
+            <Text style={styles.helper}>First time here? Use Create Account below.</Text>
 
-          <View style={styles.field}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={styles.input}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              placeholder="you@example.com"
-              placeholderTextColor="#6b6b6b"
-            />
+            <View style={styles.field}>
+              <Text style={styles.label}>Email</Text>
+              <TextInput
+                style={styles.input}
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                placeholder="you@example.com"
+                placeholderTextColor="#6b6b6b"
+              />
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Password</Text>
+              <TextInput
+                style={styles.input}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                placeholderTextColor="#6b6b6b"
+              />
+            </View>
+
+            {!!errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
+
+            <Pressable
+              style={[styles.primaryButton, isSubmitting && styles.primaryButtonDisabled]}
+              onPress={handleSubmit}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? <ActivityIndicator color="#111111" /> : <Text style={styles.primaryButtonText}>Sign In</Text>}
+            </Pressable>
+
+            <Pressable
+              style={styles.switchModeButton}
+              onPress={() => {
+                setMode('sign-up');
+                setErrorMessage('');
+              }}
+            >
+              <Text style={styles.switchModeText}>Don't have an account? Create Account</Text>
+            </Pressable>
           </View>
-
-          <View style={styles.field}>
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              placeholder={mode === 'sign-up' ? 'At least 6 characters' : ''}
-              placeholderTextColor="#6b6b6b"
-            />
-          </View>
-
-          {!!errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
-          {!!confirmMessage && <Text style={styles.confirmText}>{confirmMessage}</Text>}
-
-          <Pressable
-            style={[styles.primaryButton, isSubmitting && styles.primaryButtonDisabled]}
-            onPress={handleSubmit}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color="#111111" />
-            ) : (
-              <Text style={styles.primaryButtonText}>{mode === 'sign-in' ? 'Sign In' : 'Create Account'}</Text>
-            )}
-          </Pressable>
-
-          <Pressable
-            style={styles.switchModeButton}
-            onPress={() => {
-              setMode((current) => (current === 'sign-in' ? 'sign-up' : 'sign-in'));
-              setErrorMessage('');
-              setConfirmMessage('');
-            }}
-          >
-            <Text style={styles.switchModeText}>
-              {mode === 'sign-in' ? "Don't have an account? Create Account" : 'Already have an account? Sign In'}
-            </Text>
-          </Pressable>
-        </View>
         )}
       </View>
     </SafeAreaView>
