@@ -14,8 +14,102 @@ import {
 } from 'react-native';
 
 import { signInWithPassword, signUpWithPassword } from '@/data/authStore';
+import { supabase } from '@/lib/supabase';
 
 const defaultLogo = require('@/assets/images/blue-collar-books-logo.png');
+
+// Supabase Auth has new signups disabled at the project level (see
+// CLAUDE.md / project notes) - that's the actual mechanism preventing new
+// accounts and is intentionally left alone here. supabase-js surfaces that
+// as a plain error with this message text. This screen only changes what a
+// visitor sees when they hit it - swapping the raw error for a branded
+// "Coming Soon" waitlist card instead of leaving the block itself alone.
+function isSignupsDisabledError(error: unknown) {
+  const message = error instanceof Error ? error.message : '';
+  return /sign.?ups?\s+not\s+allowed/i.test(message);
+}
+
+type WaitlistStatus = 'idle' | 'submitting' | 'success' | 'error';
+
+function ComingSoonWaitlist() {
+  const [email, setEmail] = useState('');
+  const [status, setStatus] = useState<WaitlistStatus>('idle');
+  const [errorText, setErrorText] = useState('');
+
+  async function handleSubmit() {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setStatus('error');
+      setErrorText('Enter an email address.');
+      return;
+    }
+
+    setStatus('submitting');
+    setErrorText('');
+
+    const { error } = await supabase.from('waitlist_emails').insert({ email: trimmedEmail });
+
+    if (error) {
+      // Postgres unique-violation on the case-insensitive email index -
+      // treat "already on the list" as a success state, not an error.
+      if (error.code === '23505') {
+        setStatus('success');
+        return;
+      }
+
+      setStatus('error');
+      setErrorText('Something went wrong. Please try again.');
+      return;
+    }
+
+    setStatus('success');
+  }
+
+  if (status === 'success') {
+    return (
+      <View style={styles.card}>
+        <Image source={defaultLogo} style={styles.comingSoonLogo} />
+        <Text style={styles.title}>Thanks, we'll be in touch!</Text>
+        <Text style={styles.helper}>We'll email you the moment Blue Collar Books is ready.</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.card}>
+      <Image source={defaultLogo} style={styles.comingSoonLogo} />
+      <Text style={styles.title}>Coming Soon</Text>
+      <Text style={styles.helper}>
+        Blue Collar Books is currently in active development. Leave your email and we'll notify you the moment it's
+        ready.
+      </Text>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Email</Text>
+        <TextInput
+          style={styles.input}
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          placeholder="you@example.com"
+          placeholderTextColor="#6b6b6b"
+          editable={status !== 'submitting'}
+        />
+      </View>
+
+      {status === 'error' && !!errorText && <Text style={styles.errorText}>{errorText}</Text>}
+
+      <Pressable
+        style={[styles.primaryButton, status === 'submitting' && styles.primaryButtonDisabled]}
+        onPress={handleSubmit}
+        disabled={status === 'submitting'}
+      >
+        {status === 'submitting' ? <ActivityIndicator color="#111111" /> : <Text style={styles.primaryButtonText}>Submit</Text>}
+      </Pressable>
+    </View>
+  );
+}
 
 export default function LoginScreen() {
   // The marketing homepage's "Start Free Trial" button links here with
@@ -31,6 +125,7 @@ export default function LoginScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [confirmMessage, setConfirmMessage] = useState('');
+  const [signupsDisabled, setSignupsDisabled] = useState(false);
 
   async function handleSubmit() {
     setErrorMessage('');
@@ -54,6 +149,10 @@ export default function LoginScreen() {
       await signInWithPassword(email.trim(), password);
       router.replace('/dashboard');
     } catch (error) {
+      if (mode === 'sign-up' && isSignupsDisabledError(error)) {
+        setSignupsDisabled(true);
+        return;
+      }
       setErrorMessage(error instanceof Error ? error.message : 'Something went wrong. Try again.');
     } finally {
       setIsSubmitting(false);
@@ -67,6 +166,9 @@ export default function LoginScreen() {
         <meta name="robots" content="noindex, nofollow" />
       </Head>
       <View style={styles.centerContainer}>
+        {signupsDisabled ? (
+          <ComingSoonWaitlist />
+        ) : (
         <View style={styles.card}>
           {!isCompact && <Image source={defaultLogo} style={styles.cardLogo} />}
           {isCompact && <Image source={defaultLogo} style={styles.cardLogoCompact} />}
@@ -130,6 +232,7 @@ export default function LoginScreen() {
             </Text>
           </Pressable>
         </View>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -191,5 +294,12 @@ const styles = StyleSheet.create({
     resizeMode: 'contain',
     opacity: 0.95,
     marginBottom: 8,
+  },
+  comingSoonLogo: {
+    width: 120,
+    height: 46,
+    resizeMode: 'contain',
+    opacity: 0.95,
+    marginBottom: 12,
   },
 });
