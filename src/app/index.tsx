@@ -623,6 +623,7 @@ const styles = StyleSheet.create({
   },
   workbenchGridCompact: {
     flexDirection: 'column',
+    flexWrap: 'nowrap',
   },
   workbenchCard: {
     backgroundColor: BrandColors.card,
