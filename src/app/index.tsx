@@ -634,7 +634,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: 22,
   },
-  workbenchCardCompact: { flexBasis: '100%' },
+  workbenchCardCompact: { flexBasis: 'auto', flexGrow: 0, width: '100%' },
   workbenchTab: {
     backgroundColor: BrandColors.orange,
     borderRadius: 2,
