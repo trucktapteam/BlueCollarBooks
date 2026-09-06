@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import Head from 'expo-router/head';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { useSession } from '@/data/authStore';
@@ -19,6 +19,8 @@ import { formatDateDisplay } from '@/utils/date';
 import { suggestExpenseCategory } from '@/utils/suggestCategory';
 
 export default function TransactionsScreen() {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 760;
   const session = useSession();
   const transactions = usePlaidTransactions();
   const categories = useCategories();
@@ -60,9 +62,9 @@ export default function TransactionsScreen() {
       </Head>
 
       <View style={styles.pageHeader}>
-        <View>
+        <View style={styles.pageHeaderText}>
           <Text style={styles.eyebrow}>Bank Feed</Text>
-          <Text style={styles.heading}>Categorize what came out of the bank.</Text>
+          <Text style={[styles.heading, isCompact && styles.headingCompact]}>Categorize what came out of the bank.</Text>
           <Text style={styles.subheading}>
             Each one becomes a real expense once you pick a type. Not a business expense? Exclude it instead.
           </Text>
@@ -244,6 +246,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 28,
   },
+  pageHeaderText: {
+    flexShrink: 1,
+    minWidth: 0,
+  },
   eyebrow: {
     color: '#ff7a00',
     fontSize: 15,
@@ -255,6 +261,9 @@ const styles = StyleSheet.create({
     fontSize: 34,
     fontWeight: '900',
     letterSpacing: 0,
+  },
+  headingCompact: {
+    fontSize: 24,
   },
   subheading: {
     color: '#a3a3a3',
