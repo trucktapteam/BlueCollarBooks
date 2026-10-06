@@ -46,7 +46,7 @@ export default function PrivacyScreen() {
             across other sites or sell your information to third parties.
           </Text>
           <Text style={styles.paragraph}>
-            Questions about your data? Reach out to trucktapteam@gmail.com.
+            Questions about your data? Reach out to bluecollarbookspro@gmail.com.
           </Text>
         </View>
       </ScrollView>

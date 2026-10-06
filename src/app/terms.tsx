@@ -46,7 +46,7 @@ export default function TermsScreen() {
             your data safe, but we're not liable for losses arising from its use.
           </Text>
           <Text style={styles.paragraph}>
-            Questions? Reach out to trucktapteam@gmail.com.
+            Questions? Reach out to bluecollarbookspro@gmail.com.
           </Text>
         </View>
       </ScrollView>
