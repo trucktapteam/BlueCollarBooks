@@ -321,7 +321,7 @@ export default function WelcomeScreen() {
 
         {/* 6. FOOTER */}
         <View style={[styles.footer, isCompact && styles.footerCompact]}>
-          <Text style={styles.footerText}>Blue Collar Books</Text>
+          <Text style={styles.footerText}>© 2026 Productive Squirrels LLC, dba Blue Collar Books</Text>
           <View style={styles.footerLinks}>
             <Pressable onPress={() => router.push('/login')}>
               <Text style={styles.footerLink}>Sign In</Text>

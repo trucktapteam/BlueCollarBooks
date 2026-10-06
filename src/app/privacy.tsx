@@ -29,10 +29,11 @@ export default function PrivacyScreen() {
 
         <View style={styles.content}>
           <Text style={styles.heading}>Privacy Policy</Text>
-          <Text style={styles.updated}>Last updated August 2026</Text>
+          <Text style={styles.updated}>Last updated October 2026</Text>
 
           <Text style={styles.paragraph}>
-            Blue Collar Books stores the business data you enter - invoices, expenses, customers, and bank account
+            Blue Collar Books is a trade name of Productive Squirrels LLC, a Kentucky limited liability company
+            ("we", "us"). Blue Collar Books stores the business data you enter - invoices, expenses, customers, and bank account
             information you add - so the app can work for you. That data is yours. We don't sell it, and we don't
             share it with advertisers.
           </Text>

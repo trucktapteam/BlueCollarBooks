@@ -29,10 +29,11 @@ export default function TermsScreen() {
 
         <View style={styles.content}>
           <Text style={styles.heading}>Terms of Service</Text>
-          <Text style={styles.updated}>Last updated August 2026</Text>
+          <Text style={styles.updated}>Last updated October 2026</Text>
 
           <Text style={styles.paragraph}>
-            Blue Collar Books is bookkeeping and invoicing software billed at $20/month after a 30-day free trial.
+            Blue Collar Books is a trade name of Productive Squirrels LLC, a Kentucky limited liability company
+            ("we", "us"). Blue Collar Books is bookkeeping and invoicing software billed at $20/month after a 30-day free trial.
             You can cancel any time from Settings - your account stays active through the end of the period you've
             already paid for.
           </Text>
