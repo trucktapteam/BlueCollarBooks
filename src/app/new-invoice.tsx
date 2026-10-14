@@ -89,6 +89,7 @@ export default function NewInvoiceScreen() {
   const [status, setStatus] = useState<InvoiceStatus>('Draft');
   const [lineItems, setLineItems] = useState<LineItemDraft[]>(() => toLineItemDrafts(invoiceLineItems));
   const [showSavedToast, setShowSavedToast] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const showSideActions = Platform.OS === 'web' && width >= 1100;
   const isCompact = width < 760;
 
@@ -207,49 +208,52 @@ export default function NewInvoiceScreen() {
     }));
   }
 
-  function handleSave() {
-    saveInvoice(
-      {
-        id: recordId,
-        invoice: number,
-        customer: customer.trim(),
-        customerId: selectedCustomer?.id,
-        amount: invoiceTotalCents,
-        status,
-        invoiceDate: normalizeDateToISO(date),
-        poNumber,
-        bolNumber,
-        shipper,
-        consignee,
-        freightDescription,
-        lineItems: buildLineItemsForSave(),
-      },
-      originalInvoiceId
-    );
-    setOriginalInvoiceId(recordId);
-    setShowSavedToast(true);
+  // Returns true if the invoice saved. Postgres code 23505 is a unique-index
+  // violation - here, another invoice of yours already uses this number.
+  async function persistInvoice() {
+    setSaveError('');
+    try {
+      await saveInvoice(
+        {
+          id: recordId,
+          invoice: number,
+          customer: customer.trim(),
+          customerId: selectedCustomer?.id,
+          amount: invoiceTotalCents,
+          status,
+          invoiceDate: normalizeDateToISO(date),
+          poNumber,
+          bolNumber,
+          shipper,
+          consignee,
+          freightDescription,
+          lineItems: buildLineItemsForSave(),
+        },
+        originalInvoiceId
+      );
+      return true;
+    } catch (error) {
+      const code = (error as { code?: string } | null)?.code;
+      setSaveError(
+        code === '23505'
+          ? `Invoice #${number} is already used by another invoice. Pick a different number.`
+          : 'Could not save this invoice. Please try again.'
+      );
+      return false;
+    }
   }
 
-  function handleSaveAndClose() {
-    saveInvoice(
-      {
-        id: recordId,
-        invoice: number,
-        customer: customer.trim(),
-        customerId: selectedCustomer?.id,
-        amount: invoiceTotalCents,
-        status,
-        invoiceDate: normalizeDateToISO(date),
-        poNumber,
-        bolNumber,
-        shipper,
-        consignee,
-        freightDescription,
-        lineItems: buildLineItemsForSave(),
-      },
-      originalInvoiceId
-    );
-    router.replace('/invoices');
+  async function handleSave() {
+    if (await persistInvoice()) {
+      setOriginalInvoiceId(recordId);
+      setShowSavedToast(true);
+    }
+  }
+
+  async function handleSaveAndClose() {
+    if (await persistInvoice()) {
+      router.replace('/invoices');
+    }
   }
 
   function buildCurrentInvoiceHtml() {
@@ -343,6 +347,7 @@ export default function NewInvoiceScreen() {
 
       <View style={styles.actionGroup}>
         <Text style={styles.actionGroupLabel}>Save Work</Text>
+        {!!saveError && <Text style={styles.saveErrorText}>{saveError}</Text>}
         <Pressable style={[styles.primaryButton, styles.panelActionButton]} onPress={handleSave}>
           <Text style={styles.primaryButtonText}>Save</Text>
         </Pressable>
@@ -1627,6 +1632,11 @@ const styles = StyleSheet.create({
   toastText: {
     color: '#ffffff',
     fontSize: 14,
+    fontWeight: '700',
+  },
+  saveErrorText: {
+    color: '#ff6b6b',
+    fontSize: 13,
     fontWeight: '700',
   },
 });
