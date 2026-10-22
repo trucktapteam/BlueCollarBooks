@@ -13,13 +13,9 @@ export type InvoiceLike = {
 };
 
 export function calculateInvoicePaymentTotal(invoice: InvoiceLike) {
-  const explicitPaymentTotal = (invoice.payments ?? []).reduce((total, payment) => total + payment.amount, 0);
-
-  if (explicitPaymentTotal > 0) {
-    return Math.min(explicitPaymentTotal, invoice.amount);
-  }
-
-  return invoice.status === 'Paid' ? invoice.amount : 0;
+  // Paid is whatever payments have been applied to the invoice - a status label never counts as money.
+  const appliedTotal = (invoice.payments ?? []).reduce((total, payment) => total + payment.amount, 0);
+  return Math.min(appliedTotal, invoice.amount);
 }
 
 export function calculateInvoiceBalance(invoice: InvoiceLike) {

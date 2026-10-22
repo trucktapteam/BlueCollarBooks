@@ -89,6 +89,8 @@ export type ReceiveInvoicePaymentInput = {
   amount: number;
   date: string;
   notes?: string;
+  // The real bank account the money was deposited to ("Deposited to"). Required: never guessed.
+  depositAccountId: string;
 };
 
 export const invoiceStatuses: InvoiceStatus[] = ['Draft', 'Sent', 'Due Today', 'Paid', 'Overdue'];
@@ -133,12 +135,12 @@ type InvoiceRow = {
   consignee: string | null;
   freight_description: string | null;
   invoice_line_items: LineItemRow[] | null;
-  invoice_payments: PaymentRow[] | null;
   invoice_attachments: AttachmentRow[] | null;
 };
 
 type LineItemRow = { id: string; description: string; amount: number; position: number };
-type PaymentRow = { id: string; amount: number; payment_date: string | null; notes: string | null };
+type PaymentApplicationRow = { invoice_id: string; amount_cents: number; payment_id: string };
+type PaymentRow = { id: string; payment_date: string | null; notes: string | null; voided_at: string | null };
 type AttachmentRow = {
   id: string;
   name: string;
@@ -148,7 +150,7 @@ type AttachmentRow = {
   storage_path: string | null;
 };
 
-function rowToInvoice(row: InvoiceRow): Invoice {
+function rowToInvoice(row: InvoiceRow, payments: InvoicePayment[]): Invoice {
   return {
     id: row.id,
     invoice: row.invoice_number,
@@ -167,12 +169,7 @@ function rowToInvoice(row: InvoiceRow): Invoice {
       .slice()
       .sort((a, b) => a.position - b.position)
       .map((item) => ({ id: item.id, description: item.description, amount: item.amount })),
-    payments: (row.invoice_payments ?? []).map((payment) => ({
-      id: payment.id,
-      amount: payment.amount,
-      date: payment.payment_date ?? '',
-      notes: payment.notes ?? undefined,
-    })),
+    payments,
     attachments: (row.invoice_attachments ?? []).map((attachment) => ({
       id: attachment.id,
       name: attachment.name,
@@ -194,7 +191,7 @@ function emitChange() {
 export async function loadInvoices(userId: string) {
   const { data, error } = await supabase
     .from('invoices')
-    .select('*, invoice_line_items(*), invoice_payments(*), invoice_attachments(*)')
+    .select('*, invoice_line_items(*), invoice_attachments(*)')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .order('position', { foreignTable: 'invoice_line_items', ascending: true })
@@ -205,7 +202,36 @@ export async function loadInvoices(userId: string) {
     return;
   }
 
-  invoicesSnapshot = (data ?? []).map(rowToInvoice);
+  // What has been paid on each invoice comes from the books' payment
+  // applications (money actually received and applied), never from a number
+  // typed onto the invoice. Voided payments are ignored.
+  const [applicationsResult, paymentsResult] = await Promise.all([
+    supabase.from('payment_applications').select('invoice_id, amount_cents, payment_id').eq('user_id', userId),
+    supabase.from('payments').select('id, payment_date, notes, voided_at').eq('user_id', userId),
+  ]);
+  if (applicationsResult.error || paymentsResult.error) {
+    console.error('Failed to load payments', applicationsResult.error ?? paymentsResult.error);
+    return;
+  }
+
+  const paymentById = new Map<string, PaymentRow>(
+    ((paymentsResult.data ?? []) as PaymentRow[]).map((payment) => [payment.id, payment])
+  );
+  const paymentsByInvoice = new Map<string, InvoicePayment[]>();
+  for (const application of (applicationsResult.data ?? []) as PaymentApplicationRow[]) {
+    const payment = paymentById.get(application.payment_id);
+    if (!payment || payment.voided_at) continue;
+    const list = paymentsByInvoice.get(application.invoice_id) ?? [];
+    list.push({
+      id: `${application.payment_id}:${application.invoice_id}`,
+      amount: Number(application.amount_cents),
+      date: payment.payment_date ?? '',
+      notes: payment.notes ?? undefined,
+    });
+    paymentsByInvoice.set(application.invoice_id, list);
+  }
+
+  invoicesSnapshot = ((data ?? []) as InvoiceRow[]).map((row) => rowToInvoice(row, paymentsByInvoice.get(row.id) ?? []));
   refreshInvoiceStatuses();
   emitChange();
 }
@@ -215,10 +241,15 @@ export function clearInvoices() {
   emitChange();
 }
 
+// The database only stores whether an invoice is a Draft or has been sent.
+// Everything else the customer sees (Paid, Due Today, Overdue) is derived here
+// from what has actually been paid and the due date.
 function refreshInvoiceStatuses() {
   const now = new Date();
   invoicesSnapshot = invoicesSnapshot.map((inv) => {
-    if (inv.status === 'Paid' || inv.status === 'Draft') return inv;
+    if (inv.status === 'Draft') return inv;
+
+    if (inv.amount > 0 && calculateInvoiceBalance(inv) <= 0) return { ...inv, status: 'Paid' };
 
     const due = computeDueDate(inv.invoiceDate, inv.terms);
     if (!due) return { ...inv, status: 'Sent' };
@@ -260,7 +291,11 @@ export async function saveInvoice(invoice: Invoice, originalInvoiceId?: string) 
 
   const lineItems = invoice.lineItems ?? [];
   try {
-    await writeInvoiceRows(supabase as unknown as InvoiceDbClient, userId, invoice);
+    // Only Draft / Sent are stored; Paid, Due Today and Overdue are derived (see refreshInvoiceStatuses).
+    await writeInvoiceRows(supabase as unknown as InvoiceDbClient, userId, {
+      ...invoice,
+      status: invoice.status === 'Draft' ? 'Draft' : 'Sent',
+    });
   } catch (error) {
     console.error('Failed to save invoice', error);
     throw error;
@@ -467,26 +502,16 @@ export async function deleteInvoiceAttachment(invoiceId: string, attachmentId: s
   emitChange();
 }
 
-export async function updateInvoiceStatus(invoiceId: string, status: InvoiceStatus) {
+// Draft <-> Sent only. An invoice becomes Paid by recording a payment (with the
+// account it was deposited to), never by flipping a status - see recordInvoicePayment.
+export async function updateInvoiceStatus(invoiceId: string, status: 'Draft' | 'Sent') {
   const invoice = invoicesSnapshot.find((item) => item.id === invoiceId);
 
   if (!invoice) {
     return;
   }
 
-  if (status === 'Paid') {
-    const balance = calculateInvoiceBalance(invoice);
-
-    if (balance > 0) {
-      await receiveInvoicePayment(invoiceId, {
-        amount: balance,
-        date: new Date().toISOString(),
-      });
-      return;
-    }
-  }
-
-  const { error } = await supabase.from('invoices').update({ status }).eq('id', invoiceId);
+  const { error } = await supabase.rpc('set_invoice_status', { p_invoice_id: invoiceId, p_status: status });
   if (error) {
     console.error('Failed to update invoice status', error);
     throw error;
@@ -498,10 +523,15 @@ export async function updateInvoiceStatus(invoiceId: string, status: InvoiceStat
   emitChange();
 }
 
+// Records money received against one invoice and deposits it to a real bank
+// account, in ONE database transaction (record_payment). Never more than is owed.
 export async function receiveInvoicePayment(invoiceId: string, paymentInput: ReceiveInvoicePaymentInput) {
   const userId = getCurrentUserId();
   if (!userId) {
     throw new Error('You must be signed in to record a payment.');
+  }
+  if (!paymentInput.depositAccountId) {
+    throw new Error('Choose the account this was deposited to.');
   }
 
   const invoice = invoicesSnapshot.find((item) => item.id === invoiceId);
@@ -516,52 +546,24 @@ export async function receiveInvoicePayment(invoiceId: string, paymentInput: Rec
     return;
   }
 
-  const payment: InvoicePayment = {
-    id: generateId(),
-    amount: receivedAmount,
-    date: paymentInput.date,
-    notes: paymentInput.notes?.trim() || undefined,
-  };
-
-  const { error: paymentError } = await supabase.from('invoice_payments').insert({
-    id: payment.id,
-    invoice_id: invoiceId,
-    user_id: userId,
-    amount: payment.amount,
-    payment_date: payment.date || null,
-    notes: payment.notes ?? null,
+  const { error } = await supabase.rpc('record_payment', {
+    p_customer_id: invoice.customerId ?? null,
+    p_payment_date: paymentInput.date.slice(0, 10),
+    p_amount_cents: receivedAmount,
+    p_deposit_account_id: paymentInput.depositAccountId,
+    p_applications: [{ invoice_id: invoiceId, amount_cents: receivedAmount }],
+    p_method: null,
+    p_reference: null,
+    p_notes: paymentInput.notes?.trim() || null,
   });
 
-  if (paymentError) {
-    console.error('Failed to save payment', paymentError);
-    throw paymentError;
-  }
-
-  let updatedStatus: InvoiceStatus = invoice.status;
-
-  invoicesSnapshot = invoicesSnapshot.map((item) => {
-    if (item.id !== invoiceId) {
-      return item;
-    }
-
-    const payments = [...(item.payments ?? []), payment];
-    const updatedInvoice = { ...item, payments };
-    const balance = calculateInvoiceBalance(updatedInvoice);
-    updatedStatus = balance <= 0 ? 'Paid' : item.status === 'Draft' ? 'Sent' : item.status;
-
-    return { ...updatedInvoice, status: updatedStatus };
-  });
-
-  if (updatedStatus !== invoice.status) {
-    const { error: statusError } = await supabase.from('invoices').update({ status: updatedStatus }).eq('id', invoiceId);
-    if (statusError) {
-      console.error('Failed to update invoice status after payment', statusError);
-    }
+  if (error) {
+    console.error('Failed to save payment', error);
+    throw error;
   }
 
   addActivity(`Payment received: ${formatInvoiceAmount(receivedAmount)} from ${invoice.customer} for invoice #${invoice.invoice}`);
-  refreshInvoiceStatuses();
-  emitChange();
+  await loadInvoices(userId);
 }
 
 export function useInvoices() {

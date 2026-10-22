@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { useLedgerAccounts } from '@/data/ledgerAccounts';
 import {
   type Invoice,
   calculateInvoiceBalance,
@@ -15,15 +16,26 @@ function formatInputDate(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
+// Remembered for the session only; it prefills "Deposited to" but never decides it.
+let lastDepositAccountId = '';
+
 export function ReceivePaymentModal({
   invoices,
   onClose,
   visible,
+  initialInvoiceId,
 }: {
   invoices: Invoice[];
   onClose: () => void;
   visible: boolean;
+  initialInvoiceId?: string;
 }) {
+  const ledgerAccounts = useLedgerAccounts();
+  // Money is deposited into a bank account (not a credit card).
+  const bankAccounts = useMemo(() => ledgerAccounts.moneyAccounts.filter((account) => account.kind === 'bank'), [ledgerAccounts]);
+  const [depositAccountId, setDepositAccountId] = useState(lastDepositAccountId);
+  const [error, setError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   const payableInvoices = useMemo(
     () => invoices.filter((invoice) => calculateInvoiceBalance(invoice) > 0),
     [invoices]
@@ -37,36 +49,49 @@ export function ReceivePaymentModal({
   const selectedBalance = selectedInvoice ? calculateInvoiceBalance(selectedInvoice) : 0;
   const amountReceived = parseMoneyInputToCents(amount);
   const hasValidDate = !!parseFlexibleDate(dateReceived);
-  const canSubmit = !!selectedInvoice && amountReceived > 0 && amountReceived <= selectedBalance && hasValidDate;
+  const hasDepositAccount = bankAccounts.some((account) => account.id === depositAccountId);
+  const canSubmit =
+    !!selectedInvoice && amountReceived > 0 && amountReceived <= selectedBalance && hasValidDate && hasDepositAccount && !isSaving;
 
   useEffect(() => {
     if (!visible) {
       return;
     }
 
-    const firstInvoice = payableInvoices[0];
+    const firstInvoice = payableInvoices.find((invoice) => invoice.id === initialInvoiceId) ?? payableInvoices[0];
+    setError('');
     setSelectedInvoiceId(firstInvoice?.id ?? '');
     setAmount(firstInvoice ? formatMoneyCents(calculateInvoiceBalance(firstInvoice)) : '');
     setDateReceived(formatInputDate(new Date()));
     setNotes('');
-  }, [payableInvoices, visible]);
+  }, [payableInvoices, visible, initialInvoiceId]);
 
   function selectInvoice(invoice: Invoice) {
     setSelectedInvoiceId(invoice.id);
     setAmount(formatMoneyCents(calculateInvoiceBalance(invoice)));
   }
 
-  function submitPayment() {
+  async function submitPayment() {
     if (!selectedInvoice || !canSubmit) {
       return;
     }
 
-    receiveInvoicePayment(selectedInvoice.id, {
-      amount: amountReceived,
-      date: normalizeDateToISO(dateReceived),
-      notes,
-    });
-    onClose();
+    setIsSaving(true);
+    setError('');
+    try {
+      await receiveInvoicePayment(selectedInvoice.id, {
+        amount: amountReceived,
+        date: normalizeDateToISO(dateReceived),
+        notes,
+        depositAccountId,
+      });
+      lastDepositAccountId = depositAccountId;
+      onClose();
+    } catch (saveError) {
+      setError(saveError instanceof Error && saveError.message ? saveError.message : 'Could not save this payment. Nothing was changed.');
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
@@ -132,6 +157,24 @@ export function ReceivePaymentModal({
               </View>
 
               <View style={styles.field}>
+                <Text style={styles.fieldLabel}>Deposited to</Text>
+                <View style={styles.accountRow}>
+                  {bankAccounts.map((account) => (
+                    <Pressable
+                      key={account.id}
+                      style={[styles.invoiceOption, account.id === depositAccountId && styles.invoiceOptionActive]}
+                      onPress={() => setDepositAccountId(account.id)}
+                    >
+                      <Text style={styles.invoiceTitle}>{account.name}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                {ledgerAccounts.loaded && bankAccounts.length === 0 && (
+                  <Text style={styles.helperText}>Connect a bank account first, so this money has somewhere to go.</Text>
+                )}
+              </View>
+
+              <View style={styles.field}>
                 <Text style={styles.fieldLabel}>Notes</Text>
                 <TextInput
                   multiline
@@ -142,6 +185,8 @@ export function ReceivePaymentModal({
                   onChangeText={setNotes}
                 />
               </View>
+
+              {error !== '' && <Text style={styles.errorText}>{error}</Text>}
 
               <View style={styles.footer}>
                 <Text style={styles.helperText}>Still owed after this: {formatInvoiceAmount(Math.max(selectedBalance - amountReceived, 0))}</Text>
@@ -277,6 +322,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 16,
     justifyContent: 'space-between',
+  },
+  accountRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  errorText: {
+    color: '#ff6b6b',
+    fontSize: 14,
+    fontWeight: '800',
+    marginBottom: 12,
   },
   helperText: {
     color: '#a3a3a3',

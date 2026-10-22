@@ -12,7 +12,6 @@ import {
   calculateInvoiceTotal,
   formatInvoiceAmount,
   isInvoiceWaitingToBePaid,
-  updateInvoiceStatus,
   useInvoices,
 } from '@/data/mockInvoices';
 import { formatDateDisplay, parseFlexibleDate } from '@/utils/date';
@@ -70,6 +69,7 @@ export default function CustomersScreen() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'All' | 'Owes Money' | 'Paid Up' | 'No Invoices'>('All');
   const [isPaymentModalVisible, setIsPaymentModalVisible] = useState(false);
+  const [paymentInvoiceId, setPaymentInvoiceId] = useState('');
 
   const visibleCustomerSummaries = useMemo(() => {
     return customerSummaries
@@ -255,9 +255,12 @@ export default function CustomersScreen() {
                       {balance > 0 && (
                         <Pressable
                           style={styles.markPaidButton}
-                          onPress={() => updateInvoiceStatus(invoice.id, 'Paid')}
+                          onPress={() => {
+                            setPaymentInvoiceId(invoice.id);
+                            setIsPaymentModalVisible(true);
+                          }}
                         >
-                          <Text style={styles.markPaidButtonText}>Mark Paid</Text>
+                          <Text style={styles.markPaidButtonText}>Record Payment</Text>
                         </Pressable>
                       )}
                     </View>
@@ -276,7 +279,11 @@ export default function CustomersScreen() {
       <ReceivePaymentModal
         invoices={selectedOpenInvoices}
         visible={isPaymentModalVisible}
-        onClose={() => setIsPaymentModalVisible(false)}
+        initialInvoiceId={paymentInvoiceId}
+        onClose={() => {
+          setIsPaymentModalVisible(false);
+          setPaymentInvoiceId('');
+        }}
       />
     </AppShell>
   );
