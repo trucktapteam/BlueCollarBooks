@@ -19,9 +19,12 @@ begin
   perform save_invoice('{"id":"inv-2","invoice_number":"1002","customer":"ACME","customer_id":"c1","amount":30000,"status":"Sent","invoice_date":"2026-06-01","due_date":"2026-07-01"}', '[]');
   perform save_invoice('{"id":"inv-3","invoice_number":"1003","customer":"ACME","customer_id":"c1","amount":20000,"status":"Draft","invoice_date":"2026-06-03"}', '[]');
   perform save_invoice('{"id":"inv-4","invoice_number":"1004","customer":"Other Co","customer_id":"c2","amount":10000,"status":"Sent","invoice_date":"2026-03-02","due_date":"2026-04-01"}', '[]');
-  perform save_invoice('{"id":"inv-5","invoice_number":"1005","customer":"ACME","customer_id":"c1","amount":9900,"status":"Sent","invoice_date":"2026-06-04","due_date":"2026-07-04"}', '[]');
-  perform sync_invoice_posting('inv-1'); perform sync_invoice_posting('inv-2'); perform sync_invoice_posting('inv-3'); perform sync_invoice_posting('inv-4');
-  -- inv-5 is deliberately NOT posted (the app does not post yet)
+  -- inv-5 is deliberately NOT posted: save_invoice posts now, so it is inserted directly as the privileged role
+  reset role;
+  insert into invoices (id,user_id,invoice_number,customer,customer_id,amount,status,invoice_date,due_date)
+    values ('inv-5',a,'1005','ACME','c1',9900,'Sent','2026-06-04','2026-07-04');
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
   p1 := record_payment('c1', '2026-06-05', 20000, chk, '[{"invoice_id":"inv-1","amount_cents":20000}]');
   p2 := record_payment('c1', '2026-06-20', 7000, chk, '[]');
 

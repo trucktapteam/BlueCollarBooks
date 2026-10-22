@@ -25,7 +25,6 @@ begin
   -- ---------- positive control: same-owner children are allowed ----------
   begin
     insert into invoice_line_items (id, invoice_id, user_id, description, amount, position) values ('li-a', 'inv-a', a, 'ok', 10000, 0);
-    insert into invoice_payments (id, invoice_id, user_id, amount, payment_date) values ('pay-a', 'inv-a', a, 1000, '2026-06-05');
     insert into invoice_attachments (id, invoice_id, user_id, name, type) values ('att-a', 'inv-a', a, 'f.pdf', 'application/pdf');
     insert into expense_receipts (id, expense_id, user_id, name, type) values ('rc-a', 'exp-a', a, 'r.pdf', 'application/pdf');
     results := results || 'PASS same-owner children insert'::text;
@@ -40,7 +39,6 @@ begin
   begin
     for t in select * from (values
       ('line item -> other user''s invoice',   $q$insert into invoice_line_items (id, invoice_id, user_id, description, amount, position) values ('x1','inv-a','00000000-0000-4000-8000-0000000000bb','x',1,0)$q$),
-      ('payment -> other user''s invoice',     $q$insert into invoice_payments (id, invoice_id, user_id, amount) values ('x2','inv-a','00000000-0000-4000-8000-0000000000bb',1)$q$),
       ('attachment -> other user''s invoice',  $q$insert into invoice_attachments (id, invoice_id, user_id, name, type) values ('x3','inv-a','00000000-0000-4000-8000-0000000000bb','f','t')$q$),
       ('receipt -> other user''s expense',     $q$insert into expense_receipts (id, expense_id, user_id, name, type) values ('x4','exp-a','00000000-0000-4000-8000-0000000000bb','f','t')$q$),
       ('invoice -> other user''s customer',    $q$insert into invoices (id, user_id, invoice_number, customer, customer_id, amount, status) values ('x5','00000000-0000-4000-8000-0000000000bb','B-1','c','cust-a',1,'Draft')$q$),
@@ -69,8 +67,6 @@ begin
       ('invoice with blank number',        $q$insert into invoices (id, user_id, invoice_number, customer, amount, status) values ('c3','00000000-0000-4000-8000-0000000000aa','  ','c',1,'Draft')$q$),
       ('invoice due before invoice date',  $q$insert into invoices (id, user_id, invoice_number, customer, amount, status, invoice_date, due_date) values ('c4','00000000-0000-4000-8000-0000000000aa','C-4','c',1,'Draft','2026-06-10','2026-06-01')$q$),
       ('invoice dated year 1900',          $q$insert into invoices (id, user_id, invoice_number, customer, amount, status, invoice_date) values ('c5','00000000-0000-4000-8000-0000000000aa','C-5','c',1,'Draft','1900-01-01')$q$),
-      ('zero-dollar payment',              $q$insert into invoice_payments (id, invoice_id, user_id, amount) values ('c6','inv-a','00000000-0000-4000-8000-0000000000aa',0)$q$),
-      ('negative payment',                 $q$insert into invoice_payments (id, invoice_id, user_id, amount) values ('c7','inv-a','00000000-0000-4000-8000-0000000000aa',-5)$q$),
       ('negative expense',                 $q$insert into expenses (id, user_id, vendor, amount) values ('c8','00000000-0000-4000-8000-0000000000aa','v',-1)$q$),
       ('duplicate invoice number',         $q$insert into invoices (id, user_id, invoice_number, customer, amount, status) values ('c9','00000000-0000-4000-8000-0000000000aa','A-1','c',1,'Draft')$q$)
     ) as v(label, stmt)
@@ -105,22 +101,28 @@ begin
   declare
     tbl text;
   begin
-    foreach tbl in array array['invoices','invoice_line_items','invoice_payments','invoice_attachments','expenses','expense_receipts','customers','activity_log','plaid_transactions','bank_accounts','expense_categories','business_settings','subscriptions'] loop
+    foreach tbl in array array['invoices','invoice_line_items','payments','invoice_attachments','expenses','expense_receipts','customers','activity_log','plaid_transactions','bank_accounts','expense_categories','business_settings','subscriptions'] loop
       execute format('select count(*) from %I where user_id = %L', tbl, a) into n;
       if n = 0 then results := results || ('PASS B cannot read A rows in ' || tbl);
       else failures := failures || ('FAIL B can read ' || n || ' of A rows in ' || tbl); end if;
     end loop;
   end;
 
+  -- Stage E: app roles have no write privilege on invoices at all (writes go through save_invoice / delete_invoice,
+  -- which are scoped to the signed-in user), so the attempt is refused outright; the old row-count-0 outcome is also acceptable.
   begin
     update invoices set amount = 1 where id = 'inv-a';
     get diagnostics n = row_count;
     if n = 0 then results := results || 'PASS B cannot update A invoice'::text; else failures := failures || 'FAIL B updated A invoice'::text; end if;
+  exception when insufficient_privilege then results := results || 'PASS B cannot update A invoice (no privilege)'::text;
+  when others then failures := failures || ('FAIL B update attempt errored: ' || sqlerrm);
+  end;
+  begin
     delete from invoices where id = 'inv-a';
     get diagnostics n = row_count;
     if n = 0 then results := results || 'PASS B cannot delete A invoice'::text; else failures := failures || 'FAIL B deleted A invoice'::text; end if;
-  exception when others then
-    failures := failures || ('FAIL B update/delete attempt errored: ' || sqlerrm);
+  exception when insufficient_privilege then results := results || 'PASS B cannot delete A invoice (no privilege)'::text;
+  when others then failures := failures || ('FAIL B delete attempt errored: ' || sqlerrm);
   end;
 
   begin

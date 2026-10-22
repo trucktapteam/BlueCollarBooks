@@ -40,7 +40,7 @@ begin
   if (select type from accounts where id = chk) = 'asset' and (select type from accounts where id = card) = 'liability'
      and fuel is not null and exists (select 1 from accounts where user_id = a and name = 'Meals' and type = 'expense')
      and (select count(*) from accounts where user_id = a and system_key is not null) = 8
-  then results := results || 'PASS seeding: bank->asset, credit card->liability, categories->expense accounts, 10 system accounts'::text;
+  then results := results || 'PASS seeding: bank->asset, credit card->liability, categories->expense accounts, 8 system accounts'::text;
   else failures := failures || 'FAIL seeding shape'; end if;
 
   execute 'create function pg_temp.bal(p uuid) returns bigint language sql as $f$ select balance_cents from account_balances where account_id = p $f$';
@@ -78,9 +78,15 @@ begin
   exception when others then failures := failures || ('FAIL commit-time checks as authenticated: ' || sqlstate || ' ' || sqlerrm); end;
   set constraints all deferred;
   perform post_expense('exp2', chk);
-  perform post_expense('exp3', chk);
-  if pg_temp.bal(unc) = 1700 then results := results || 'PASS expenses with no/unknown category go to Uncategorized Expense'::text;
+  if pg_temp.bal(unc) = 1200 then results := results || 'PASS an expense with a blank category goes to the explicit Uncategorized Expense account'::text;
   else failures := failures || ('FAIL uncategorized ' || pg_temp.bal(unc)); end if;
+  -- Stage E: a NAMED category with no matching account is an error, never a silent Uncategorized
+  begin perform post_expense('exp3', chk); failures := failures || 'FAIL unknown category silently accepted'::text;
+  exception when others then
+    if sqlstate = '23514' and pg_temp.bal(unc) = 1200 and not exists (select 1 from journal_entry_trace where source_id = 'exp3')
+    then results := results || 'PASS an expense with an unknown category is refused (no silent Uncategorized)'::text;
+    else failures := failures || ('FAIL unknown category ' || sqlstate || ' ' || sqlerrm); end if;
+  end;
 
   for t in select * from (values
     ('posting the same expense twice',      '23505', format('select post_expense(''exp1'', %L)', chk)),
@@ -98,15 +104,15 @@ begin
   end loop;
 
   -- credit-card expense raises the liability; only one expense counted
-  insert into expenses (id,user_id,vendor,category,amount,date) values ('exp5',a,'Diner','Meals',1000,'2026-06-12');
+  reset role; insert into expenses (id,user_id,vendor,category,amount,date) values ('exp5',a,'Diner','Meals',1000,'2026-06-12'); set local role authenticated;
   perform post_expense('exp5', card);
   if pg_temp.bal(card) = 21000 then results := results || 'PASS card-paid expense increases Credit Card liability'::text;
   else failures := failures || ('FAIL card expense ' || pg_temp.bal(card)); end if;
 
   -- ---- edit = reversal + repost ----
-  update expenses set amount = 70000 where id = 'exp1';
+  reset role; update expenses set amount = 70000 where id = 'exp1'; set local role authenticated;
   e2 := repost_expense('exp1');
-  if pg_temp.bal(fuel) = 70000 and pg_temp.bal(chk) = 428300
+  if pg_temp.bal(fuel) = 70000 and pg_temp.bal(chk) = 428800
   then results := results || 'PASS edited expense: old amount fully replaced, same bank account kept'::text;
   else failures := failures || ('FAIL repost balances ' || pg_temp.bal(fuel) || '/' || pg_temp.bal(chk)); end if;
   select count(*) into n from journal_entry_trace where source_type = 'expense' and source_id = 'exp1';
@@ -122,18 +128,18 @@ begin
 
   -- atomicity: a failing repost must not leave a dangling reversal
   select count(*) into n from journal_entries where user_id = a;
-  update expenses set amount = 0 where id = 'exp1';
+  reset role; update expenses set amount = 0 where id = 'exp1'; set local role authenticated;
   begin perform repost_expense('exp1'); failures := failures || 'FAIL repost of zero-amount expense accepted';
   exception when others then
     select count(*) into v from journal_entries where user_id = a;
     if sqlstate = '23514' and v = n and pg_temp.bal(fuel) = 70000 then results := results || 'PASS failed repost is atomic (no half-reversal left behind)'::text;
     else failures := failures || ('FAIL atomicity ' || sqlstate || ' entries ' || n || '->' || v); end if;
   end;
-  update expenses set amount = 70000 where id = 'exp1';
+  reset role; update expenses set amount = 70000 where id = 'exp1'; set local role authenticated;
 
   -- ---- reversals ----
   r := reverse_active_entry('expense', 'exp2', 'Deleted expense');
-  if r is not null and pg_temp.bal(unc) = 500 and (select count(*) from journal_entry_trace where source_id='exp2' and status='active') = 0
+  if r is not null and pg_temp.bal(unc) = 0 and (select count(*) from journal_entry_trace where source_id='exp2' and status='active') = 0
   then results := results || 'PASS reverse_active_entry removes an expense''s effect'::text;
   else failures := failures || ('FAIL reverse_active_entry ' || pg_temp.bal(unc)); end if;
   if reverse_active_entry('expense', 'exp2') is null then results := results || 'PASS reversing a source with nothing active is a no-op'::text;
@@ -144,7 +150,7 @@ begin
   exception when others then if sqlstate = '23505' then results := results || 'PASS an already-reversed entry cannot be reversed again'::text; else failures := failures || ('FAIL double rev ' || sqlstate); end if; end;
   -- re-post after delete-reversal is allowed (replacement)
   perform post_expense('exp2', chk);
-  if pg_temp.bal(unc) = 1700 then results := results || 'PASS re-posting a reversed source is allowed'::text; else failures := failures || 'FAIL repost after reverse'; end if;
+  if pg_temp.bal(unc) = 1200 then results := results || 'PASS re-posting a reversed source is allowed'::text; else failures := failures || 'FAIL repost after reverse'; end if;
 
   -- ---- whole-ledger invariants (8, 9, 10) ----
   reset role;

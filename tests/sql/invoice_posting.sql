@@ -5,7 +5,7 @@ do $test$
 declare
   a uuid := '00000000-0000-4000-8000-0000000000aa';
   b uuid := '00000000-0000-4000-8000-0000000000bb';
-  n int; v bigint; e1 uuid; e2 uuid; results text[] := '{}'; failures text[] := '{}';
+  n int; v bigint; e1 uuid; e2 uuid; t record; results text[] := '{}'; failures text[] := '{}';
   ar uuid; inc uuid; cnt0 int;
   inv jsonb := '{"id":"inv-1","invoice_number":"1001","customer":"ACME","amount":50000,"status":"Draft","invoice_date":"2026-06-01","terms":"Net 30","due_date":"2026-07-01"}';
   lines jsonb := '[{"id":"l1","description":"Freight","amount":50000,"service_date":"2026-05-20"}]';
@@ -47,16 +47,19 @@ begin
   then results := results || 'PASS status change to Paid creates no second income'::text; else failures := failures || 'FAIL paid changed ledger'; end if;
   perform save_invoice(inv || '{"status":"Sent"}', lines);
 
-  -- editing a posted invoice WITHOUT syncing is rejected by the database at commit
+  -- a posted invoice that drifts from its ledger entry is rejected by the database at commit
+  -- (app roles can no longer write invoices directly, so drift is attempted as the privileged role)
+  reset role;
   begin
-    perform save_invoice(inv || '{"status":"Sent","amount":60000}', '[{"id":"l1","description":"Freight","amount":60000}]');
+    update invoices set amount = 60000 where id = 'inv-1';
     set constraints all immediate;
-    failures := failures || 'FAIL drift accepted';
+    failures := failures || 'FAIL drift accepted'::text;
   exception when others then
     if sqlstate = '23514' then results := results || 'PASS DB rejects a posted invoice that drifts from its ledger entry'::text;
     else failures := failures || ('FAIL drift wrong error ' || sqlstate || ' ' || sqlerrm); end if;
   end;
   set constraints all deferred;
+  set local role authenticated;
 
   -- edit amount + sync = reversal + repost
   perform save_invoice(inv || '{"status":"Sent","amount":60000}', '[{"id":"l1","description":"Freight","amount":60000}]');
@@ -81,24 +84,35 @@ begin
   if sync_invoice_posting('inv-1') is not null and pg_temp.bal(ar) = 60000
   then results := results || 'PASS re-sending after draft posts again'::text; else failures := failures || 'FAIL resend'; end if;
 
-  -- cannot delete a posted invoice
-  begin delete from invoices where id = 'inv-1'; failures := failures || 'FAIL deleted posted invoice';
+  -- cannot delete a posted invoice (directly: app roles have no DELETE privilege; and the database refuses even for the privileged role)
+  begin delete from invoices where id = 'inv-1'; failures := failures || 'FAIL deleted posted invoice'::text;
+  exception when insufficient_privilege then results := results || 'PASS app roles cannot delete invoices directly'::text;
+  when others then failures := failures || ('FAIL delete wrong error ' || sqlstate); end;
+  reset role;
+  begin delete from invoices where id = 'inv-1'; failures := failures || 'FAIL deleted posted invoice (privileged)'::text;
   exception when foreign_key_violation then results := results || 'PASS a posted invoice cannot be deleted until reversed'::text;
   when others then failures := failures || ('FAIL delete wrong error ' || sqlstate); end;
+  set local role authenticated;
 
-  -- unsendable invoices
-  perform save_invoice('{"id":"inv-2","invoice_number":"1002","customer":"Z","amount":0,"status":"Sent","invoice_date":"2026-06-01"}', '[]');
-  begin perform sync_invoice_posting('inv-2'); failures := failures || 'FAIL zero invoice posted';
-  exception when others then if sqlstate = '23514' then results := results || 'PASS zero-dollar invoice cannot be sent'::text; else failures := failures || ('FAIL zero ' || sqlstate); end if; end;
-  perform save_invoice('{"id":"inv-3","invoice_number":"1003","customer":"Z","amount":100,"status":"Sent"}', '[]');
-  begin perform sync_invoice_posting('inv-3'); failures := failures || 'FAIL undated invoice posted';
-  exception when others then if sqlstate = '23514' then results := results || 'PASS invoice without a date cannot be sent'::text; else failures := failures || ('FAIL undated ' || sqlstate); end if; end;
-  perform save_invoice('{"id":"inv-4","invoice_number":"1004","customer":"Z","amount":200,"status":"Sent","invoice_date":"2026-06-01"}', '[{"id":"m1","description":"x","amount":100}]');
-  begin perform sync_invoice_posting('inv-4'); failures := failures || 'FAIL mismatch posted';
-  exception when others then if sqlstate = '23514' then results := results || 'PASS invoice total must equal its line items'::text; else failures := failures || ('FAIL mismatch ' || sqlstate); end if; end;
-  -- draft can be deleted freely
-  delete from invoices where id = 'inv-2';
-  if not exists (select 1 from invoices where id = 'inv-2') then results := results || 'PASS unposted invoices can be deleted'::text; else failures := failures || 'FAIL delete draft'; end if;
+  -- unsendable invoices are refused at save time, and nothing is half-saved
+  for t in select * from (values
+    ('zero-dollar invoice cannot be sent', '{"id":"inv-2","invoice_number":"1002","customer":"Z","amount":0,"status":"Sent","invoice_date":"2026-06-01"}', '[]'),
+    ('invoice without a date cannot be sent', '{"id":"inv-3","invoice_number":"1003","customer":"Z","amount":100,"status":"Sent"}', '[]'),
+    ('invoice total must equal its line items', '{"id":"inv-4","invoice_number":"1004","customer":"Z","amount":200,"status":"Sent","invoice_date":"2026-06-01"}', '[{"id":"m1","description":"x","amount":100}]')
+  ) as v(label, inv, ln)
+  loop
+    select count(*) into n from invoices;
+    begin perform save_invoice(t.inv::jsonb, t.ln::jsonb); failures := failures || ('FAIL accepted: ' || t.label);
+    exception when others then
+      if sqlstate = '23514' and (select count(*) from invoices) = n and (select count(*) from invoice_line_items where invoice_id in ('inv-2','inv-3','inv-4')) = 0
+      then results := results || ('PASS ' || t.label || ' (nothing half-saved)');
+      else failures := failures || ('FAIL ' || t.label || ' ' || sqlstate); end if;
+    end;
+  end loop;
+  -- a draft can be deleted freely (through delete_invoice)
+  perform save_invoice('{"id":"inv-5","invoice_number":"1005","customer":"Z","amount":100,"status":"Draft"}', '[]');
+  perform delete_invoice('inv-5');
+  if not exists (select 1 from invoices where id = 'inv-5') then results := results || 'PASS unposted invoices can be deleted'::text; else failures := failures || 'FAIL delete draft'; end if;
 
   -- other users / roles
   perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);

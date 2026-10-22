@@ -55,7 +55,7 @@ begin
   perform save_invoice(base, '[]');
   select count(*) into n from invoice_line_items where invoice_id='inv-1';
   if n = 0 then results := results || 'PASS empty line list clears lines'::text; else failures := failures || 'FAIL clear'; end if;
-  perform save_invoice(base, '[{"id":"l1","description":"Back","amount":25000}]');
+  perform save_invoice(base || '{"amount":25000}', '[{"id":"l1","description":"Back","amount":25000}]');   -- a sent invoice's lines must add up (it posts to the books)
 
   -- another user cannot overwrite or hijack
   perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);

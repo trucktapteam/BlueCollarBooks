@@ -98,32 +98,32 @@ begin
   end;
 
   -- ---- Invariant 5: reversal rules + no double posting ----
-  insert into journal_entries (id,user_id,entry_date,source_type,source_id) values ('e0000000-0000-4000-8000-0000000000e2',a,'2026-06-02','expense','exp-1');
+  insert into journal_entries (id,user_id,entry_date,source_type,source_id) values ('e0000000-0000-4000-8000-0000000000e2',a,'2026-06-02','bank_transaction','man-1');
   insert into journal_lines (entry_id,user_id,account_id,debit_cents,credit_cents) values
     ('e0000000-0000-4000-8000-0000000000e2',a,a_ar,700,0),('e0000000-0000-4000-8000-0000000000e2',a,a_inc,0,700);
   set constraints all immediate; set constraints all deferred;
 
   for t in select * from (values
     ('reversal with wrong amount', '23514',
-      $q$insert into journal_entries (id,user_id,entry_date,source_type,source_id,reverses_entry_id) values ('e0000000-0000-4000-8000-0000000000f2','00000000-0000-4000-8000-0000000000aa','2026-06-02','expense','exp-1','e0000000-0000-4000-8000-0000000000e2');
+      $q$insert into journal_entries (id,user_id,entry_date,source_type,source_id,reverses_entry_id) values ('e0000000-0000-4000-8000-0000000000f2','00000000-0000-4000-8000-0000000000aa','2026-06-02','bank_transaction','man-1','e0000000-0000-4000-8000-0000000000e2');
          insert into journal_lines (entry_id,user_id,account_id,debit_cents,credit_cents) select 'e0000000-0000-4000-8000-0000000000f2'::uuid,user_id,account_id,case when credit_cents>0 then 600 else 0 end,case when debit_cents>0 then 600 else 0 end from journal_lines where entry_id='e0000000-0000-4000-8000-0000000000e2'$q$),
     ('reversal with same sides (not swapped)', '23514',
-      $q$insert into journal_entries (id,user_id,entry_date,source_type,source_id,reverses_entry_id) values ('e0000000-0000-4000-8000-0000000000f3','00000000-0000-4000-8000-0000000000aa','2026-06-02','expense','exp-1','e0000000-0000-4000-8000-0000000000e2');
+      $q$insert into journal_entries (id,user_id,entry_date,source_type,source_id,reverses_entry_id) values ('e0000000-0000-4000-8000-0000000000f3','00000000-0000-4000-8000-0000000000aa','2026-06-02','bank_transaction','man-1','e0000000-0000-4000-8000-0000000000e2');
          insert into journal_lines (entry_id,user_id,account_id,debit_cents,credit_cents) select 'e0000000-0000-4000-8000-0000000000f3',user_id,account_id,debit_cents,credit_cents from journal_lines where entry_id='e0000000-0000-4000-8000-0000000000e2'$q$),
     ('reversal on a different date', '23514',
-      $q$insert into journal_entries (id,user_id,entry_date,source_type,source_id,reverses_entry_id) values ('e0000000-0000-4000-8000-0000000000f4','00000000-0000-4000-8000-0000000000aa','2026-06-09','expense','exp-1','e0000000-0000-4000-8000-0000000000e2');
+      $q$insert into journal_entries (id,user_id,entry_date,source_type,source_id,reverses_entry_id) values ('e0000000-0000-4000-8000-0000000000f4','00000000-0000-4000-8000-0000000000aa','2026-06-09','bank_transaction','man-1','e0000000-0000-4000-8000-0000000000e2');
          insert into journal_lines (entry_id,user_id,account_id,debit_cents,credit_cents) select 'e0000000-0000-4000-8000-0000000000f4',user_id,account_id,credit_cents,debit_cents from journal_lines where entry_id='e0000000-0000-4000-8000-0000000000e2'$q$),
     ('reversal with a different source', '23514',
-      $q$insert into journal_entries (id,user_id,entry_date,source_type,source_id,reverses_entry_id) values ('e0000000-0000-4000-8000-0000000000f5','00000000-0000-4000-8000-0000000000aa','2026-06-02','expense','exp-OTHER','e0000000-0000-4000-8000-0000000000e2');
+      $q$insert into journal_entries (id,user_id,entry_date,source_type,source_id,reverses_entry_id) values ('e0000000-0000-4000-8000-0000000000f5','00000000-0000-4000-8000-0000000000aa','2026-06-02','bank_transaction','man-OTHER','e0000000-0000-4000-8000-0000000000e2');
          insert into journal_lines (entry_id,user_id,account_id,debit_cents,credit_cents) select 'e0000000-0000-4000-8000-0000000000f5',user_id,account_id,credit_cents,debit_cents from journal_lines where entry_id='e0000000-0000-4000-8000-0000000000e2'$q$),
     ('exact reversal accepted', 'ok',
-      $q$insert into journal_entries (id,user_id,entry_date,source_type,source_id,reverses_entry_id) values ('e0000000-0000-4000-8000-0000000000f1','00000000-0000-4000-8000-0000000000aa','2026-06-02','expense','exp-1','e0000000-0000-4000-8000-0000000000e2');
+      $q$insert into journal_entries (id,user_id,entry_date,source_type,source_id,reverses_entry_id) values ('e0000000-0000-4000-8000-0000000000f1','00000000-0000-4000-8000-0000000000aa','2026-06-02','bank_transaction','man-1','e0000000-0000-4000-8000-0000000000e2');
          insert into journal_lines (entry_id,user_id,account_id,debit_cents,credit_cents) select 'e0000000-0000-4000-8000-0000000000f1',user_id,account_id,credit_cents,debit_cents from journal_lines where entry_id='e0000000-0000-4000-8000-0000000000e2'$q$),
     ('reversing a reversal', '23514',
-      $q$insert into journal_entries (id,user_id,entry_date,source_type,source_id,reverses_entry_id) values ('e0000000-0000-4000-8000-0000000000f6','00000000-0000-4000-8000-0000000000aa','2026-06-02','expense','exp-1','e0000000-0000-4000-8000-0000000000f1');
+      $q$insert into journal_entries (id,user_id,entry_date,source_type,source_id,reverses_entry_id) values ('e0000000-0000-4000-8000-0000000000f6','00000000-0000-4000-8000-0000000000aa','2026-06-02','bank_transaction','man-1','e0000000-0000-4000-8000-0000000000f1');
          insert into journal_lines (entry_id,user_id,account_id,debit_cents,credit_cents) select 'e0000000-0000-4000-8000-0000000000f6',user_id,account_id,credit_cents,debit_cents from journal_lines where entry_id='e0000000-0000-4000-8000-0000000000f1'$q$),
     ('reversing the same entry twice', '23505',
-      $q$insert into journal_entries (id,user_id,entry_date,source_type,source_id,reverses_entry_id) values ('e0000000-0000-4000-8000-0000000000f7','00000000-0000-4000-8000-0000000000aa','2026-06-02','expense','exp-1','e0000000-0000-4000-8000-0000000000e2');
+      $q$insert into journal_entries (id,user_id,entry_date,source_type,source_id,reverses_entry_id) values ('e0000000-0000-4000-8000-0000000000f7','00000000-0000-4000-8000-0000000000aa','2026-06-02','bank_transaction','man-1','e0000000-0000-4000-8000-0000000000e2');
          insert into journal_lines (entry_id,user_id,account_id,debit_cents,credit_cents) select 'e0000000-0000-4000-8000-0000000000f7',user_id,account_id,credit_cents,debit_cents from journal_lines where entry_id='e0000000-0000-4000-8000-0000000000e2'$q$)
   ) as v(label, code, s)
   loop
@@ -140,7 +140,7 @@ begin
 
   -- Replacement after reversal is allowed; a second ACTIVE entry for the same source is not.
   begin
-    insert into journal_entries (id,user_id,entry_date,source_type,source_id) values ('e0000000-0000-4000-8000-0000000000a1',a,'2026-06-02','expense','exp-1');
+    insert into journal_entries (id,user_id,entry_date,source_type,source_id) values ('e0000000-0000-4000-8000-0000000000a1',a,'2026-06-02','bank_transaction','man-1');
     insert into journal_lines (entry_id,user_id,account_id,debit_cents,credit_cents) values
       ('e0000000-0000-4000-8000-0000000000a1',a,a_ar,800,0),('e0000000-0000-4000-8000-0000000000a1',a,a_inc,0,800);
     set constraints all immediate;
@@ -149,11 +149,11 @@ begin
   end;
   set constraints all deferred;
   begin
-    insert into journal_entries (id,user_id,entry_date,source_type,source_id) values ('e0000000-0000-4000-8000-0000000000a2',a,'2026-06-02','expense','exp-1');
+    insert into journal_entries (id,user_id,entry_date,source_type,source_id) values ('e0000000-0000-4000-8000-0000000000a2',a,'2026-06-02','bank_transaction','man-1');
     insert into journal_lines (entry_id,user_id,account_id,debit_cents,credit_cents) values
       ('e0000000-0000-4000-8000-0000000000a2',a,a_ar,800,0),('e0000000-0000-4000-8000-0000000000a2',a,a_inc,0,800);
     set constraints all immediate;
-    failures := failures || 'FAIL second active entry for one source accepted';
+    failures := failures || 'FAIL second active entry for one source accepted'::text;
   exception when others then
     if sqlstate = '23505' then results := results || 'PASS second active entry for one source rejected'::text;
     else failures := failures || ('FAIL double-post wrong error ' || sqlstate || ': ' || sqlerrm); end if;
