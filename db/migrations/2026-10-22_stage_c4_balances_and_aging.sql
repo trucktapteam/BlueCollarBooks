@@ -1,0 +1,8 @@
+-- Stage C4 (applied as Supabase migration "stage_c4_balances_and_aging"). Read-only derived views; nothing in the app reads them yet.
+--   invoice_balances_as_of(date) / view invoice_balances : per invoice - posted?, applied, balance, derived status
+--       (Draft | Not posted | Paid | Overdue | Due Today | Sent) and days past due, as of a date (payments after the date ignored)
+--   ar_aging_as_of(date) / view ar_aging                  : open posted invoices bucketed Current, 1-30, 31-60, 61-90, 90+
+--   payment_balances                                       : applied vs unapplied (customer credit) per payment
+--   ar_reconciliation_as_of(date)                          : ledger A/R must equal open invoice balances - unapplied payments
+-- All SECURITY INVOKER, so row-level security restricts them to the signed-in user's data.
+-- See the live definitions in the database (pg_get_functiondef) - this file records the design.
