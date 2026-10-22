@@ -74,6 +74,9 @@ begin
   e1 := post_expense('exp1', chk);
   if pg_temp.bal(fuel) = 65000 and pg_temp.bal(chk) = 435000 then results := results || 'PASS expense: Dr expense account / Cr bank'::text;
   else failures := failures || ('FAIL expense posting ' || pg_temp.bal(fuel) || '/' || pg_temp.bal(chk)); end if;
+  begin set constraints all immediate; results := results || 'PASS commit-time ledger checks run correctly as the signed-in role'::text;
+  exception when others then failures := failures || ('FAIL commit-time checks as authenticated: ' || sqlstate || ' ' || sqlerrm); end;
+  set constraints all deferred;
   perform post_expense('exp2', chk);
   perform post_expense('exp3', chk);
   if pg_temp.bal(unc) = 1700 then results := results || 'PASS expenses with no/unknown category go to Uncategorized Expense'::text;

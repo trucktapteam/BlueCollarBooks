@@ -33,6 +33,9 @@ begin
   then results := results || 'PASS sent invoice: Dr A/R / Cr Income on the invoice date; service date stays distinct; source traceable'::text;
   else failures := failures || ('FAIL post ' || pg_temp.bal(ar) || '/' || pg_temp.bal(inc)); end if;
 
+  begin set constraints all immediate; results := results || 'PASS commit-time ledger checks run correctly as the signed-in role'::text;
+  exception when others then failures := failures || ('FAIL commit-time checks as authenticated: ' || sqlstate || ' ' || sqlerrm); end;
+  set constraints all deferred;
   -- idempotent
   select count(*) into cnt0 from journal_entries;
   if sync_invoice_posting('inv-1') = e1 and (select count(*) from journal_entries) = cnt0

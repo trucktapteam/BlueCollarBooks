@@ -35,3 +35,6 @@ begin
   perform public._check_event(t.user_id, 'transfer', t.id::text, t.voided_at is null, t.transfer_date,
     jsonb_build_object(t.to_account_id::text, t.amount_cents), jsonb_build_object(t.from_account_id::text, t.amount_cents));
 end $$;
+
+-- Follow-up migration "stage_d_pin_owner_source_search_path" (advisor warning):
+alter function public._owner_source(text) set search_path = public, pg_temp;

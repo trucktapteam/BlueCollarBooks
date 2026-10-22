@@ -38,6 +38,9 @@ begin
      and (select source_type || ':' || source_id from journal_entries where source_id = p1::text and reverses_entry_id is null) = 'payment:' || p1::text
   then results := results || 'PASS payment: Dr bank / Cr A/R; Income unchanged (no second revenue); traceable to the payment'::text;
   else failures := failures || ('FAIL payment posting ' || pg_temp.bal(chk) || '/' || pg_temp.bal(ar) || '/' || pg_temp.bal(inc)); end if;
+  begin set constraints all immediate; results := results || 'PASS commit-time ledger checks run correctly as the signed-in role'::text;
+  exception when others then failures := failures || ('FAIL commit-time checks as authenticated: ' || sqlstate || ' ' || sqlerrm); end;
+  set constraints all deferred;
   p2 := record_payment('c1', '2026-06-12', 10000, chk, '[{"invoice_id":"inv-1","amount_cents":10000}]');
   if (select sum(amount_cents) from payment_applications where invoice_id='inv-1') = 50000 and pg_temp.bal(ar) = 40000
   then results := results || 'PASS two payments fully apply an invoice'::text; else failures := failures || 'FAIL two payments'; end if;
