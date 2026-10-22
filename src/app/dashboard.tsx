@@ -23,6 +23,7 @@ import {
   useInvoices,
 } from '@/data/mockInvoices';
 import { computeDueDate } from '@/utils/date';
+import { computeDashboardMetrics } from '@/utils/dashboardMetrics';
 
 // Every label below is matched explicitly to a live computed value further
 // down (metricValues), so this array intentionally carries no dollar amount
@@ -59,16 +60,15 @@ export default function DashboardScreen() {
   const missingPaperworkCount = invoices.filter((invoice) => (invoice.attachments ?? []).length === 0).length;
   const totalOverdueAmount = overdueInvoices.reduce((sum, inv) => sum + calculateInvoiceBalance(inv), 0);
   const now = new Date();
-  const invoicesThisMonth = invoices.filter((invoice) => isSameMonth(invoice.invoiceDate, now));
-  const moneyIn = calculateInvoiceTotal(invoicesThisMonth);
-  const moneyOut = calculateTotalMonthlyExpenses(expenses, now);
-  const profitThisMonth = moneyIn - moneyOut;
-  const paidThisMonth = calculatePaidInvoiceTotal(invoices);
   // Bank account balances are the real starting point, not a hardcoded
-  // number - see sumBankAccountBalances in mockBankAccounts.ts. The old
-  // constant here happened to equal only Business Checking, so Business
-  // Savings never counted toward Cash Available.
-  const cashAvailable = sumBankAccountBalances(bankAccounts) + paidThisMonth - moneyOut;
+  // number - see sumBankAccountBalances in mockBankAccounts.ts.
+  // Formulas live in src/utils/dashboardMetrics.ts so they can be tested.
+  const { moneyIn, moneyOut, profitThisMonth, paidThisMonth, cashAvailable } = computeDashboardMetrics({
+    invoices,
+    expenses,
+    bankBalanceTotal: sumBankAccountBalances(bankAccounts),
+    now,
+  });
   const formattedTotalMonthlyExpenses = formatInvoiceAmount(moneyOut);
   const formattedCashAvailable = formatInvoiceAmount(cashAvailable);
   const formattedMoneyIn = formatInvoiceAmount(moneyIn);
