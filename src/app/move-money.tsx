@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
+import { MoneyActivityList } from '@/components/MoneyActivityList';
 import { getCurrentUserId } from '@/data/authStore';
 import { PAID_PERSONALLY_LABEL, loadLedgerAccounts, useLedgerAccounts } from '@/data/ledgerAccounts';
 import {
@@ -227,6 +228,8 @@ export default function MoveMoneyScreen() {
           <Text style={styles.saveText}>{saving ? 'Saving…' : 'Save'}</Text>
         </Pressable>
       </View>
+
+      <MoneyActivityList reloadKey={message} />
     </AppShell>
   );
 }

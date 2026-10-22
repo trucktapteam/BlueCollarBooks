@@ -131,3 +131,153 @@ export async function loadOpenLoans(userId: string): Promise<OpenLoan[]> {
   }
   return (data ?? []) as OpenLoan[];
 }
+
+// ----- recent money activity: look back, correct, undo -----
+// Every correction is one database function. Editing or voiding reverses what
+// was recorded and records the corrected version; nothing is overwritten.
+
+export type ActivityKind =
+  | 'transfer'
+  | 'card_payment'
+  | 'owner_draw'
+  | 'owner_contribution'
+  | 'loan_received'
+  | 'loan_payment'
+  | 'refund'
+  | 'equipment'
+  | 'customer_payment';
+
+export type MoneyActivity = {
+  id: string;
+  kind: ActivityKind;
+  dateISO: string;
+  amountCents: number;
+  label: string | null;
+  accountId: string | null;
+  otherAccountId: string | null;
+  notes: string | null;
+  interestCents: number | null;
+  loanId: string | null;
+  category: string | null;
+  voided: boolean;
+  bankLinked: boolean;
+};
+
+type ActivityRow = {
+  id: string;
+  kind: ActivityKind;
+  event_date: string;
+  amount_cents: number;
+  label: string | null;
+  account_id: string | null;
+  other_account_id: string | null;
+  notes: string | null;
+  interest_cents: number | null;
+  loan_id: string | null;
+  category: string | null;
+  voided_at: string | null;
+  bank_linked: boolean;
+};
+
+export async function loadMoneyActivity(userId: string): Promise<MoneyActivity[]> {
+  const { data, error } = await supabase
+    .from('money_activity')
+    .select('*')
+    .eq('user_id', userId)
+    .order('event_date', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(200);
+  if (error) {
+    console.error('Failed to load money activity', error);
+    return [];
+  }
+  return ((data ?? []) as ActivityRow[]).map((row) => ({
+    id: row.id,
+    kind: row.kind,
+    dateISO: row.event_date,
+    amountCents: row.amount_cents,
+    label: row.label,
+    accountId: row.account_id,
+    otherAccountId: row.other_account_id,
+    notes: row.notes,
+    interestCents: row.interest_cents,
+    loanId: row.loan_id,
+    category: row.category,
+    voided: row.voided_at !== null,
+    bankLinked: row.bank_linked,
+  }));
+}
+
+// Takes it back out of the books. If it was matched to a bank transaction, that
+// transaction returns to review.
+export function voidActivity(activity: Pick<MoneyActivity, 'id' | 'kind'>) {
+  switch (activity.kind) {
+    case 'transfer':
+    case 'card_payment':
+      return call('void_transfer', { p_id: activity.id });
+    case 'owner_draw':
+    case 'owner_contribution':
+      return call('void_owner_transaction', { p_id: activity.id });
+    case 'loan_received':
+      return call('void_loan', { p_id: activity.id });
+    case 'loan_payment':
+      return call('void_loan_payment', { p_id: activity.id });
+    case 'refund':
+      return call('void_refund', { p_id: activity.id });
+    case 'equipment':
+      return call('void_fixed_asset', { p_id: activity.id });
+    case 'customer_payment':
+      return call('void_payment', { p_payment_id: activity.id });
+  }
+}
+
+export type ActivityEdit = { dateISO: string; amountCents: number; accountId: string; otherAccountId?: string; interestCents?: number; notes?: string };
+
+// Corrects the date, amount, account or note. Not available for equipment and
+// customer payments (void and re-record those).
+export function editActivity(activity: MoneyActivity, edit: ActivityEdit) {
+  const notes = edit.notes?.trim() || null;
+  switch (activity.kind) {
+    case 'transfer':
+    case 'card_payment':
+      return call('update_transfer', {
+        p_id: activity.id,
+        p_date: edit.dateISO,
+        p_amount_cents: edit.amountCents,
+        p_from_account_id: edit.accountId,
+        p_to_account_id: edit.otherAccountId,
+        p_notes: notes,
+      });
+    case 'owner_draw':
+    case 'owner_contribution':
+      return call('update_owner_transaction', {
+        p_id: activity.id,
+        p_date: edit.dateISO,
+        p_amount_cents: edit.amountCents,
+        p_account_id: edit.accountId,
+        p_notes: notes,
+      });
+    case 'refund':
+      return call('update_refund', {
+        p_id: activity.id,
+        p_date: edit.dateISO,
+        p_amount_cents: edit.amountCents,
+        p_account_id: edit.accountId,
+        p_category: activity.category === 'Uncategorized Expense' ? null : activity.category,
+        p_notes: notes,
+      });
+    case 'loan_payment': {
+      const interest = edit.interestCents ?? activity.interestCents ?? 0;
+      return call('update_loan_payment', {
+        p_id: activity.id,
+        p_date: edit.dateISO,
+        p_principal_cents: edit.amountCents - interest,
+        p_interest_cents: interest,
+        p_paid_from_account_id: edit.accountId,
+        p_notes: notes,
+      });
+    }
+    default:
+      throw new Error('This kind of entry cannot be edited. Void it and record it again.');
+  }
+}

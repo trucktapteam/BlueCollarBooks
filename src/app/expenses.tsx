@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } fro
 import { AppShell } from '@/components/AppShell';
 import {
   attachExpenseReceipt,
+  deleteExpense,
   deleteExpenseReceipt,
   type ExpenseReceipt,
   getReceiptViewUrl,
@@ -16,7 +17,7 @@ import {
 import { getCurrentUserId } from '@/data/authStore';
 import { fetchDashboardSummary } from '@/data/ledgerReports';
 import { useCategories } from '@/data/mockCategories';
-import { getTransactionsNeedingReview, usePlaidTransactions } from '@/data/mockPlaidTransactions';
+import { getTransactionsNeedingReview, loadPlaidTransactions, usePlaidTransactions } from '@/data/mockPlaidTransactions';
 import { formatMoneyCents } from '@/utils/money';
 import { formatDateDisplay } from '@/utils/date';
 
@@ -287,6 +288,8 @@ export default function ExpensesScreen() {
                   >
                     <Text style={styles.attachReceiptButtonText}>Attach Receipt</Text>
                   </Pressable>
+
+                  {!!expense.id && <DeleteExpenseButton expenseId={expense.id} />}
                 </View>
               </View>
             </View>
@@ -294,6 +297,37 @@ export default function ExpensesScreen() {
         </View>
       </View>
     </AppShell>
+  );
+}
+
+// Two taps so a stray click cannot remove an expense. The books are corrected
+// (the original entry is reversed, not erased); a bank transaction it came from
+// goes back to the review list.
+function DeleteExpenseButton({ expenseId }: { expenseId: string }) {
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function remove() {
+    setBusy(true);
+    setError('');
+    try {
+      await deleteExpense(expenseId);
+      const userId = getCurrentUserId();
+      if (userId) await loadPlaidTransactions(userId);
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Could not delete this expense.');
+      setBusy(false);
+    }
+  }
+
+  return (
+    <View>
+      <Pressable style={styles.receiptActionButton} disabled={busy} onPress={() => (confirming ? remove() : setConfirming(true))}>
+        <Text style={styles.receiptActionButtonText}>{busy ? 'Deleting…' : confirming ? 'Really delete this expense?' : 'Delete expense'}</Text>
+      </Pressable>
+      {!!error && <Text style={styles.receiptNeedsText}>{error}</Text>}
+    </View>
   );
 }
 

@@ -73,7 +73,15 @@ export default function DashboardScreen() {
   const dash = (cents?: number) => (summary && cents !== undefined ? formatInvoiceAmount(cents) : '—');
   const formattedProfitThisMonth = dash(summary?.profitCents);
   const metricValues: Record<string, string> = {
-    'Cash Available': dash(summary?.cashAvailableCents),
+    // Never show Cash Available as a dollar figure while any account is missing its starting balance:
+    // it would look authoritative and be wrong.
+    'Cash Available': !summary
+      ? '—'
+      : !summary.hasBankAccounts
+        ? '—'
+        : summary.accountsWithoutStartingBalance > 0
+          ? 'Starting balances needed'
+          : dash(summary.cashAvailableCents),
     'Money Out': dash(summary?.moneyOutCents),
     'Money In': dash(summary?.moneyInCents),
     'Waiting To Be Paid': dash(summary?.waitingToBePaidCents),
@@ -319,8 +327,14 @@ export default function DashboardScreen() {
                 </View>
                 <Text style={styles.metricLabel}>{metric.label}</Text>
               </View>
-              <Text style={styles.metricValue}>{metricValues[metric.label]}</Text>
-              <Text style={styles.metricHelper}>{metric.helper}</Text>
+              <Text style={[styles.metricValue, metricValues[metric.label] === 'Starting balances needed' && { fontSize: 22 }]}>{metricValues[metric.label]}</Text>
+              <Text style={styles.metricHelper}>
+                {metric.label === 'Cash Available' && summary?.hasBankAccounts && summary.accountsWithoutStartingBalance > 0
+                  ? `Enter a starting balance for ${summary.accountsWithoutStartingBalance} account${summary.accountsWithoutStartingBalance === 1 ? '' : 's'} (above) to see an accurate figure.`
+                  : metric.label === 'Cash Available' && summary && !summary.hasBankAccounts
+                    ? 'Connect a bank account to see this.'
+                    : metric.helper}
+              </Text>
             </Pressable>
           );
         })}
