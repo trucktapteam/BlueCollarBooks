@@ -149,3 +149,12 @@ from public.journal_entries e;
 
 revoke all on public.account_balances, public.journal_entry_trace from public, anon, authenticated;
 grant select on public.account_balances, public.journal_entry_trace to authenticated;
+
+-- Follow-up migration "stage_b2_revoke_internal_function_execute": internal functions are not callable by app roles.
+revoke all on function public.validate_journal_entry(uuid) from public, anon, authenticated;
+revoke all on function public.journal_validate_from_line() from public, anon, authenticated;
+revoke all on function public.journal_validate_from_entry() from public, anon, authenticated;
+revoke all on function public.ledger_immutable() from public, anon, authenticated;
+revoke all on function public.ledger_no_truncate() from public, anon, authenticated;
+revoke all on function public.journal_lines_only_in_creating_txn() from public, anon, authenticated;
+revoke all on function public.accounts_guard() from public, anon, authenticated;
