@@ -11,6 +11,15 @@ declare
   t record; stmt text; n int;
   ent text := $e$insert into journal_entries (id,user_id,entry_date,source_type,source_id,reverses_entry_id) values ('%s','%s','%s','%s',%s,%s);$e$;
 begin
+  -- Stage F5: signed-in users can no longer call these low-level posting functions. The tests still exercise them through
+  -- temporary SECURITY DEFINER wrappers (they run as the schema owner but still see the signed-in user via auth.uid()).
+  execute 'create function pg_temp.post_expense(p_expense_id text, p_paid_from_account_id uuid) returns uuid language sql security definer as $f$ select public.post_expense(p_expense_id, p_paid_from_account_id) $f$';
+  execute 'create function pg_temp.repost_expense(p_expense_id text, p_paid_from_account_id uuid default null) returns uuid language sql security definer as $f$ select case when p_paid_from_account_id is null then public.repost_expense(p_expense_id) else public.repost_expense(p_expense_id, p_paid_from_account_id) end $f$';
+  execute 'create function pg_temp.post_opening_balance(p_account_id uuid, p_amount_cents bigint, p_as_of date) returns uuid language sql security definer as $f$ select public.post_opening_balance(p_account_id, p_amount_cents, p_as_of) $f$';
+  execute 'create function pg_temp.reverse_journal_entry(p_entry_id uuid, p_memo text default null) returns uuid language sql security definer as $f$ select case when p_memo is null then public.reverse_journal_entry(p_entry_id) else public.reverse_journal_entry(p_entry_id, p_memo) end $f$';
+  execute 'create function pg_temp.reverse_active_entry(p_source_type text, p_source_id text, p_memo text default null) returns uuid language sql security definer as $f$ select case when p_memo is null then public.reverse_active_entry(p_source_type, p_source_id) else public.reverse_active_entry(p_source_type, p_source_id, p_memo) end $f$';
+  execute 'create function pg_temp.sync_invoice_posting(p_invoice_id text) returns uuid language sql security definer as $f$ select public.sync_invoice_posting(p_invoice_id) $f$';
+  execute 'create function pg_temp.ensure_chart_of_accounts() returns void language sql security definer as $f$ select public.ensure_chart_of_accounts() $f$';
   insert into auth.users (id,email,aud,role) values
     (a,'ta@example.invalid','authenticated','authenticated'),
     (b,'tb@example.invalid','authenticated','authenticated'),

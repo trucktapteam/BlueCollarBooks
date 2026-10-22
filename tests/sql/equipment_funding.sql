@@ -12,6 +12,15 @@ declare
   n int; v bigint; v2 bigint; t record;
   results text[] := '{}'; failures text[] := '{}';
 begin
+  -- Stage F5: signed-in users can no longer call these low-level posting functions. The tests still exercise them through
+  -- temporary SECURITY DEFINER wrappers (they run as the schema owner but still see the signed-in user via auth.uid()).
+  execute 'create function pg_temp.post_expense(p_expense_id text, p_paid_from_account_id uuid) returns uuid language sql security definer as $f$ select public.post_expense(p_expense_id, p_paid_from_account_id) $f$';
+  execute 'create function pg_temp.repost_expense(p_expense_id text, p_paid_from_account_id uuid default null) returns uuid language sql security definer as $f$ select case when p_paid_from_account_id is null then public.repost_expense(p_expense_id) else public.repost_expense(p_expense_id, p_paid_from_account_id) end $f$';
+  execute 'create function pg_temp.post_opening_balance(p_account_id uuid, p_amount_cents bigint, p_as_of date) returns uuid language sql security definer as $f$ select public.post_opening_balance(p_account_id, p_amount_cents, p_as_of) $f$';
+  execute 'create function pg_temp.reverse_journal_entry(p_entry_id uuid, p_memo text default null) returns uuid language sql security definer as $f$ select case when p_memo is null then public.reverse_journal_entry(p_entry_id) else public.reverse_journal_entry(p_entry_id, p_memo) end $f$';
+  execute 'create function pg_temp.reverse_active_entry(p_source_type text, p_source_id text, p_memo text default null) returns uuid language sql security definer as $f$ select case when p_memo is null then public.reverse_active_entry(p_source_type, p_source_id) else public.reverse_active_entry(p_source_type, p_source_id, p_memo) end $f$';
+  execute 'create function pg_temp.sync_invoice_posting(p_invoice_id text) returns uuid language sql security definer as $f$ select public.sync_invoice_posting(p_invoice_id) $f$';
+  execute 'create function pg_temp.ensure_chart_of_accounts() returns void language sql security definer as $f$ select public.ensure_chart_of_accounts() $f$';
   insert into auth.users (id,email,aud,role) values
     (a,'ta@example.invalid','authenticated','authenticated'),(b,'tb@example.invalid','authenticated','authenticated'),(c,'tc@example.invalid','authenticated','authenticated');
   insert into bank_accounts (id,user_id,name,last4,balance,last_updated,subtype) values
@@ -36,7 +45,7 @@ begin
 
   perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
   set local role authenticated;
-  perform post_opening_balance(chk, 100000, '2026-06-01');
+  perform pg_temp.post_opening_balance(chk, 100000, '2026-06-01');
   l1 := record_loan('Cash loan', 'Bank', 50000, '2026-06-01', chk);   -- chk 150000
 
   -- ---- each single funding source ----
@@ -171,7 +180,7 @@ begin
 
   -- ---- entries cannot be reversed behind the equipment's back ----
   select id into ent from journal_entry_trace where source_id = e6::text and status = 'active';
-  begin perform reverse_journal_entry(ent); set constraints all immediate; failures := failures || 'FAIL equipment entry reversed behind its back';
+  begin perform pg_temp.reverse_journal_entry(ent); set constraints all immediate; failures := failures || 'FAIL equipment entry reversed behind its back';
   exception when others then
     if sqlstate = '23514' then results := results || 'PASS DB: an equipment ledger entry cannot be reversed without voiding the equipment'::text;
     else failures := failures || ('FAIL direct reverse ' || sqlstate || ' ' || sqlerrm); end if;

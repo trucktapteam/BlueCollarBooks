@@ -10,6 +10,15 @@ declare
   d1 uuid; k1 uuid; d2 uuid; e uuid; n int; v bigint; v2 bigint; t record;
   results text[] := '{}'; failures text[] := '{}';
 begin
+  -- Stage F5: signed-in users can no longer call these low-level posting functions. The tests still exercise them through
+  -- temporary SECURITY DEFINER wrappers (they run as the schema owner but still see the signed-in user via auth.uid()).
+  execute 'create function pg_temp.post_expense(p_expense_id text, p_paid_from_account_id uuid) returns uuid language sql security definer as $f$ select public.post_expense(p_expense_id, p_paid_from_account_id) $f$';
+  execute 'create function pg_temp.repost_expense(p_expense_id text, p_paid_from_account_id uuid default null) returns uuid language sql security definer as $f$ select case when p_paid_from_account_id is null then public.repost_expense(p_expense_id) else public.repost_expense(p_expense_id, p_paid_from_account_id) end $f$';
+  execute 'create function pg_temp.post_opening_balance(p_account_id uuid, p_amount_cents bigint, p_as_of date) returns uuid language sql security definer as $f$ select public.post_opening_balance(p_account_id, p_amount_cents, p_as_of) $f$';
+  execute 'create function pg_temp.reverse_journal_entry(p_entry_id uuid, p_memo text default null) returns uuid language sql security definer as $f$ select case when p_memo is null then public.reverse_journal_entry(p_entry_id) else public.reverse_journal_entry(p_entry_id, p_memo) end $f$';
+  execute 'create function pg_temp.reverse_active_entry(p_source_type text, p_source_id text, p_memo text default null) returns uuid language sql security definer as $f$ select case when p_memo is null then public.reverse_active_entry(p_source_type, p_source_id) else public.reverse_active_entry(p_source_type, p_source_id, p_memo) end $f$';
+  execute 'create function pg_temp.sync_invoice_posting(p_invoice_id text) returns uuid language sql security definer as $f$ select public.sync_invoice_posting(p_invoice_id) $f$';
+  execute 'create function pg_temp.ensure_chart_of_accounts() returns void language sql security definer as $f$ select public.ensure_chart_of_accounts() $f$';
   insert into auth.users (id,email,aud,role) values
     (a,'ta@example.invalid','authenticated','authenticated'),(b,'tb@example.invalid','authenticated','authenticated'),(c,'tc@example.invalid','authenticated','authenticated');
   insert into bank_accounts (id,user_id,name,last4,balance,last_updated,subtype) values
@@ -30,7 +39,7 @@ begin
 
   perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
   set local role authenticated;
-  perform post_opening_balance(chk, 100000, '2026-06-01');
+  perform pg_temp.post_opening_balance(chk, 100000, '2026-06-01');
 
   -- ---- owner draw: Dr Owner Draws / Cr bank; not an expense (inv 16) ----
   d1 := record_owner_draw('2026-06-10', 20000, chk, 'personal');
@@ -92,7 +101,7 @@ begin
   exception when others then if sqlstate = '23514' then results := results || 'PASS a voided owner transaction cannot be edited'::text; else failures := failures || ('FAIL voided edit ' || sqlstate); end if; end;
 
   -- ---- expense paid personally by the owner: Dr expense / Cr Owner Contributions; bank untouched ----
-  perform post_expense('exp1', contribs);
+  perform pg_temp.post_expense('exp1', contribs);
   if pg_temp.bal(fuel) = 12000 and pg_temp.bal(contribs) = 62000 and pg_temp.bal(chk) = 135000
      and exists (select 1 from journal_entries where source_id = 'exp1' and memo like '%paid personally by owner%')
   then results := results || 'PASS owner-paid expense: Dr expense / Cr Owner Contributions; no bank account pretended'::text;
@@ -102,10 +111,10 @@ begin
   update expenses set amount = 14000 where id = 'exp1';
   perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
   set local role authenticated;
-  perform repost_expense('exp1');
+  perform pg_temp.repost_expense('exp1');
   if pg_temp.bal(fuel) = 14000 and pg_temp.bal(contribs) = 64000 and pg_temp.bal(chk) = 135000
   then results := results || 'PASS editing an owner-paid expense keeps it owner-paid (reversal + repost)'::text; else failures := failures || ('FAIL owner-paid repost ' || pg_temp.bal(contribs)); end if;
-  perform repost_expense('exp1', chk);
+  perform pg_temp.repost_expense('exp1', chk);
   if pg_temp.bal(contribs) = 50000 and pg_temp.bal(chk) = 121000 and pg_temp.bal(fuel) = 14000
   then results := results || 'PASS an owner-paid expense can later be re-pointed at a real bank account'::text; else failures := failures || ('FAIL repoint ' || pg_temp.bal(contribs) || '/' || pg_temp.bal(chk)); end if;
   select coalesce(sum(balance_cents),0) into v from account_balances where user_id = a and type = 'income';
@@ -113,12 +122,12 @@ begin
 
   -- ---- expense "Paid from" must be a real source (tightened rule) ----
   for t in select * from (values
-    ('expense paid from Accounts Receivable', '23514', format('select post_expense(''exp2'', %L)', ar)),
-    ('expense paid from Equipment',           '23514', format('select post_expense(''exp2'', %L)', eqp)),
-    ('expense paid from a loan account',      '23514', format('select post_expense(''exp2'', %L)', loansp)),
-    ('expense paid from Owner Draws',         '23514', format('select post_expense(''exp2'', %L)', draws)),
-    ('expense paid from an expense account',  '23514', format('select post_expense(''exp2'', %L)', fuel)),
-    ('expense with no account chosen',        '23514', 'select post_expense(''exp2'', null)')
+    ('expense paid from Accounts Receivable', '23514', format('select pg_temp.post_expense(''exp2'', %L)', ar)),
+    ('expense paid from Equipment',           '23514', format('select pg_temp.post_expense(''exp2'', %L)', eqp)),
+    ('expense paid from a loan account',      '23514', format('select pg_temp.post_expense(''exp2'', %L)', loansp)),
+    ('expense paid from Owner Draws',         '23514', format('select pg_temp.post_expense(''exp2'', %L)', draws)),
+    ('expense paid from an expense account',  '23514', format('select pg_temp.post_expense(''exp2'', %L)', fuel)),
+    ('expense with no account chosen',        '23514', 'select pg_temp.post_expense(''exp2'', null)')
   ) as v(label, code, s)
   loop
     begin execute t.s; failures := failures || ('FAIL accepted: ' || t.label);
@@ -131,7 +140,7 @@ begin
   -- ---- an owner event's ledger entry cannot be reversed behind its back ----
   select id into e from journal_entry_trace where source_id = d1::text and status = 'active';
   begin
-    perform reverse_journal_entry(e);
+    perform pg_temp.reverse_journal_entry(e);
     set constraints all immediate;
     failures := failures || 'FAIL owner entry reversed behind the transaction''s back';
   exception when others then

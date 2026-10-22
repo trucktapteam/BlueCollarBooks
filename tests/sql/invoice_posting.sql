@@ -10,6 +10,15 @@ declare
   inv jsonb := '{"id":"inv-1","invoice_number":"1001","customer":"ACME","amount":50000,"status":"Draft","invoice_date":"2026-06-01","terms":"Net 30","due_date":"2026-07-01"}';
   lines jsonb := '[{"id":"l1","description":"Freight","amount":50000,"service_date":"2026-05-20"}]';
 begin
+  -- Stage F5: signed-in users can no longer call these low-level posting functions. The tests still exercise them through
+  -- temporary SECURITY DEFINER wrappers (they run as the schema owner but still see the signed-in user via auth.uid()).
+  execute 'create function pg_temp.post_expense(p_expense_id text, p_paid_from_account_id uuid) returns uuid language sql security definer as $f$ select public.post_expense(p_expense_id, p_paid_from_account_id) $f$';
+  execute 'create function pg_temp.repost_expense(p_expense_id text, p_paid_from_account_id uuid default null) returns uuid language sql security definer as $f$ select case when p_paid_from_account_id is null then public.repost_expense(p_expense_id) else public.repost_expense(p_expense_id, p_paid_from_account_id) end $f$';
+  execute 'create function pg_temp.post_opening_balance(p_account_id uuid, p_amount_cents bigint, p_as_of date) returns uuid language sql security definer as $f$ select public.post_opening_balance(p_account_id, p_amount_cents, p_as_of) $f$';
+  execute 'create function pg_temp.reverse_journal_entry(p_entry_id uuid, p_memo text default null) returns uuid language sql security definer as $f$ select case when p_memo is null then public.reverse_journal_entry(p_entry_id) else public.reverse_journal_entry(p_entry_id, p_memo) end $f$';
+  execute 'create function pg_temp.reverse_active_entry(p_source_type text, p_source_id text, p_memo text default null) returns uuid language sql security definer as $f$ select case when p_memo is null then public.reverse_active_entry(p_source_type, p_source_id) else public.reverse_active_entry(p_source_type, p_source_id, p_memo) end $f$';
+  execute 'create function pg_temp.sync_invoice_posting(p_invoice_id text) returns uuid language sql security definer as $f$ select public.sync_invoice_posting(p_invoice_id) $f$';
+  execute 'create function pg_temp.ensure_chart_of_accounts() returns void language sql security definer as $f$ select public.ensure_chart_of_accounts() $f$';
   insert into auth.users (id,email,aud,role) values (a,'ta@example.invalid','authenticated','authenticated'),(b,'tb@example.invalid','authenticated','authenticated');
   perform seed_chart_of_accounts(a); perform seed_chart_of_accounts(b);
   select id into ar  from accounts where user_id=a and system_key='accounts_receivable';
@@ -20,12 +29,12 @@ begin
 
   -- drafts post nothing (inv 20)
   perform save_invoice(inv, lines);
-  if sync_invoice_posting('inv-1') is null and (select count(*) from journal_entries) = 0 and pg_temp.bal(ar) = 0
+  if pg_temp.sync_invoice_posting('inv-1') is null and (select count(*) from journal_entries) = 0 and pg_temp.bal(ar) = 0
   then results := results || 'PASS inv 20: a draft invoice posts nothing'::text; else failures := failures || 'FAIL draft posted'; end if;
 
   -- sending posts Dr A/R / Cr Income, dated the invoice date (inv 19: service date stays separate)
   perform save_invoice(inv || '{"status":"Sent"}', lines);
-  e1 := sync_invoice_posting('inv-1');
+  e1 := pg_temp.sync_invoice_posting('inv-1');
   if e1 is not null and pg_temp.bal(ar) = 50000 and pg_temp.bal(inc) = 50000
      and (select entry_date from journal_entries where id = e1) = date '2026-06-01'
      and (select service_date from invoice_line_items where id = 'l1') = date '2026-05-20'
@@ -38,12 +47,12 @@ begin
   set constraints all deferred;
   -- idempotent
   select count(*) into cnt0 from journal_entries;
-  if sync_invoice_posting('inv-1') = e1 and (select count(*) from journal_entries) = cnt0
+  if pg_temp.sync_invoice_posting('inv-1') = e1 and (select count(*) from journal_entries) = cnt0
   then results := results || 'PASS sync is idempotent (same entry, nothing new)'::text; else failures := failures || 'FAIL not idempotent'; end if;
 
   -- marking Paid creates no second income
   perform save_invoice(inv || '{"status":"Paid"}', lines);
-  if sync_invoice_posting('inv-1') = e1 and pg_temp.bal(inc) = 50000
+  if pg_temp.sync_invoice_posting('inv-1') = e1 and pg_temp.bal(inc) = 50000
   then results := results || 'PASS status change to Paid creates no second income'::text; else failures := failures || 'FAIL paid changed ledger'; end if;
   perform save_invoice(inv || '{"status":"Sent"}', lines);
 
@@ -63,7 +72,7 @@ begin
 
   -- edit amount + sync = reversal + repost
   perform save_invoice(inv || '{"status":"Sent","amount":60000}', '[{"id":"l1","description":"Freight","amount":60000}]');
-  e2 := sync_invoice_posting('inv-1');
+  e2 := pg_temp.sync_invoice_posting('inv-1');
   if e2 <> e1 and pg_temp.bal(ar) = 60000 and pg_temp.bal(inc) = 60000
      and (select count(*) from journal_entry_trace where source_id='inv-1') = 3
      and (select count(*) from journal_entry_trace where source_id='inv-1' and status='active') = 1
@@ -72,16 +81,16 @@ begin
 
   -- date change keeps history in the right periods
   perform save_invoice(inv || '{"status":"Sent","amount":60000,"invoice_date":"2026-07-15","due_date":"2026-08-14"}', '[{"id":"l1","description":"Freight","amount":60000}]');
-  e1 := sync_invoice_posting('inv-1');
+  e1 := pg_temp.sync_invoice_posting('inv-1');
   if (select entry_date from journal_entries where id = e1) = date '2026-07-15' and pg_temp.bal(ar) = 60000
   then results := results || 'PASS invoice date change reposts on the new date'::text; else failures := failures || 'FAIL date repost'; end if;
 
   -- back to draft reverses; sending again reposts
   perform save_invoice(inv || '{"status":"Draft","amount":60000,"invoice_date":"2026-07-15","due_date":"2026-08-14"}', '[{"id":"l1","description":"Freight","amount":60000}]');
-  if sync_invoice_posting('inv-1') is null and pg_temp.bal(ar) = 0 and pg_temp.bal(inc) = 0
+  if pg_temp.sync_invoice_posting('inv-1') is null and pg_temp.bal(ar) = 0 and pg_temp.bal(inc) = 0
   then results := results || 'PASS back to Draft reverses the posting'::text; else failures := failures || 'FAIL draft reverse'; end if;
   perform save_invoice(inv || '{"status":"Sent","amount":60000,"invoice_date":"2026-07-15","due_date":"2026-08-14"}', '[{"id":"l1","description":"Freight","amount":60000}]');
-  if sync_invoice_posting('inv-1') is not null and pg_temp.bal(ar) = 60000
+  if pg_temp.sync_invoice_posting('inv-1') is not null and pg_temp.bal(ar) = 60000
   then results := results || 'PASS re-sending after draft posts again'::text; else failures := failures || 'FAIL resend'; end if;
 
   -- cannot delete a posted invoice (directly: app roles have no DELETE privilege; and the database refuses even for the privileged role)
@@ -116,12 +125,12 @@ begin
 
   -- other users / roles
   perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
-  begin perform sync_invoice_posting('inv-1'); failures := failures || 'FAIL B synced A invoice';
+  begin perform pg_temp.sync_invoice_posting('inv-1'); failures := failures || 'FAIL B synced A invoice';
   exception when others then if sqlstate = 'P0002' then results := results || 'PASS B cannot post A''s invoice'::text; else failures := failures || ('FAIL B sync ' || sqlstate); end if; end;
   reset role;
   perform set_config('request.jwt.claims', '{"role":"authenticated"}', true);
   set local role authenticated;
-  begin perform sync_invoice_posting('inv-1'); failures := failures || 'FAIL unauth';
+  begin perform pg_temp.sync_invoice_posting('inv-1'); failures := failures || 'FAIL unauth';
   exception when others then if sqlstate = '28000' then results := results || 'PASS not signed in is refused'::text; else failures := failures || ('FAIL unauth ' || sqlstate); end if; end;
   reset role;
   perform set_config('request.jwt.claims', '{"role":"anon"}', true);

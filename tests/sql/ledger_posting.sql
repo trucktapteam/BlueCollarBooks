@@ -11,6 +11,15 @@ declare
   results text[] := '{}'; failures text[] := '{}';
   t record;
 begin
+  -- Stage F5: signed-in users can no longer call these low-level posting functions. The tests still exercise them through
+  -- temporary SECURITY DEFINER wrappers (they run as the schema owner but still see the signed-in user via auth.uid()).
+  execute 'create function pg_temp.post_expense(p_expense_id text, p_paid_from_account_id uuid) returns uuid language sql security definer as $f$ select public.post_expense(p_expense_id, p_paid_from_account_id) $f$';
+  execute 'create function pg_temp.repost_expense(p_expense_id text, p_paid_from_account_id uuid default null) returns uuid language sql security definer as $f$ select case when p_paid_from_account_id is null then public.repost_expense(p_expense_id) else public.repost_expense(p_expense_id, p_paid_from_account_id) end $f$';
+  execute 'create function pg_temp.post_opening_balance(p_account_id uuid, p_amount_cents bigint, p_as_of date) returns uuid language sql security definer as $f$ select public.post_opening_balance(p_account_id, p_amount_cents, p_as_of) $f$';
+  execute 'create function pg_temp.reverse_journal_entry(p_entry_id uuid, p_memo text default null) returns uuid language sql security definer as $f$ select case when p_memo is null then public.reverse_journal_entry(p_entry_id) else public.reverse_journal_entry(p_entry_id, p_memo) end $f$';
+  execute 'create function pg_temp.reverse_active_entry(p_source_type text, p_source_id text, p_memo text default null) returns uuid language sql security definer as $f$ select case when p_memo is null then public.reverse_active_entry(p_source_type, p_source_id) else public.reverse_active_entry(p_source_type, p_source_id, p_memo) end $f$';
+  execute 'create function pg_temp.sync_invoice_posting(p_invoice_id text) returns uuid language sql security definer as $f$ select public.sync_invoice_posting(p_invoice_id) $f$';
+  execute 'create function pg_temp.ensure_chart_of_accounts() returns void language sql security definer as $f$ select public.ensure_chart_of_accounts() $f$';
   insert into auth.users (id,email,aud,role) values
     (a,'ta@example.invalid','authenticated','authenticated'),
     (b,'tb@example.invalid','authenticated','authenticated');
@@ -49,18 +58,18 @@ begin
   set local role authenticated;
 
   -- ---- opening balances ----
-  perform post_opening_balance(chk, 500000, '2026-06-01');
+  perform pg_temp.post_opening_balance(chk, 500000, '2026-06-01');
   if pg_temp.bal(chk) = 500000 and pg_temp.bal(obe) = 500000 then results := results || 'PASS asset opening balance: Dr account / Cr Opening Balance Equity'::text;
   else failures := failures || ('FAIL asset opening balance ' || pg_temp.bal(chk) || '/' || pg_temp.bal(obe)); end if;
-  perform post_opening_balance(card, 20000, '2026-06-01');
+  perform pg_temp.post_opening_balance(card, 20000, '2026-06-01');
   if pg_temp.bal(card) = 20000 and pg_temp.bal(obe) = 480000 then results := results || 'PASS liability opening balance: Cr card / Dr Opening Balance Equity'::text;
   else failures := failures || ('FAIL liability opening ' || pg_temp.bal(card) || '/' || pg_temp.bal(obe)); end if;
 
   for t in select * from (values
-    ('duplicate opening balance',      '23505', format('select post_opening_balance(%L, 100, ''2026-06-02'')', chk)),
-    ('zero opening balance',           '23514', format('select post_opening_balance(%L, 0, ''2026-06-02'')', fuel)),
-    ('opening balance on expense acct','23514', format('select post_opening_balance(%L, 100, ''2026-06-02'')', fuel)),
-    ('opening balance on other user''s account','P0002', format('select post_opening_balance(%L, 100, ''2026-06-02'')', b_chk))
+    ('duplicate opening balance',      '23505', format('select pg_temp.post_opening_balance(%L, 100, ''2026-06-02'')', chk)),
+    ('zero opening balance',           '23514', format('select pg_temp.post_opening_balance(%L, 0, ''2026-06-02'')', fuel)),
+    ('opening balance on expense acct','23514', format('select pg_temp.post_opening_balance(%L, 100, ''2026-06-02'')', fuel)),
+    ('opening balance on other user''s account','P0002', format('select pg_temp.post_opening_balance(%L, 100, ''2026-06-02'')', b_chk))
   ) as v(label, code, s)
   loop
     begin execute t.s; failures := failures || ('FAIL accepted: ' || t.label);
@@ -71,17 +80,17 @@ begin
   end loop;
 
   -- ---- expenses ----
-  e1 := post_expense('exp1', chk);
+  e1 := pg_temp.post_expense('exp1', chk);
   if pg_temp.bal(fuel) = 65000 and pg_temp.bal(chk) = 435000 then results := results || 'PASS expense: Dr expense account / Cr bank'::text;
   else failures := failures || ('FAIL expense posting ' || pg_temp.bal(fuel) || '/' || pg_temp.bal(chk)); end if;
   begin set constraints all immediate; results := results || 'PASS commit-time ledger checks run correctly as the signed-in role'::text;
   exception when others then failures := failures || ('FAIL commit-time checks as authenticated: ' || sqlstate || ' ' || sqlerrm); end;
   set constraints all deferred;
-  perform post_expense('exp2', chk);
+  perform pg_temp.post_expense('exp2', chk);
   if pg_temp.bal(unc) = 1200 then results := results || 'PASS an expense with a blank category goes to the explicit Uncategorized Expense account'::text;
   else failures := failures || ('FAIL uncategorized ' || pg_temp.bal(unc)); end if;
   -- Stage E: a NAMED category with no matching account is an error, never a silent Uncategorized
-  begin perform post_expense('exp3', chk); failures := failures || 'FAIL unknown category silently accepted'::text;
+  begin perform pg_temp.post_expense('exp3', chk); failures := failures || 'FAIL unknown category silently accepted'::text;
   exception when others then
     if sqlstate = '23514' and pg_temp.bal(unc) = 1200 and not exists (select 1 from journal_entry_trace where source_id = 'exp3')
     then results := results || 'PASS an expense with an unknown category is refused (no silent Uncategorized)'::text;
@@ -89,11 +98,11 @@ begin
   end;
 
   for t in select * from (values
-    ('posting the same expense twice',      '23505', format('select post_expense(''exp1'', %L)', chk)),
-    ('expense with zero amount',            '23514', format('select post_expense(''exp4'', %L)', chk)),
-    ('expense paid from an expense account','23514', format('select post_expense(''exp6'', %L)', fuel)),
-    ('expense paid from another user''s account','23514', format('select post_expense(''exp6'', %L)', b_chk)),
-    ('expense that does not exist',         'P0002', format('select post_expense(''nope'', %L)', chk))
+    ('posting the same expense twice',      '23505', format('select pg_temp.post_expense(''exp1'', %L)', chk)),
+    ('expense with zero amount',            '23514', format('select pg_temp.post_expense(''exp4'', %L)', chk)),
+    ('expense paid from an expense account','23514', format('select pg_temp.post_expense(''exp6'', %L)', fuel)),
+    ('expense paid from another user''s account','23514', format('select pg_temp.post_expense(''exp6'', %L)', b_chk)),
+    ('expense that does not exist',         'P0002', format('select pg_temp.post_expense(''nope'', %L)', chk))
   ) as v(label, code, s)
   loop
     begin execute t.s; failures := failures || ('FAIL accepted: ' || t.label);
@@ -105,13 +114,13 @@ begin
 
   -- credit-card expense raises the liability; only one expense counted
   reset role; insert into expenses (id,user_id,vendor,category,amount,date) values ('exp5',a,'Diner','Meals',1000,'2026-06-12'); set local role authenticated;
-  perform post_expense('exp5', card);
+  perform pg_temp.post_expense('exp5', card);
   if pg_temp.bal(card) = 21000 then results := results || 'PASS card-paid expense increases Credit Card liability'::text;
   else failures := failures || ('FAIL card expense ' || pg_temp.bal(card)); end if;
 
   -- ---- edit = reversal + repost ----
   reset role; update expenses set amount = 70000 where id = 'exp1'; set local role authenticated;
-  e2 := repost_expense('exp1');
+  e2 := pg_temp.repost_expense('exp1');
   if pg_temp.bal(fuel) = 70000 and pg_temp.bal(chk) = 428800
   then results := results || 'PASS edited expense: old amount fully replaced, same bank account kept'::text;
   else failures := failures || ('FAIL repost balances ' || pg_temp.bal(fuel) || '/' || pg_temp.bal(chk)); end if;
@@ -122,14 +131,14 @@ begin
   then results := results || 'PASS audit trail keeps original, reversal and replacement (3 entries, 1 active)'::text;
   else failures := failures || ('FAIL trace rows ' || n); end if;
   -- reposting to move the expense to the credit card
-  perform repost_expense('exp1', card);
+  perform pg_temp.repost_expense('exp1', card);
   if pg_temp.bal(card) = 21000 + 70000 and pg_temp.bal(fuel) = 70000 then results := results || 'PASS repost can change the paid-from account'::text;
   else failures := failures || ('FAIL repost to card ' || pg_temp.bal(card)); end if;
 
   -- atomicity: a failing repost must not leave a dangling reversal
   select count(*) into n from journal_entries where user_id = a;
   reset role; update expenses set amount = 0 where id = 'exp1'; set local role authenticated;
-  begin perform repost_expense('exp1'); failures := failures || 'FAIL repost of zero-amount expense accepted';
+  begin perform pg_temp.repost_expense('exp1'); failures := failures || 'FAIL repost of zero-amount expense accepted';
   exception when others then
     select count(*) into v from journal_entries where user_id = a;
     if sqlstate = '23514' and v = n and pg_temp.bal(fuel) = 70000 then results := results || 'PASS failed repost is atomic (no half-reversal left behind)'::text;
@@ -138,18 +147,18 @@ begin
   reset role; update expenses set amount = 70000 where id = 'exp1'; set local role authenticated;
 
   -- ---- reversals ----
-  r := reverse_active_entry('expense', 'exp2', 'Deleted expense');
+  r := pg_temp.reverse_active_entry('expense', 'exp2', 'Deleted expense');
   if r is not null and pg_temp.bal(unc) = 0 and (select count(*) from journal_entry_trace where source_id='exp2' and status='active') = 0
   then results := results || 'PASS reverse_active_entry removes an expense''s effect'::text;
   else failures := failures || ('FAIL reverse_active_entry ' || pg_temp.bal(unc)); end if;
-  if reverse_active_entry('expense', 'exp2') is null then results := results || 'PASS reversing a source with nothing active is a no-op'::text;
+  if pg_temp.reverse_active_entry('expense', 'exp2') is null then results := results || 'PASS reversing a source with nothing active is a no-op'::text;
   else failures := failures || 'FAIL second reverse not null'; end if;
-  begin perform reverse_journal_entry(r); failures := failures || 'FAIL reversed a reversal';
+  begin perform pg_temp.reverse_journal_entry(r); failures := failures || 'FAIL reversed a reversal';
   exception when others then if sqlstate = '23514' then results := results || 'PASS a reversal cannot be reversed'::text; else failures := failures || ('FAIL rev-of-rev ' || sqlstate); end if; end;
-  begin perform reverse_journal_entry(e1); failures := failures || 'FAIL double reversal';
+  begin perform pg_temp.reverse_journal_entry(e1); failures := failures || 'FAIL double reversal';
   exception when others then if sqlstate = '23505' then results := results || 'PASS an already-reversed entry cannot be reversed again'::text; else failures := failures || ('FAIL double rev ' || sqlstate); end if; end;
   -- re-post after delete-reversal is allowed (replacement)
-  perform post_expense('exp2', chk);
+  perform pg_temp.post_expense('exp2', chk);
   if pg_temp.bal(unc) = 1200 then results := results || 'PASS re-posting a reversed source is allowed'::text; else failures := failures || 'FAIL repost after reverse'; end if;
 
   -- ---- whole-ledger invariants (8, 9, 10) ----
@@ -174,9 +183,9 @@ begin
   perform set_config('request.jwt.claims', json_build_object('sub', b, 'role', 'authenticated')::text, true);
   set local role authenticated;
   for t in select * from (values
-    ('B posting A''s expense',        'P0002', format('select post_expense(''exp4'', %L)', b_chk)),
-    ('B reversing A''s entry',        'P0002', format('select reverse_journal_entry(%L)', e1)),
-    ('B reposting A''s expense',      'P0002', format('select repost_expense(''exp1'', %L)', b_chk))
+    ('B posting A''s expense',        'P0002', format('select pg_temp.post_expense(''exp4'', %L)', b_chk)),
+    ('B reversing A''s entry',        'P0002', format('select pg_temp.reverse_journal_entry(%L)', e1)),
+    ('B reposting A''s expense',      'P0002', format('select pg_temp.repost_expense(''exp1'', %L)', b_chk))
   ) as v(label, code, s)
   loop
     begin execute t.s; failures := failures || ('FAIL accepted: ' || t.label);
@@ -191,7 +200,7 @@ begin
 
   perform set_config('request.jwt.claims', '{"role":"authenticated"}', true);   -- no subject = not signed in
   set local role authenticated;
-  begin perform post_expense('exp1', chk); failures := failures || 'FAIL unauthenticated post';
+  begin perform pg_temp.post_expense('exp1', chk); failures := failures || 'FAIL unauthenticated post';
   exception when others then if sqlstate = '28000' then results := results || 'PASS function refuses when not signed in'::text; else failures := failures || ('FAIL no-auth ' || sqlstate); end if; end;
   reset role;
   perform set_config('request.jwt.claims', '{"role":"anon"}', true);

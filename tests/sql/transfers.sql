@@ -9,6 +9,15 @@ declare
   t1 uuid; t2 uuid; p1 uuid; e uuid; n int; v bigint; v2 bigint; t record;
   results text[] := '{}'; failures text[] := '{}';
 begin
+  -- Stage F5: signed-in users can no longer call these low-level posting functions. The tests still exercise them through
+  -- temporary SECURITY DEFINER wrappers (they run as the schema owner but still see the signed-in user via auth.uid()).
+  execute 'create function pg_temp.post_expense(p_expense_id text, p_paid_from_account_id uuid) returns uuid language sql security definer as $f$ select public.post_expense(p_expense_id, p_paid_from_account_id) $f$';
+  execute 'create function pg_temp.repost_expense(p_expense_id text, p_paid_from_account_id uuid default null) returns uuid language sql security definer as $f$ select case when p_paid_from_account_id is null then public.repost_expense(p_expense_id) else public.repost_expense(p_expense_id, p_paid_from_account_id) end $f$';
+  execute 'create function pg_temp.post_opening_balance(p_account_id uuid, p_amount_cents bigint, p_as_of date) returns uuid language sql security definer as $f$ select public.post_opening_balance(p_account_id, p_amount_cents, p_as_of) $f$';
+  execute 'create function pg_temp.reverse_journal_entry(p_entry_id uuid, p_memo text default null) returns uuid language sql security definer as $f$ select case when p_memo is null then public.reverse_journal_entry(p_entry_id) else public.reverse_journal_entry(p_entry_id, p_memo) end $f$';
+  execute 'create function pg_temp.reverse_active_entry(p_source_type text, p_source_id text, p_memo text default null) returns uuid language sql security definer as $f$ select case when p_memo is null then public.reverse_active_entry(p_source_type, p_source_id) else public.reverse_active_entry(p_source_type, p_source_id, p_memo) end $f$';
+  execute 'create function pg_temp.sync_invoice_posting(p_invoice_id text) returns uuid language sql security definer as $f$ select public.sync_invoice_posting(p_invoice_id) $f$';
+  execute 'create function pg_temp.ensure_chart_of_accounts() returns void language sql security definer as $f$ select public.ensure_chart_of_accounts() $f$';
   insert into auth.users (id,email,aud,role) values
     (a,'ta@example.invalid','authenticated','authenticated'),(b,'tb@example.invalid','authenticated','authenticated'),(c,'tc@example.invalid','authenticated','authenticated');
   insert into bank_accounts (id,user_id,name,last4,balance,last_updated,subtype) values
@@ -26,7 +35,7 @@ begin
 
   perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
   set local role authenticated;
-  perform post_opening_balance(chk, 100000, '2026-06-01');
+  perform pg_temp.post_opening_balance(chk, 100000, '2026-06-01');
 
   -- ---- a transfer: Dr destination / Cr source, no P&L effect (inv 14) ----
   t1 := record_transfer('2026-06-10', 30000, chk, sav, 'move cash');
@@ -92,7 +101,7 @@ begin
   -- ---- direct reversal of an event entry (bypassing the transfer/payment row) is rejected at commit ----
   select id into e from journal_entry_trace where source_id = t1::text and status = 'active';
   begin
-    perform reverse_journal_entry(e);
+    perform pg_temp.reverse_journal_entry(e);
     set constraints all immediate;
     failures := failures || 'FAIL transfer entry reversed behind the transfer''s back';
   exception when others then
@@ -103,7 +112,7 @@ begin
   p1 := record_payment('c1', '2026-06-15', 1000, chk, '[]');
   select id into e from journal_entry_trace where source_id = p1::text and status = 'active';
   begin
-    perform reverse_journal_entry(e);
+    perform pg_temp.reverse_journal_entry(e);
     set constraints all immediate;
     failures := failures || 'FAIL payment entry reversed behind the payment''s back';
   exception when others then
@@ -178,7 +187,7 @@ begin
   -- ---- deleting a user cascades through transfers and the immutable ledger ----
   perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
   set local role authenticated;
-  perform post_opening_balance(c_chk, 5000, '2026-06-01');
+  perform pg_temp.post_opening_balance(c_chk, 5000, '2026-06-01');
   perform record_transfer('2026-06-02', 1000, c_chk, c_sav);
   reset role;
   begin
