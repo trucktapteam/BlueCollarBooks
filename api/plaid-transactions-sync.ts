@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { plaidClient } from '../src/server/plaidAdmin';
 import { supabaseAdmin, getUserFromAuthHeader } from '../src/server/supabaseAdmin';
+import { planPlaidPageWrites } from '../src/utils/plaidSyncPlan';
 
 // Same reauth-detection pattern as api/plaid-sync.ts - see that file for the
 // full explanation of these error codes.
@@ -12,23 +13,6 @@ function getPlaidErrorCode(error: unknown): string | undefined {
     return response?.data?.error_code;
   }
   return undefined;
-}
-
-// Plaid's transactionsSync gives us either the newer personal_finance_category
-// object or the legacy category array (sometimes both, sometimes neither in
-// Sandbox) - flatten whatever's there into one string for storage. The actual
-// app-category guess (src/utils/suggestCategory.ts) runs client-side against
-// this so the mapping rules can improve later without re-syncing.
-function flattenPlaidCategory(txn: {
-  personal_finance_category?: { primary?: string | null; detailed?: string | null } | null;
-  category?: string[] | null;
-}): string | null {
-  const parts = [
-    txn.personal_finance_category?.primary,
-    txn.personal_finance_category?.detailed,
-    ...(txn.category ?? []),
-  ].filter((part): part is string => Boolean(part));
-  return parts.length ? parts.join(' / ') : null;
 }
 
 // Called by the client (the Transactions review screen, and periodically
@@ -77,19 +61,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           });
           const page = response.data;
 
-          const upsertRows = [...page.added, ...page.modified].map((txn) => ({
-            id: txn.transaction_id,
-            user_id: user.id,
-            plaid_item_id: item.item_id,
-            plaid_account_id: txn.account_id,
-            date: txn.date,
-            name: txn.name,
-            merchant_name: txn.merchant_name ?? null,
-            amount: Math.round(txn.amount * 100),
-            pending: txn.pending,
-            plaid_category: flattenPlaidCategory(txn),
-            updated_at: new Date().toISOString(),
-          }));
+          const { upsertRows, removedIds } = planPlaidPageWrites(page, {
+            userId: user.id,
+            itemId: item.item_id,
+            nowIso: new Date().toISOString(),
+          });
 
           if (upsertRows.length > 0) {
             // Only touch Plaid-owned columns here - never overwrite the
@@ -104,7 +80,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
 
           if (page.removed.length > 0) {
-            const removedIds = page.removed.map((t) => t.transaction_id).filter((id): id is string => Boolean(id));
             if (removedIds.length > 0) {
               const { error: deleteError } = await supabaseAdmin
                 .from('plaid_transactions')

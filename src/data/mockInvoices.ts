@@ -5,6 +5,25 @@ import { generateId } from '@/utils/id';
 import { formatMoneyCents } from '@/utils/money';
 import { computeDueDate, isSameMonthAsDate, isSameYearAsDate } from '@/utils/date';
 import { supabase } from '@/lib/supabase';
+import { writeInvoiceRows, type InvoiceDbClient } from './invoicePersistence';
+import {
+  calculateInvoiceBalance,
+  calculateInvoicePaymentTotal,
+  calculateInvoiceTotal,
+  calculatePaidInvoiceTotal,
+  calculateWaitingToBePaidTotal,
+  isInvoiceWaitingToBePaid,
+} from '@/utils/invoiceMath';
+
+// Re-exported so every existing import from this module keeps working.
+export {
+  calculateInvoiceBalance,
+  calculateInvoicePaymentTotal,
+  calculateInvoiceTotal,
+  calculatePaidInvoiceTotal,
+  calculateWaitingToBePaidTotal,
+  isInvoiceWaitingToBePaid,
+};
 
 export type InvoiceStatus = 'Draft' | 'Sent' | 'Due Today' | 'Overdue' | 'Paid';
 
@@ -229,20 +248,6 @@ export const formatInvoiceAmount = formatMoneyCents;
 export const isSameMonth = isSameMonthAsDate;
 export const isSameYear = isSameYearAsDate;
 
-export function calculateInvoicePaymentTotal(invoice: Invoice) {
-  const explicitPaymentTotal = (invoice.payments ?? []).reduce((total, payment) => total + payment.amount, 0);
-
-  if (explicitPaymentTotal > 0) {
-    return Math.min(explicitPaymentTotal, invoice.amount);
-  }
-
-  return invoice.status === 'Paid' ? invoice.amount : 0;
-}
-
-export function calculateInvoiceBalance(invoice: Invoice) {
-  return Math.max(invoice.amount - calculateInvoicePaymentTotal(invoice), 0);
-}
-
 export async function saveInvoice(invoice: Invoice, originalInvoiceId?: string) {
   const userId = getCurrentUserId();
   if (!userId) {
@@ -253,56 +258,12 @@ export async function saveInvoice(invoice: Invoice, originalInvoiceId?: string) 
   const existingInvoiceIndex = invoicesSnapshot.findIndex((item) => item.id === lookupInvoiceId);
   const existingInvoice = existingInvoiceIndex >= 0 ? invoicesSnapshot[existingInvoiceIndex] : undefined;
 
-  const { error: invoiceError } = await supabase.from('invoices').upsert({
-    id: invoice.id,
-    user_id: userId,
-    invoice_number: invoice.invoice,
-    customer: invoice.customer,
-    customer_id: invoice.customerId ?? null,
-    amount: invoice.amount,
-    status: invoice.status,
-    invoice_date: invoice.invoiceDate || null,
-    terms: invoice.terms ?? null,
-    po_number: invoice.poNumber ?? null,
-    bol_number: invoice.bolNumber ?? null,
-    shipper: invoice.shipper ?? null,
-    consignee: invoice.consignee ?? null,
-    freight_description: invoice.freightDescription ?? null,
-    updated_at: new Date().toISOString(),
-  });
-
-  if (invoiceError) {
-    console.error('Failed to save invoice', invoiceError);
-    throw invoiceError;
-  }
-
   const lineItems = invoice.lineItems ?? [];
-  // The invoice form always saves its full line-item list at once (no
-  // incremental per-row saves), so replacing every row for this invoice is
-  // simpler and just as correct as diffing - delete what's there, then
-  // insert what the form has now.
-  const { error: deleteError } = await supabase.from('invoice_line_items').delete().eq('invoice_id', invoice.id);
-  if (deleteError) {
-    console.error('Failed to clear old line items', deleteError);
-    throw deleteError;
-  }
-
-  if (lineItems.length > 0) {
-    const { error: lineItemsError } = await supabase.from('invoice_line_items').insert(
-      lineItems.map((item, index) => ({
-        id: item.id,
-        invoice_id: invoice.id,
-        user_id: userId,
-        description: item.description,
-        amount: item.amount,
-        position: index,
-      }))
-    );
-
-    if (lineItemsError) {
-      console.error('Failed to save line items', lineItemsError);
-      throw lineItemsError;
-    }
+  try {
+    await writeInvoiceRows(supabase as unknown as InvoiceDbClient, userId, invoice);
+  } catch (error) {
+    console.error('Failed to save invoice', error);
+    throw error;
   }
 
   const invoiceToSave: Invoice = {
@@ -601,36 +562,6 @@ export async function receiveInvoicePayment(invoiceId: string, paymentInput: Rec
   addActivity(`Payment received: ${formatInvoiceAmount(receivedAmount)} from ${invoice.customer} for invoice #${invoice.invoice}`);
   refreshInvoiceStatuses();
   emitChange();
-}
-
-export function calculateInvoiceTotal(invoices: Invoice[]) {
-  return invoices.reduce((total, invoice) => total + invoice.amount, 0);
-}
-
-export function isInvoiceWaitingToBePaid(invoice: Invoice) {
-  return invoice.status === 'Sent' || invoice.status === 'Overdue' || invoice.status === 'Due Today';
-}
-
-export function calculateWaitingToBePaidTotal(invoices: Invoice[]) {
-  return invoices.filter(isInvoiceWaitingToBePaid).reduce((total, invoice) => total + calculateInvoiceBalance(invoice), 0);
-}
-
-export function calculatePaidInvoiceTotal(invoices: Invoice[], comparisonDate = new Date()) {
-  return invoices.reduce((total, invoice) => {
-    const paymentsThisMonth = (invoice.payments ?? [])
-      .filter((payment) => isSameMonth(payment.date, comparisonDate))
-      .reduce((paymentTotal, payment) => paymentTotal + payment.amount, 0);
-
-    if (paymentsThisMonth > 0) {
-      return total + paymentsThisMonth;
-    }
-
-    if (invoice.status === 'Paid' && !invoice.payments?.length && isSameMonth(invoice.invoiceDate, comparisonDate)) {
-      return total + invoice.amount;
-    }
-
-    return total;
-  }, 0);
 }
 
 export function useInvoices() {

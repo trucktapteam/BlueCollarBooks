@@ -28,6 +28,7 @@ import {
   saveInvoice,
   useInvoices,
 } from '@/data/mockInvoices';
+import { buildInvoiceForSave } from '@/utils/invoiceForm';
 import { generateId } from '@/utils/id';
 import { formatMoneyCents, parseMoneyInputToCents } from '@/utils/money';
 import { selectTextOnFocus } from '@/utils/selectOnFocus';
@@ -214,21 +215,22 @@ export default function NewInvoiceScreen() {
     setSaveError('');
     try {
       await saveInvoice(
-        {
+        buildInvoiceForSave({
           id: recordId,
-          invoice: number,
-          customer: customer.trim(),
+          number,
+          customer,
           customerId: selectedCustomer?.id,
-          amount: invoiceTotalCents,
+          amountCents: invoiceTotalCents,
           status,
-          invoiceDate: normalizeDateToISO(date),
+          date,
+          terms,
           poNumber,
           bolNumber,
           shipper,
           consignee,
           freightDescription,
           lineItems: buildLineItemsForSave(),
-        },
+        }) as Invoice,
         originalInvoiceId
       );
       return true;
