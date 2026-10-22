@@ -2,57 +2,41 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { writeInvoiceRows, type InvoiceDbClient } from '../src/data/invoicePersistence.ts';
 
-// Minimal in-memory stand-in for the database. Like the real client, each call
-// is its own statement - there is no transaction spanning the delete+insert.
-function fakeDb(opts: { failLineItemInsert?: boolean } = {}) {
-  const tables: Record<string, Record<string, unknown>[]> = { invoices: [], invoice_line_items: [] };
+function recordingClient(result: { error: { code?: string; message?: string } | null } = { error: null }) {
+  const calls: { name: string; args: Record<string, any> }[] = [];
   const client: InvoiceDbClient = {
-    from: (table) => ({
-      upsert: async (row) => {
-        tables[table] = tables[table].filter((r) => r.id !== row.id).concat(row);
-        return { error: null };
-      },
-      insert: async (rows) => {
-        if (opts.failLineItemInsert) return { error: { code: 'XX000', message: 'boom' } };
-        tables[table].push(...rows);
-        return { error: null };
-      },
-      delete: () => ({
-        eq: async (col, val) => {
-          tables[table] = tables[table].filter((r) => r[col] !== val);
-          return { error: null };
-        },
-      }),
-    }),
+    rpc: async (name, args) => {
+      calls.push({ name, args: args as Record<string, any> });
+      return result;
+    },
   };
-  return { tables, client };
+  return { calls, client };
 }
 
 const base = { id: 'inv1', invoice: '1', customer: 'X', amount: 100, status: 'Draft', invoiceDate: '2026-06-01' };
 
-test('terms and a due date derived from them are written to the invoice row', async () => {
-  const { tables, client } = fakeDb();
+test('terms and a due date derived from them are sent with the invoice', async () => {
+  const { calls, client } = recordingClient();
   await writeInvoiceRows(client, 'u1', { ...base, terms: 'Net 30', lineItems: [] });
-  assert.equal(tables.invoices[0].terms, 'Net 30');
-  assert.equal(tables.invoices[0].due_date, '2026-07-01');
+  assert.equal(calls[0].args.p_invoice.terms, 'Net 30');
+  assert.equal(calls[0].args.p_invoice.due_date, '2026-07-01');
 });
 
-test('editing an invoice replaces its line items', async () => {
-  const { tables, client } = fakeDb();
-  await writeInvoiceRows(client, 'u1', { ...base, lineItems: [{ id: 'a', description: 'old', amount: 100 }] });
-  await writeInvoiceRows(client, 'u1', { ...base, lineItems: [{ id: 'b', description: 'new', amount: 100 }] });
-  assert.deepEqual(tables.invoice_line_items.map((r) => r.id), ['b']);
+// Regression test for an audit finding: saveInvoice used to delete all line items and re-insert them as
+// separate statements, so a failure in between lost the invoice's line items. It is now ONE database call
+// (an atomic function); the transactional behavior itself is proven in tests/sql/invoice_save.sql.
+test('the whole save (invoice + all line items) is a single atomic database call', async () => {
+  const { calls, client } = recordingClient();
+  await writeInvoiceRows(client, 'u1', {
+    ...base,
+    lineItems: [{ id: 'a', description: 'old', amount: 60 }, { id: 'b', description: 'new', amount: 40 }],
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].name, 'save_invoice');
+  assert.deepEqual(calls[0].args.p_lines.map((l: any) => l.id), ['a', 'b']);
 });
 
-// KNOWN BUG (audit): saveInvoice deletes the old line items and then inserts
-// the new ones as separate statements. If the insert fails, the invoice is
-// left with no line items at all. Fixed by one atomic database function in
-// Stage C.
-test('a failed save leaves the previous line items intact (atomic)', { todo: 'delete and insert are not atomic' }, async () => {
-  const { tables, client } = fakeDb();
-  await writeInvoiceRows(client, 'u1', { ...base, lineItems: [{ id: 'a', description: 'old', amount: 100 }] });
-  const failing = fakeDb({ failLineItemInsert: true });
-  failing.tables.invoice_line_items = [...tables.invoice_line_items];
-  await assert.rejects(() => writeInvoiceRows(failing.client, 'u1', { ...base, lineItems: [{ id: 'b', description: 'new', amount: 100 }] }));
-  assert.deepEqual(failing.tables.invoice_line_items.map((r) => r.id), ['a']);
+test('a database error is surfaced to the caller unchanged (e.g. duplicate invoice number 23505)', async () => {
+  const { client } = recordingClient({ error: { code: '23505', message: 'dup' } });
+  await assert.rejects(() => writeInvoiceRows(client, 'u1', { ...base, lineItems: [] }), (e: any) => e.code === '23505');
 });

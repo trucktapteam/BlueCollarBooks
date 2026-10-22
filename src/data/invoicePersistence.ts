@@ -1,19 +1,13 @@
-// The database writes behind saveInvoice(), with the Supabase client injected
-// so they can be tested against an in-memory fake. Moved verbatim from
-// mockInvoices.ts - behavior is unchanged (including the known
-// delete-then-insert non-atomicity that Stage C replaces with one atomic
-// database function).
+// The database write behind saveInvoice(), with the Supabase client injected so it can be tested.
+// The whole save (invoice row + line items) is ONE call to the save_invoice database function, which
+// runs as a single transaction and updates line items in place by their stable ids - so a failure
+// can never leave an invoice without its line items (see tests/sql/invoice_save.sql).
 import { computeDueDate, toISODateString } from '../utils/date.ts';
 
 export type DbError = { code?: string; message?: string };
-type Result = PromiseLike<{ error: DbError | null }>;
 
 export type InvoiceDbClient = {
-  from(table: string): {
-    upsert(row: Record<string, unknown>): Result;
-    insert(rows: Record<string, unknown>[]): Result;
-    delete(): { eq(column: string, value: string): Result };
-  };
+  rpc(name: string, args: Record<string, unknown>): PromiseLike<{ error: DbError | null }>;
 };
 
 export type PersistableInvoice = {
@@ -30,7 +24,7 @@ export type PersistableInvoice = {
   shipper?: string;
   consignee?: string;
   freightDescription?: string;
-  lineItems?: { id: string; description: string; amount: number }[];
+  lineItems?: { id: string; description: string; amount: number; serviceDate?: string; quantity?: number; rateCents?: number }[];
 };
 
 // Stored alongside terms so the due date is a fact in the database, not
@@ -40,42 +34,32 @@ function dueDateFor(invoice: PersistableInvoice): string | null {
   return due ? toISODateString(due) : null;
 }
 
-export async function writeInvoiceRows(client: InvoiceDbClient, userId: string, invoice: PersistableInvoice) {
-  const { error: invoiceError } = await client.from('invoices').upsert({
-    id: invoice.id,
-    user_id: userId,
-    invoice_number: invoice.invoice,
-    customer: invoice.customer,
-    customer_id: invoice.customerId ?? null,
-    amount: invoice.amount,
-    status: invoice.status,
-    invoice_date: invoice.invoiceDate || null,
-    terms: invoice.terms ?? null,
-    due_date: dueDateFor(invoice),
-    po_number: invoice.poNumber ?? null,
-    bol_number: invoice.bolNumber ?? null,
-    shipper: invoice.shipper ?? null,
-    consignee: invoice.consignee ?? null,
-    freight_description: invoice.freightDescription ?? null,
-    updated_at: new Date().toISOString(),
+export async function writeInvoiceRows(client: InvoiceDbClient, _userId: string, invoice: PersistableInvoice) {
+  const { error } = await client.rpc('save_invoice', {
+    p_invoice: {
+      id: invoice.id,
+      invoice_number: invoice.invoice,
+      customer: invoice.customer,
+      customer_id: invoice.customerId ?? null,
+      amount: invoice.amount,
+      status: invoice.status,
+      invoice_date: invoice.invoiceDate || null,
+      terms: invoice.terms ?? null,
+      due_date: dueDateFor(invoice),
+      po_number: invoice.poNumber ?? null,
+      bol_number: invoice.bolNumber ?? null,
+      shipper: invoice.shipper ?? null,
+      consignee: invoice.consignee ?? null,
+      freight_description: invoice.freightDescription ?? null,
+    },
+    p_lines: (invoice.lineItems ?? []).map((item) => ({
+      id: item.id,
+      description: item.description,
+      amount: item.amount,
+      service_date: item.serviceDate ?? null,
+      quantity: item.quantity ?? 1,
+      rate_cents: item.rateCents ?? null,
+    })),
   });
-  if (invoiceError) throw invoiceError;
-
-  const lineItems = invoice.lineItems ?? [];
-  const { error: deleteError } = await client.from('invoice_line_items').delete().eq('invoice_id', invoice.id);
-  if (deleteError) throw deleteError;
-
-  if (lineItems.length > 0) {
-    const { error: lineItemsError } = await client.from('invoice_line_items').insert(
-      lineItems.map((item, index) => ({
-        id: item.id,
-        invoice_id: invoice.id,
-        user_id: userId,
-        description: item.description,
-        amount: item.amount,
-        position: index,
-      }))
-    );
-    if (lineItemsError) throw lineItemsError;
-  }
+  if (error) throw error;
 }
