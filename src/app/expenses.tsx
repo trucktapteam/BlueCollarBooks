@@ -156,7 +156,7 @@ export default function ExpensesScreen() {
         <Pressable style={styles.reviewBanner} onPress={() => router.push('/transactions')}>
           <View style={styles.pageHeaderText}>
             <Text style={styles.reviewBannerTitle}>
-              {transactionsNeedingReview.length} bank transaction{transactionsNeedingReview.length === 1 ? '' : 's'} waiting to be categorized
+              {transactionsNeedingReview.length} bank transaction{transactionsNeedingReview.length === 1 ? '' : 's'} waiting to be reviewed
             </Text>
             <Text style={styles.reviewBannerText}>Turn them into expenses in a couple of taps.</Text>
           </View>

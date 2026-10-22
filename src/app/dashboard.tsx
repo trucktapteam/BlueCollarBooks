@@ -146,12 +146,12 @@ export default function DashboardScreen() {
     `Invoices over 30 days past due: ${invoicesOverThirtyPastDue}`,
     ...(missingPaperworkCount > 0 ? ['Invoices missing paperwork'] : []),
     ...(transactionsNeedingReview.length > 0
-      ? [`${transactionsNeedingReview.length} bank transaction${transactionsNeedingReview.length === 1 ? '' : 's'} need categorizing`]
+      ? [`${transactionsNeedingReview.length} bank transaction${transactionsNeedingReview.length === 1 ? '' : 's'} to review`]
       : []),
   ];
   const handleAttentionPress = (item: string) => {
     const lowerItem = item.toLowerCase();
-    if (lowerItem.includes('categorizing')) {
+    if (lowerItem.includes('to review')) {
       router.push('/transactions');
     } else if (lowerItem.includes('overdue') || lowerItem.includes('paperwork') || lowerItem.includes('past due')) {
       router.push('/invoices');
@@ -259,7 +259,7 @@ export default function DashboardScreen() {
 
             <View style={styles.attentionList}>
               {attentionItems.map((item) => {
-                const isActionable = item.toLowerCase().includes('overdue') || item.toLowerCase().includes('paperwork') || item.toLowerCase().includes('past due') || item.toLowerCase().includes('categorizing');
+                const isActionable = item.toLowerCase().includes('overdue') || item.toLowerCase().includes('paperwork') || item.toLowerCase().includes('past due') || item.toLowerCase().includes('to review');
 
                 return (
                   <Pressable
@@ -377,7 +377,7 @@ export default function DashboardScreen() {
               {transactionsNeedingReview.length > 0 && (
                 <Pressable style={styles.reviewTransactionsButton} onPress={() => router.push('/transactions')}>
                   <Text style={styles.reviewTransactionsButtonText}>
-                    Categorize {transactionsNeedingReview.length}
+                    Review {transactionsNeedingReview.length}
                   </Text>
                 </Pressable>
               )}
