@@ -1,0 +1,23 @@
+-- Stage C3 (applied as Supabase migrations "stage_c3_payments" + "stage_c3_block_delete_live_payment").
+-- The authoritative definitions live in the database; this file records the design for review:
+--
+-- Tables (RLS select-own; no insert/update/delete for app roles - written only by the functions below):
+--   payments(id uuid, user_id, customer_id -> customers(id,user_id), payment_date, amount_cents > 0,
+--            deposit_account_id -> accounts(id,user_id), method, reference, notes, voided_at, created_at)
+--   payment_applications(id, user_id, payment_id -> payments(id,user_id), invoice_id -> invoices(id,user_id),
+--            amount_cents > 0, unique(payment_id, invoice_id))
+--
+-- Enforced by the database at COMMIT (deferred constraint triggers; judge current rows; advisory-locked per invoice):
+--   * applications on a payment never exceed the payment amount                      (invariant 7)
+--   * applications on an invoice never exceed the invoice amount                     (invariant 7)
+--   * an invoice that has applications must be posted (cannot be un-posted / drafted / deleted)
+--   * a payment applies only to invoices of the same customer (when the payment names one)
+--   * a live payment must have exactly one active ledger entry matching amount, date and deposit account;
+--     a voided payment has none and no applications; a live payment cannot be deleted
+--
+-- Functions (SECURITY DEFINER, act only on auth.uid()'s data, one transaction each):
+--   record_payment(customer, date, amount, deposit_account, applications jsonb, method, reference, notes)
+--   update_payment(payment_id, ...same...)  -> replaces applications, reverses + reposts the ledger entry
+--   void_payment(payment_id)                -> removes applications, reverses the ledger entry, keeps the row
+--   posting: Dr deposit account (a real asset account, never a system account) / Cr Accounts Receivable.
+--            A payment never creates income. An unapplied payment stays as a customer credit in A/R.
