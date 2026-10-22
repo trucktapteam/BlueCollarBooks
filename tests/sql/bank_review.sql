@@ -193,7 +193,7 @@ begin
   if pg_temp.bal(chk) = v - 4500 and pg_temp.bal(card) = v2 - 4500 and (select kind = 'card_payment' from transfers where id = tid)
   then results := results || 'PASS confirmed pair with a credit card is a card payment (card balance owed goes down)'::text; else failures := failures || 'FAIL card pair'::text; end if;
   for t in select * from (values
-    ('pair that is not the same amount',   '23514', 'select confirm_transfer_pair(''o13'', ''o14i'')'),
+    ('pair that is not the same amount',   '23514', 'select confirm_transfer_pair(''o13'', ''o15'')'),
     ('pair given backwards',               '23514', 'select confirm_transfer_pair(''o14i'', ''o13'')'),
     ('pair with itself',                   '23514', 'select confirm_transfer_pair(''o13'', ''o13'')'),
     ('pair with an already recorded side', '23505', 'select confirm_transfer_pair(''o13'', ''o3i'')'),
@@ -260,8 +260,7 @@ begin
     then results := results || 'PASS voiding a linked event releases the link; the bank transaction returns to review'::text; else failures := failures || ('FAIL void releases ' || pg_temp.st('o4')); end if;
   exception when others then failures := failures || ('FAIL void ' || sqlerrm); end;
   set constraints all deferred;
-  -- expenses: o1 is linked to e1 (entered by hand: 80.00 from checking)
-  perform match_bank_transaction('o1', 'expense', 'e1');
+  -- expenses: o1 is still linked to e1 (entered by hand: 80.00 from checking)
   begin
     perform save_expense(jsonb_build_object('id','e1','date','2026-06-11','vendor','Loves','category','Fuel','amount',8500,'notes',null), chk);
     set constraints all immediate;

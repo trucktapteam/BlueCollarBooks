@@ -214,7 +214,7 @@ Each step is independently reviewable and leaves the app working.
 20. Dashboard reads the ledger (new Cash Available, Money In/Out, Profit); retire the old calculations.
 21. Backfill or reset test data; before/after comparison.
 
-**Stage F: bank-feed correctness (the foundation half of Phase 2)**
+**Stage F: bank-feed correctness (the foundation half of Phase 2)** (DONE, see `docs/STAGE_F_REPORT.md`; also added Move Money edit/void, Cash Available gating, and the revoke of the seven low-level posting functions)
 22. Plaid pending-to-posted linking (`pending_transaction_id`, no hard delete of resolved rows).
 23. Bank transaction resolution: match payment, match expense, transfer, loan, owner, ignore. Includes money-in review.
 24. Duplicate detection (manual expense vs bank transaction).
