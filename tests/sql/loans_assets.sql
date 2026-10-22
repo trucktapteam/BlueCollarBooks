@@ -72,14 +72,15 @@ begin
     ('payment: paid from Equipment',   '23514', format('select record_loan_payment(%L,''2026-09-01'',100,0,%L)', l1, eqp)),
     ('payment: paid from another user''s account','23514', format('select record_loan_payment(%L,''2026-09-01'',100,0,%L)', l1, b_chk)),
     ('payment: unknown loan',          'P0002', format('select record_loan_payment(gen_random_uuid(),''2026-09-01'',100,0,%L)', chk)),
-    ('equipment: zero cost',           '23514', format('select record_equipment_purchase(''X'',''2026-06-01'',0,%L)', chk)),
-    ('equipment: blank name',          '23514', format('select record_equipment_purchase('' '',''2026-06-01'',100,%L)', chk)),
-    ('equipment: no date',             '23514', format('select record_equipment_purchase(''X'',null,100,%L)', chk)),
-    ('equipment: paid from a credit card (use a loan or bank)','23514', format('select record_equipment_purchase(''X'',''2026-06-01'',100,%L)', card)),
-    ('equipment: paid from A/R',       '23514', format('select record_equipment_purchase(''X'',''2026-06-01'',100,%L)', ar)),
-    ('equipment: paid from another user''s account','23514', format('select record_equipment_purchase(''X'',''2026-06-01'',100,%L)', b_chk)),
-    ('financed equipment: zero cost',  '23514', 'select record_financed_equipment(''X'',''2026-06-01'',0)'),
-    ('financed equipment: name clashes with an account','23505', 'select record_financed_equipment(''Truck loan'',''2026-06-01'',1000)')
+    ('equipment: zero cost',           '23514', format('select record_equipment(''X'',''2026-06-01'',0,%L::jsonb)', json_build_array(json_build_object('kind','account','account_id',chk,'amount_cents',100)))),
+    ('equipment: blank name',          '23514', format('select record_equipment('' '',''2026-06-01'',100,%L::jsonb)', json_build_array(json_build_object('kind','account','account_id',chk,'amount_cents',100)))),
+    ('equipment: no date',             '23514', format('select record_equipment(''X'',null,100,%L::jsonb)', json_build_array(json_build_object('kind','account','account_id',chk,'amount_cents',100)))),
+    ('equipment: no funding',          '23514', 'select record_equipment(''X'',''2026-06-01'',100,''[]''::jsonb)'),
+    ('equipment: funding does not add up','23514', format('select record_equipment(''X'',''2026-06-01'',100,%L::jsonb)', json_build_array(json_build_object('kind','account','account_id',chk,'amount_cents',90)))),
+    ('equipment: paid from A/R',       '23514', format('select record_equipment(''X'',''2026-06-01'',100,%L::jsonb)', json_build_array(json_build_object('kind','account','account_id',ar,'amount_cents',100)))),
+    ('equipment: paid from another user''s account','23514', format('select record_equipment(''X'',''2026-06-01'',100,%L::jsonb)', json_build_array(json_build_object('kind','account','account_id',b_chk,'amount_cents',100)))),
+    ('equipment: financing without a name','23514', 'select record_equipment(''X'',''2026-06-01'',1000,''[{"kind":"loan","name":" ","amount_cents":1000}]''::jsonb)'),
+    ('equipment: financing name clashes with an account','23505', 'select record_equipment(''X'',''2026-06-01'',1000,''[{"kind":"loan","name":"Truck loan","amount_cents":1000}]''::jsonb)')
   ) as v(label, code, s)
   loop
     select count(*) into n from loans; select n + count(*) into n from loan_payments; select n + count(*) into n from fixed_assets;
@@ -117,20 +118,20 @@ begin
   exception when others then if sqlstate = '23514' then results := results || 'PASS a loan with live payments cannot be voided'::text; else failures := failures || ('FAIL loan void ' || sqlstate); end if; end;
 
   -- ---- equipment bought with a bank account: Dr Equipment / Cr bank; not an expense (inv 17) ----
-  a2 := record_equipment_purchase('Trailer', '2026-06-06', 800000, chk, 'cash');
+  a2 := record_equipment('Trailer', '2026-06-06', 800000, json_build_array(json_build_object('kind','account','account_id',chk,'amount_cents',800000))::jsonb, 'cash');
   if pg_temp.bal(eqp) = 800000 and pg_temp.bal(chk) = 598500 - 800000 and pg_temp.pl(a) = -3500
      and (select source_type from journal_entries where source_id = a2::text and reverses_entry_id is null) = 'equipment'
   then results := results || 'PASS inv 17: equipment bought with cash posts Dr Equipment / Cr bank; no expense'::text;
   else failures := failures || ('FAIL equipment purchase ' || pg_temp.bal(eqp) || '/' || pg_temp.bal(chk) || '/' || pg_temp.pl(a)); end if;
-  perform update_equipment_purchase(a2, 'Trailer', '2026-06-07', 750000, sav, 'edited');
+  perform update_equipment(a2, 'Trailer', '2026-06-07', 750000, json_build_array(json_build_object('kind','account','account_id',sav,'amount_cents',750000))::jsonb, 'edited');
   if pg_temp.bal(eqp) = 750000 and pg_temp.bal(chk) = 598500 and pg_temp.bal(sav) = -27000 - 750000
      and (select count(*) from journal_entry_trace where source_id = a2::text) = 3
   then results := results || 'PASS edited equipment purchase: reversal + repost with new cost, date and account'::text;
   else failures := failures || ('FAIL equipment edit ' || pg_temp.bal(eqp) || '/' || pg_temp.bal(chk) || '/' || pg_temp.bal(sav)); end if;
 
   -- ---- financed equipment: Dr Equipment / Cr new loan; no cash, no expense (inv 17) ----
-  a1 := record_financed_equipment('Excavator', '2026-06-05', 3000000, 'CAT Financial', 500, 'financed');
-  select loan_id into l2 from fixed_assets where id = a1; select account_id into l2a from loans where id = l2;
+  a1 := record_equipment('Excavator', '2026-06-05', 3000000, '[{"kind":"loan","name":"Excavator","lender":"CAT Financial","interest_rate_bps":500,"amount_cents":3000000}]'::jsonb, 'financed');
+  select loan_id into l2 from fixed_asset_funding where asset_id = a1; select account_id into l2a from loans where id = l2;
   if pg_temp.bal(eqp) = 750000 + 3000000 and pg_temp.bal(l2a) = 3000000 and pg_temp.bal(chk) = 598500 and pg_temp.pl(a) = -3500
      and (select origin from loans where id = l2) = 'financed_asset'
      and (select source_type from journal_entries where source_id = a1::text and reverses_entry_id is null) = 'equipment'
@@ -142,7 +143,7 @@ begin
   then results := results || 'PASS payments on financed equipment reduce its loan; only interest hits P&L'::text;
   else failures := failures || ('FAIL financed payment ' || pg_temp.bal(l2a) || '/' || pg_temp.bal(intx)); end if;
   for t in select * from (values
-    ('financed equipment cannot be edited in place', '23514', format('select update_equipment_purchase(%L,''X'',''2026-06-05'',100,%L)', a1, chk)),
+    ('financed equipment cannot shrink below principal already paid', '23514', format('select update_equipment(%L,''X'',''2026-06-05'',100,%L::jsonb)', a1, json_build_array(json_build_object('kind','loan','name','Excavator','loan_id',l2,'amount_cents',100)))),
     ('financed loan cannot be edited on its own',    '23514', format('select update_loan(%L,''X'',null,100,''2026-06-05'',%L)', l2, chk)),
     ('financed loan cannot be voided on its own',    '23514', format('select void_loan(%L)', l2)),
     ('financed equipment cannot be voided while its loan has payments', '23514', format('select void_fixed_asset(%L)', a1))
@@ -192,9 +193,9 @@ begin
     ('equipment cost changed without reposting',     '23514', format('update fixed_assets set cost_cents = 760000 where id = %L', a2)),
     ('financed equipment cost changed without reposting','23514', format('update fixed_assets set cost_cents = 3100000 where id = %L', a1)),
     ('equipment voided without reversing',           '23514', format('update fixed_assets set voided_at = now() where id = %L', a2)),
-    ('equipment funded by nothing',                  '23514', format('update fixed_assets set paid_from_account_id = null where id = %L', a2)),
-    ('equipment funded by both cash and a loan',     '23514', format('update fixed_assets set loan_id = %L where id = %L', l1, a2)),
-    ('equipment inserted without a ledger entry',    '23514', format('insert into fixed_assets (user_id,name,acquired_date,cost_cents,paid_from_account_id) values (%L,''x'',''2026-06-01'',500,%L)', a, chk)),
+    ('equipment funded by nothing',                  '23514', format('delete from fixed_asset_funding where asset_id = %L', a2)),
+    ('equipment funded by an extra loan beyond its cost','23514', format('insert into fixed_asset_funding (user_id,asset_id,kind,loan_id,amount_cents) values (%L,%L,''loan'',%L,1)', a, a2, l1)),
+    ('equipment inserted without funding',           '23514', format('insert into fixed_assets (user_id,name,acquired_date,cost_cents) values (%L,''x'',''2026-06-01'',500)', a)),
     ('delete a live loan',                           '23503', format('delete from loans where id = %L', l1)),
     ('delete a live loan payment',                   '23503', format('delete from loan_payments where id = %L', p1)),
     ('delete live equipment',                        '23503', format('delete from fixed_assets where id = %L', a2))
@@ -219,7 +220,7 @@ begin
     ('B paying A''s loan',             'P0002', format('select record_loan_payment(%L,''2026-09-01'',100,0,%L)', l1, b_chk)),
     ('B editing A''s loan payment',    'P0002', format('select update_loan_payment(%L,''2026-09-01'',100,0,%L)', p1, b_chk)),
     ('B voiding A''s loan payment',    'P0002', format('select void_loan_payment(%L)', p1)),
-    ('B editing A''s equipment',       'P0002', format('select update_equipment_purchase(%L,''X'',''2026-06-01'',100,%L)', a2, b_chk)),
+    ('B editing A''s equipment',       'P0002', format('select update_equipment(%L,''X'',''2026-06-01'',100,''[]''::jsonb)', a2)),
     ('B voiding A''s equipment',       'P0002', format('select void_fixed_asset(%L)', a2)),
     ('B taking a loan into A''s account','23514', format('select record_loan(''B loan'',null,100,''2026-06-01'',%L)', chk)),
     ('authenticated INSERT loans',      '42501', 'insert into loans (user_id,name,origin,principal_cents,opened_date,account_id) values (auth.uid(),''x'',''financed_asset'',1,''2026-06-01'',gen_random_uuid())'),
@@ -291,7 +292,7 @@ begin
   perform set_config('request.jwt.claims', json_build_object('sub', c, 'role', 'authenticated')::text, true);
   set local role authenticated;
   perform record_loan_payment(record_loan('C loan', null, 10000, '2026-06-01', c_chk), '2026-07-01', 1000, 100, c_chk);
-  perform record_financed_equipment('C machine', '2026-06-02', 5000);
+  perform record_equipment('C machine', '2026-06-02', 5000, '[{"kind":"loan","name":"C machine","amount_cents":5000}]'::jsonb);
   reset role;
   begin
     set constraints all immediate; set constraints all deferred;

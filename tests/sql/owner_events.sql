@@ -22,7 +22,7 @@ begin
   select id into b_chk from accounts where bank_account_id='bkb'; select id into c_chk from accounts where bank_account_id='bkc';
   select id into ar from accounts where user_id=a and system_key='accounts_receivable';
   select id into eqp from accounts where user_id=a and system_key='equipment';
-  select id into loansp from accounts where user_id=a and system_key='loans_payable';
+  loansp := _new_loan_account(a, 'Test Loan');  -- a real loan liability account (no generic Loans Payable exists)
   select id into draws from accounts where user_id=a and system_key='owner_draws';
   select id into contribs from accounts where user_id=a and system_key='owner_contributions';
   select id into fuel from accounts where user_id=a and name='Fuel';
@@ -111,7 +111,7 @@ begin
   for t in select * from (values
     ('expense paid from Accounts Receivable', '23514', format('select post_expense(''exp2'', %L)', ar)),
     ('expense paid from Equipment',           '23514', format('select post_expense(''exp2'', %L)', eqp)),
-    ('expense paid from Loans Payable',       '23514', format('select post_expense(''exp2'', %L)', loansp)),
+    ('expense paid from a loan account',      '23514', format('select post_expense(''exp2'', %L)', loansp)),
     ('expense paid from Owner Draws',         '23514', format('select post_expense(''exp2'', %L)', draws)),
     ('expense paid from an expense account',  '23514', format('select post_expense(''exp2'', %L)', fuel)),
     ('expense with no account chosen',        '23514', 'select post_expense(''exp2'', null)')

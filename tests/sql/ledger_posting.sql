@@ -39,7 +39,7 @@ begin
   select id into inc  from accounts where user_id = a and system_key = 'income';
   if (select type from accounts where id = chk) = 'asset' and (select type from accounts where id = card) = 'liability'
      and fuel is not null and exists (select 1 from accounts where user_id = a and name = 'Meals' and type = 'expense')
-     and (select count(*) from accounts where user_id = a and system_key is not null) = 10
+     and (select count(*) from accounts where user_id = a and system_key is not null) = 8
   then results := results || 'PASS seeding: bank->asset, credit card->liability, categories->expense accounts, 10 system accounts'::text;
   else failures := failures || 'FAIL seeding shape'; end if;
 

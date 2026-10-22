@@ -84,7 +84,7 @@ The brief's two-user isolation test (UI, direct API calls, direct Supabase calls
 - **Existing tables stay as the "source documents"** (invoice, expense, payment, bank transaction). Each posts one journal entry and keeps a pointer to it. This is how we avoid a rewrite.
 
 ### 5.2 New tables
-- `accounts`: per-user chart of accounts. Types: asset, liability, equity, income, expense. Seeded automatically per user with plain-language names: bank accounts (one per connected or manual account), Accounts Receivable, Loans Payable, Credit Cards Payable, Equipment, Owner Contributions, Owner Draws, Opening Balance Equity, Income, and the existing expense categories as expense accounts. A `system_key` marks accounts the engine depends on so users cannot delete them.
+- `accounts`: per-user chart of accounts. Types: asset, liability, equity, income, expense. Seeded automatically per user with plain-language names: bank accounts (one per connected or manual account), Accounts Receivable, one liability account per loan ("Loan - <name>"; the generic Loans Payable / Credit Cards Payable accounts were removed in Stage D5 because every loan and card has its own account), Equipment, Owner Contributions, Owner Draws, Opening Balance Equity, Income, and the existing expense categories as expense accounts. A `system_key` marks accounts the engine depends on so users cannot delete them.
 - `journal_entries`: id, user_id, entry_date, memo, `source_type` and `source_id` (invoice, payment, expense, bank_transaction, transfer, loan_payment, opening_balance, manual), `reverses_entry_id`, created_at.
 - `journal_lines`: entry_id, user_id, account_id, debit_cents, credit_cents (exactly one non-zero, both ≥ 0).
 - A **deferred constraint trigger** rejects any entry whose debits do not equal its credits. This one rule is the backbone of everything.
@@ -107,11 +107,11 @@ The brief's two-user isolation test (UI, direct API calls, direct Supabase calls
 | Bank deposit matches a known payment | Marks the payment as bank-cleared | Creates no entry and no revenue |
 | Expense | Expense account / Bank (or Credit Card) | |
 | Transfer between own accounts | Bank B / Bank A | Not income or expense |
-| Loan proceeds | Bank / Loans Payable | Not income |
-| Loan payment | Loans Payable (principal) + Interest Expense / Bank | Principal is not an expense |
+| Loan proceeds | Bank / that loan's own liability account | Not income |
+| Loan payment | That loan's liability account (principal) + Interest Expense / Bank | Principal is not an expense |
 | Owner draw | Owner Draws / Bank | Not an expense |
 | Owner contribution | Bank / Owner Contributions | Not income |
-| Equipment purchase, financed | Equipment / Loans Payable | Not a full-price expense |
+| Equipment purchase, any mix of funding (bank, card, paid personally, new financing) | Equipment (full cost) / each funding source, ONE entry (D5) | Not a full-price expense |
 | Credit-card purchase then card payment | Expense / Card Payable, then Card Payable / Bank | Expense counted once |
 | Opening balance | Account / Opening Balance Equity | |
 
