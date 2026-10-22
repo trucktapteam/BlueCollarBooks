@@ -5,14 +5,15 @@ import { Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View, use
 import { BrandColors } from '@/constants/theme';
 const defaultLogo = require('@/assets/images/blue-collar-books-logo.png');
 
-type AppRoute = '/' | '/invoices' | '/payments' | '/expenses' | '/customers' | '/reports' | '/settings';
-type ActiveNav = 'Dashboard' | 'Invoices' | 'Payments' | 'Expenses' | 'Customers' | 'Reports' | 'Settings';
+type AppRoute = '/' | '/dashboard' | '/move-money' | '/invoices' | '/payments' | '/expenses' | '/customers' | '/reports' | '/settings';
+type ActiveNav = 'Dashboard' | 'Invoices' | 'Payments' | 'Expenses' | 'Move Money' | 'Customers' | 'Reports' | 'Settings';
 
 const navItems: { label: string; icon: string; route?: AppRoute }[] = [
   { label: 'Dashboard', icon: '💵', route: '/dashboard' },
   { label: 'Invoices', icon: '📄', route: '/invoices' },
   { label: 'Payments', icon: '✔', route: '/payments' },
   { label: 'Expenses', icon: '🧾', route: '/expenses' },
+  { label: 'Move Money', icon: '🔁', route: '/move-money' },
   { label: 'Customers', icon: '👤', route: '/customers' },
   { label: 'Reports', icon: '📈', route: '/reports' },
   { label: 'Settings', icon: '⚙', route: '/settings' },
