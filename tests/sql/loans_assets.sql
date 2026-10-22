@@ -149,11 +149,13 @@ begin
     ('financed equipment cannot be voided while its loan has payments', '23514', format('select void_fixed_asset(%L)', a1))
   ) as v(label, code, s)
   loop
-    begin execute t.s; failures := failures || ('FAIL accepted: ' || t.label);
+    -- some of these rules are deferred constraint checks, so force them to run inside the exception block
+    begin execute t.s; set constraints all immediate; failures := failures || ('FAIL accepted: ' || t.label);
     exception when others then
       if sqlstate = t.code then results := results || ('PASS rejected: ' || t.label);
       else failures := failures || ('FAIL ' || t.label || ' -> ' || sqlstate || ' ' || sqlerrm); end if;
     end;
+    set constraints all deferred;
   end loop;
 
   -- ---- ledger entries of loans / payments / equipment cannot be reversed behind their backs ----

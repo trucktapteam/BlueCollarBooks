@@ -97,7 +97,11 @@ begin
      and exists (select 1 from journal_entries where source_id = 'exp1' and memo like '%paid personally by owner%')
   then results := results || 'PASS owner-paid expense: Dr expense / Cr Owner Contributions; no bank account pretended'::text;
   else failures := failures || ('FAIL owner-paid expense ' || pg_temp.bal(fuel) || '/' || pg_temp.bal(contribs) || '/' || pg_temp.bal(chk)); end if;
+  -- app roles can no longer write expenses directly (save_expense does), so the raw edit runs as the privileged role
+  reset role;
   update expenses set amount = 14000 where id = 'exp1';
+  perform set_config('request.jwt.claims', json_build_object('sub', a, 'role', 'authenticated')::text, true);
+  set local role authenticated;
   perform repost_expense('exp1');
   if pg_temp.bal(fuel) = 14000 and pg_temp.bal(contribs) = 64000 and pg_temp.bal(chk) = 135000
   then results := results || 'PASS editing an owner-paid expense keeps it owner-paid (reversal + repost)'::text; else failures := failures || ('FAIL owner-paid repost ' || pg_temp.bal(contribs)); end if;

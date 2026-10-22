@@ -209,7 +209,7 @@ Each step is independently reviewable and leaves the app working.
 17. Loans, loan payments (principal/interest split), financed equipment, `fixed_assets`.
 18. Credit-card accounts and card payments.
 
-**Stage E: books drive the screens**
+**Stage E: books drive the screens** (DONE, see `docs/STAGE_E_REPORT.md`; also wired expenses, bank-transaction categorize, invoices, payments, starting balances and a Move Money screen)
 19. Ledger-backed P&L, Balance Sheet, A/R report.
 20. Dashboard reads the ledger (new Cash Available, Money In/Out, Profit); retire the old calculations.
 21. Backfill or reset test data; before/after comparison.
