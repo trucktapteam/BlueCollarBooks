@@ -29,11 +29,24 @@ export function flattenPlaidCategory(txn: Pick<PlaidSyncTxn, 'personal_finance_c
   return parts.length ? parts.join(' / ') : null;
 }
 
-export function planPlaidPageWrites(page: PlaidSyncPage, ctx: { userId: string; itemId: string; nowIso: string }) {
-  const upsertRows = [...page.added, ...page.modified].map((txn) => ({
+// One page of Plaid output becomes ONE database call (apply_plaid_sync_page), which writes the rows,
+// links a posted transaction to the pending one it replaced (carrying over anything the user already
+// decided), and marks removed transactions as removed instead of deleting them.
+export type PlannedPlaidRow = {
+  id: string;
+  plaid_account_id: string;
+  date: string;
+  name: string;
+  merchant_name: string | null;
+  amount: number;
+  pending: boolean;
+  plaid_category: string | null;
+  pending_transaction_id: string | null;
+};
+
+function toRow(txn: PlaidSyncTxn): PlannedPlaidRow {
+  return {
     id: txn.transaction_id,
-    user_id: ctx.userId,
-    plaid_item_id: ctx.itemId,
     plaid_account_id: txn.account_id,
     date: txn.date,
     name: txn.name,
@@ -41,8 +54,13 @@ export function planPlaidPageWrites(page: PlaidSyncPage, ctx: { userId: string; 
     amount: Math.round(txn.amount * 100),
     pending: txn.pending,
     plaid_category: flattenPlaidCategory(txn),
-    updated_at: ctx.nowIso,
-  }));
+    pending_transaction_id: txn.pending_transaction_id ?? null,
+  };
+}
+
+export function planPlaidPageWrites(page: PlaidSyncPage) {
+  const addedRows = page.added.map(toRow);
+  const modifiedRows = page.modified.map(toRow);
   const removedIds = page.removed.map((t) => t.transaction_id).filter((id): id is string => Boolean(id));
-  return { upsertRows, removedIds };
+  return { addedRows, modifiedRows, removedIds };
 }

@@ -61,35 +61,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           });
           const page = response.data;
 
-          const { upsertRows, removedIds } = planPlaidPageWrites(page, {
-            userId: user.id,
-            itemId: item.item_id,
-            nowIso: new Date().toISOString(),
+          const { addedRows, modifiedRows, removedIds } = planPlaidPageWrites(page);
+
+          // One atomic database call per page: writes the rows, keeps a pending
+          // charge and the posted charge that replaced it as ONE transaction
+          // (carrying over whatever the user already decided), and marks
+          // removed transactions as removed instead of deleting them.
+          const { error: applyError } = await supabaseAdmin.rpc('apply_plaid_sync_page', {
+            p_user: user.id,
+            p_item: item.item_id,
+            p_added: addedRows,
+            p_modified: modifiedRows,
+            p_removed: removedIds,
           });
-
-          if (upsertRows.length > 0) {
-            // Only touch Plaid-owned columns here - never overwrite the
-            // user's own category/excluded/expense_id choices on a
-            // transaction that already went through review.
-            const { error: upsertError } = await supabaseAdmin
-              .from('plaid_transactions')
-              .upsert(upsertRows, { onConflict: 'id', ignoreDuplicates: false });
-            if (upsertError) {
-              throw upsertError;
-            }
-          }
-
-          if (page.removed.length > 0) {
-            if (removedIds.length > 0) {
-              const { error: deleteError } = await supabaseAdmin
-                .from('plaid_transactions')
-                .delete()
-                .in('id', removedIds)
-                .eq('user_id', user.id);
-              if (deleteError) {
-                throw deleteError;
-              }
-            }
+          if (applyError) {
+            throw applyError;
           }
 
           added += page.added.length;

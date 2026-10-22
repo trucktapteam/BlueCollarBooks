@@ -71,6 +71,7 @@ export async function loadPlaidTransactions(userId: string) {
     .from('plaid_transactions')
     .select('*')
     .eq('user_id', userId)
+    .eq('status', 'active')
     .order('date', { ascending: false });
 
   if (error) {
@@ -130,11 +131,7 @@ export async function excludeTransaction(transactionId: string) {
     throw new Error('You must be signed in to update a transaction.');
   }
 
-  const { error } = await supabase
-    .from('plaid_transactions')
-    .update({ excluded: true, updated_at: new Date().toISOString() })
-    .eq('id', transactionId)
-    .eq('user_id', userId);
+  const { error } = await supabase.rpc('exclude_bank_transaction', { p_id: transactionId });
 
   if (error) {
     console.error('Failed to exclude transaction', error);
@@ -155,11 +152,7 @@ export async function restoreTransaction(transactionId: string) {
     throw new Error('You must be signed in to update a transaction.');
   }
 
-  const { error } = await supabase
-    .from('plaid_transactions')
-    .update({ excluded: false, updated_at: new Date().toISOString() })
-    .eq('id', transactionId)
-    .eq('user_id', userId);
+  const { error } = await supabase.rpc('restore_bank_transaction', { p_id: transactionId });
 
   if (error) {
     console.error('Failed to restore transaction', error);

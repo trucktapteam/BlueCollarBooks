@@ -1,5 +1,4 @@
 import { useSyncExternalStore } from 'react';
-import { getCurrentUserId } from './authStore';
 import { loadLedgerAccounts } from './ledgerAccounts';
 import { supabase } from '@/lib/supabase';
 
@@ -75,31 +74,6 @@ export async function loadBankAccounts(userId: string) {
 
 export function clearBankAccounts() {
   bankAccountsSnapshot = [];
-  emitChange();
-}
-
-export async function saveBankAccounts(accounts: BankAccount[]) {
-  const userId = getCurrentUserId();
-  if (!userId) {
-    throw new Error('You must be signed in to save bank accounts.');
-  }
-
-  const rows = accounts.map((account) => ({
-    id: account.id,
-    user_id: userId,
-    name: account.name,
-    last4: account.last4,
-    balance: account.balance,
-    last_updated: account.lastUpdated,
-  }));
-
-  const { error } = await supabase.from('bank_accounts').upsert(rows);
-  if (error) {
-    console.error('Failed to save bank accounts', error);
-    throw error;
-  }
-
-  bankAccountsSnapshot = accounts;
   emitChange();
 }
 
