@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
+import { ReconciliationPanel } from '@/components/ReconciliationPanel';
 import { useSession } from '@/data/authStore';
 import { useCategories } from '@/data/mockCategories';
 import { useCustomers } from '@/data/mockCustomers';
@@ -142,6 +143,8 @@ export default function TransactionsScreen() {
       </View>
 
       {!!syncError && <Text style={styles.syncErrorText}>{syncError}</Text>}
+
+      <ReconciliationPanel refreshKey={transactions} />
 
       <View style={styles.tabs}>
         {tabs.map((item) => (
