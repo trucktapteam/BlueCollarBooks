@@ -235,3 +235,10 @@ Phases 3 to 6 (Command Center, LFR migration, document workflows, Ask Your Books
 3. **Corrections UX.** Editing a posted item will create a reversal and a new entry behind the scenes. The user just sees "edited". OK?
 4. **Keep the existing expense categories** as the expense accounts (proposal: yes).
 5. **Sequence.** Proposal: do Stage A (bugs and tests) first, since it is low risk and protects everything after it.
+
+---
+
+## 10. Carried requirements (added after Stage B review, 2026-10-22)
+
+1. **Manual expense "Paid from" (Stages D/E, whenever the expense form is wired to the ledger).** A manual expense must end up with a real source account (bank or credit card). The UI stays simple ("Paid from"); a user-selected default account may prefill it later. No fake holding account, no guessing. Plaid-sourced expenses already know their account. Same rule for customer payments: a payment must name the real account it was deposited to.
+2. **Expense-category / system-account name collision (category-management stage; must be fixed and tested before categories are touched or signups reopen).** A user category named like a system account (e.g. "Income") must never be silently skipped or routed to Uncategorized Expense. Required behavior: reject or disambiguate at category creation, plus a test that a colliding category either cannot be created or gets its own distinct expense account, and that expenses in it post to that account.
