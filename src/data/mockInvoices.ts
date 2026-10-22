@@ -9,9 +9,6 @@ import { writeInvoiceRows, type InvoiceDbClient } from './invoicePersistence';
 import {
   calculateInvoiceBalance,
   calculateInvoicePaymentTotal,
-  calculateInvoiceTotal,
-  calculatePaidInvoiceTotal,
-  calculateWaitingToBePaidTotal,
   isInvoiceWaitingToBePaid,
 } from '@/utils/invoiceMath';
 
@@ -19,9 +16,6 @@ import {
 export {
   calculateInvoiceBalance,
   calculateInvoicePaymentTotal,
-  calculateInvoiceTotal,
-  calculatePaidInvoiceTotal,
-  calculateWaitingToBePaidTotal,
   isInvoiceWaitingToBePaid,
 };
 

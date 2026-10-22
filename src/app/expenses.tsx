@@ -1,12 +1,11 @@
 import { router } from 'expo-router';
 import Head from 'expo-router/head';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import {
   attachExpenseReceipt,
-  calculateTotalMonthlyExpenses,
   deleteExpenseReceipt,
   type ExpenseReceipt,
   getReceiptViewUrl,
@@ -15,6 +14,7 @@ import {
   useExpenses,
 } from '@/data/mockExpenses';
 import { getCurrentUserId } from '@/data/authStore';
+import { fetchDashboardSummary } from '@/data/ledgerReports';
 import { useCategories } from '@/data/mockCategories';
 import { getTransactionsNeedingReview, usePlaidTransactions } from '@/data/mockPlaidTransactions';
 import { formatMoneyCents } from '@/utils/money';
@@ -93,7 +93,17 @@ export default function ExpensesScreen() {
   const expenses = useExpenses();
   const plaidTransactions = usePlaidTransactions();
   const transactionsNeedingReview = getTransactionsNeedingReview(plaidTransactions);
-  const totalMonthlyExpenses = calculateTotalMonthlyExpenses(expenses);
+  // This month's money out comes from the books, not from adding up the list on screen.
+  const [totalMonthlyExpenses, setTotalMonthlyExpenses] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    fetchDashboardSummary().then((summary) => {
+      if (!cancelled && summary) setTotalMonthlyExpenses(summary.moneyOutCents);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [expenses]);
   const [query, setQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
 

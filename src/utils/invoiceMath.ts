@@ -1,9 +1,8 @@
-// Pure invoice/dashboard math, split out of src/data/mockInvoices.ts so it can
-// be unit-tested in plain Node (that file pulls in React and Supabase). The
-// functions are moved verbatim - mockInvoices.ts re-exports them under the
-// same names, so no call site changes and behavior is identical.
-import { isSameMonthAsDate } from './date.ts';
-
+// Pure per-invoice math, split out of src/data/mockInvoices.ts so it can be
+// unit-tested in plain Node (that file pulls in React and Supabase). Totals for
+// the dashboard and reports are NOT computed here any more - they come from the
+// books (src/data/ledgerReports.ts). What an invoice has been paid is whatever
+// payments have been applied to it.
 type PaymentLike = { amount: number; date: string };
 export type InvoiceLike = {
   amount: number;
@@ -22,32 +21,6 @@ export function calculateInvoiceBalance(invoice: InvoiceLike) {
   return Math.max(invoice.amount - calculateInvoicePaymentTotal(invoice), 0);
 }
 
-export function calculateInvoiceTotal(invoices: InvoiceLike[]) {
-  return invoices.reduce((total, invoice) => total + invoice.amount, 0);
-}
-
 export function isInvoiceWaitingToBePaid(invoice: InvoiceLike) {
   return invoice.status === 'Sent' || invoice.status === 'Overdue' || invoice.status === 'Due Today';
-}
-
-export function calculateWaitingToBePaidTotal(invoices: InvoiceLike[]) {
-  return invoices.filter(isInvoiceWaitingToBePaid).reduce((total, invoice) => total + calculateInvoiceBalance(invoice), 0);
-}
-
-export function calculatePaidInvoiceTotal(invoices: InvoiceLike[], comparisonDate = new Date()) {
-  return invoices.reduce((total, invoice) => {
-    const paymentsThisMonth = (invoice.payments ?? [])
-      .filter((payment) => isSameMonthAsDate(payment.date, comparisonDate))
-      .reduce((paymentTotal, payment) => paymentTotal + payment.amount, 0);
-
-    if (paymentsThisMonth > 0) {
-      return total + paymentsThisMonth;
-    }
-
-    if (invoice.status === 'Paid' && !invoice.payments?.length && isSameMonthAsDate(invoice.invoiceDate, comparisonDate)) {
-      return total + invoice.amount;
-    }
-
-    return total;
-  }, 0);
 }

@@ -10,20 +10,18 @@ import { useActivities } from '@/data/activityStore';
 import { useSession } from '@/data/authStore';
 import { loadBankAccounts, sumBankAccountBalances, useBankAccounts } from '@/data/mockBankAccounts';
 import { useBusinessProfile } from '@/data/mockBusiness';
-import { calculateTotalMonthlyExpenses, useExpenses } from '@/data/mockExpenses';
+import { useExpenses } from '@/data/mockExpenses';
+import { type DashboardSummary, fetchDashboardSummary } from '@/data/ledgerReports';
+import { StartingBalancesCard } from '@/components/StartingBalancesCard';
 import { getTransactionsNeedingReview, loadPlaidTransactions, usePlaidTransactions } from '@/data/mockPlaidTransactions';
 import {
   calculateInvoiceBalance,
-  calculateInvoiceTotal,
-  calculatePaidInvoiceTotal,
-  calculateWaitingToBePaidTotal,
   formatInvoiceAmount,
   isInvoiceWaitingToBePaid,
   isSameMonth,
   useInvoices,
 } from '@/data/mockInvoices';
 import { computeDueDate } from '@/utils/date';
-import { computeDashboardMetrics } from '@/utils/dashboardMetrics';
 
 // Every label below is matched explicitly to a live computed value further
 // down (metricValues), so this array intentionally carries no dollar amount
@@ -32,11 +30,11 @@ import { computeDashboardMetrics } from '@/utils/dashboardMetrics';
 // was dead weight that could mislead a future editor into thinking it was
 // live.
 const metrics = [
-  { label: 'Cash Available', icon: '💵', accent: BrandColors.green, helper: 'All accounts' },
+  { label: 'Cash Available', icon: '💵', accent: BrandColors.green, helper: 'In your books, all accounts' },
   { label: 'Waiting To Be Paid', icon: '💰', accent: BrandColors.orange, helper: 'Open invoices' },
-  { label: 'Money In', icon: '📈', accent: BrandColors.green, helper: 'This month' },
+  { label: 'Money In', icon: '📈', accent: BrandColors.green, helper: 'Collected this month' },
   { label: 'Money Out', icon: '🧾', accent: BrandColors.orange, helper: 'This month' },
-  { label: 'Paid This Month', icon: '✔', accent: BrandColors.green, helper: 'Collected cash' },
+  { label: 'Overdue', icon: '⏰', accent: BrandColors.orange, helper: 'Past due, still unpaid' },
 ];
 
 export default function DashboardScreen() {
@@ -59,28 +57,27 @@ export default function DashboardScreen() {
   const overdueInvoiceCount = overdueInvoices.length;
   const missingPaperworkCount = invoices.filter((invoice) => (invoice.attachments ?? []).length === 0).length;
   const totalOverdueAmount = overdueInvoices.reduce((sum, inv) => sum + calculateInvoiceBalance(inv), 0);
-  const now = new Date();
-  // Bank account balances are the real starting point, not a hardcoded
-  // number - see sumBankAccountBalances in mockBankAccounts.ts.
-  // Formulas live in src/utils/dashboardMetrics.ts so they can be tested.
-  const { moneyIn, moneyOut, profitThisMonth, paidThisMonth, cashAvailable } = computeDashboardMetrics({
-    invoices,
-    expenses,
-    bankBalanceTotal: sumBankAccountBalances(bankAccounts),
-    now,
-  });
-  const formattedTotalMonthlyExpenses = formatInvoiceAmount(moneyOut);
-  const formattedCashAvailable = formatInvoiceAmount(cashAvailable);
-  const formattedMoneyIn = formatInvoiceAmount(moneyIn);
-  const formattedProfitThisMonth = formatInvoiceAmount(profitThisMonth);
-  const formattedWaitingToBePaid = formatInvoiceAmount(calculateWaitingToBePaidTotal(invoices));
-  const formattedPaidThisMonth = formatInvoiceAmount(paidThisMonth);
+  // Every headline number comes from the books (dashboard_summary), recomputed
+  // whenever invoices, expenses or accounts change. Nothing is added up here.
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [summaryVersion, setSummaryVersion] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    fetchDashboardSummary().then((result) => {
+      if (!cancelled && result) setSummary(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [invoices, expenses, bankAccounts, summaryVersion]);
+  const dash = (cents?: number) => (summary && cents !== undefined ? formatInvoiceAmount(cents) : '—');
+  const formattedProfitThisMonth = dash(summary?.profitCents);
   const metricValues: Record<string, string> = {
-    'Cash Available': formattedCashAvailable,
-    'Money Out': formattedTotalMonthlyExpenses,
-    'Money In': formattedMoneyIn,
-    'Waiting To Be Paid': formattedWaitingToBePaid,
-    'Paid This Month': formattedPaidThisMonth,
+    'Cash Available': dash(summary?.cashAvailableCents),
+    'Money Out': dash(summary?.moneyOutCents),
+    'Money In': dash(summary?.moneyInCents),
+    'Waiting To Be Paid': dash(summary?.waitingToBePaidCents),
+    Overdue: dash(summary?.overdueCents),
   };
 
   const agingBuckets = (() => {
@@ -292,10 +289,12 @@ export default function DashboardScreen() {
         </View>
       )}
 
+      <StartingBalancesCard onChanged={() => setSummaryVersion((version) => version + 1)} />
+
       <View style={styles.grid}>
         {metrics.map((metric) => {
           const route =
-            metric.label === 'Money In' || metric.label === 'Waiting To Be Paid' || metric.label === 'Paid This Month'
+            metric.label === 'Money In' || metric.label === 'Waiting To Be Paid' || metric.label === 'Overdue'
               ? '/invoices'
               : metric.label === 'Money Out'
                 ? '/expenses'
@@ -360,7 +359,7 @@ export default function DashboardScreen() {
         >
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>🏦 Bank Accounts</Text>
-            <Text style={styles.sectionTotal}>Total: {formatInvoiceAmount(sumBankAccountBalances(bankAccounts))}</Text>
+            <Text style={styles.sectionTotal}>Bank-reported total: {formatInvoiceAmount(sumBankAccountBalances(bankAccounts))}</Text>
           </View>
 
           {bankAccounts.some((account) => account.plaidItemId) && (
@@ -421,7 +420,7 @@ export default function DashboardScreen() {
         <View style={[styles.detailCard, isCompact ? styles.fullWidthCard : isWideDesktop ? styles.quarterWidthCard : styles.halfWidthCard]}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>💰 Waiting To Be Paid</Text>
-            <Text style={styles.sectionTotal}>Total: {formattedWaitingToBePaid}</Text>
+            <Text style={styles.sectionTotal}>Total: {metricValues['Waiting To Be Paid']}</Text>
           </View>
 
           <View style={styles.detailList}>

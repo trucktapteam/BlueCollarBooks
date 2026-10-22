@@ -9,7 +9,7 @@ import { type Customer, useCustomers } from '@/data/mockCustomers';
 import {
   type Invoice,
   calculateInvoiceBalance,
-  calculateInvoiceTotal,
+  calculateInvoicePaymentTotal,
   formatInvoiceAmount,
   isInvoiceWaitingToBePaid,
   useInvoices,
@@ -52,7 +52,7 @@ function buildCustomerSummaries(customers: Customer[], invoices: Invoice[]): Cus
     return {
       ...customer,
       invoices: customerInvoices,
-      totalRevenue: formatInvoiceAmount(calculateInvoiceTotal(customerInvoices)),
+      totalRevenue: formatInvoiceAmount(customerInvoices.reduce((total, invoice) => total + calculateInvoicePaymentTotal(invoice), 0)),
       waitingToBePaid: formatInvoiceAmount(waitingInvoices.reduce((total, invoice) => total + calculateInvoiceBalance(invoice), 0)),
       invoiceCount: customerInvoices.length,
       lastInvoiceDate: getLastInvoiceDate(customerInvoices),

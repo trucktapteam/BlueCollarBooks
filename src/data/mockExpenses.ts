@@ -1,7 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { addActivity } from './activityStore';
 import { getCurrentUserId } from './authStore';
-import { isSameMonth } from './mockInvoices';
 import { generateId } from '@/utils/id';
 import { formatMoneyCents } from '@/utils/money';
 import { supabase } from '@/lib/supabase';
@@ -356,12 +355,6 @@ export async function deleteExpenseReceipt(expenseId: string) {
   expensesSnapshot = expensesSnapshot.map((item) => (item.id === expenseId ? { ...item, receipt: undefined } : item));
   addActivity(`Receipt deleted: ${expense.vendor} ${deletedReceiptName}`);
   emitChange();
-}
-
-export function calculateTotalMonthlyExpenses(expenses: Expense[], comparisonDate = new Date()) {
-  return expenses
-    .filter((expense) => isSameMonth(expense.date, comparisonDate))
-    .reduce((total, expense) => total + expense.amount, 0);
 }
 
 export function useExpenses() {

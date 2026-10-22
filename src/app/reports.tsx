@@ -1,14 +1,21 @@
 import Head from 'expo-router/head';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { useBusinessProfile } from '@/data/mockBusiness';
-import { type Expense, useExpenses } from '@/data/mockExpenses';
+import { useExpenses } from '@/data/mockExpenses';
+import {
+  type AgingLine,
+  type ReportLine,
+  fetchArAging,
+  fetchBalanceSheet,
+  fetchProfitAndLoss,
+  yearBounds,
+} from '@/data/ledgerReports';
 import {
   calculateInvoiceBalance,
-  calculateInvoiceTotal,
   formatInvoiceAmount,
-  isSameYear,
   type Invoice,
   useInvoices,
 } from '@/data/mockInvoices';
@@ -19,22 +26,6 @@ import { downloadBlob } from '@/utils/downloadFile';
 // string) so a spreadsheet can sum the column directly.
 function centsToCsvDollars(cents: number) {
   return Math.round(cents) / 100;
-}
-
-type ExpenseCategoryTotal = {
-  category: string;
-  amount: number;
-};
-
-function groupExpensesByCategory(expenses: Expense[]): ExpenseCategoryTotal[] {
-  const categoryTotals = expenses.reduce<Record<string, number>>((totals, expense) => {
-    totals[expense.category] = (totals[expense.category] ?? 0) + expense.amount;
-    return totals;
-  }, {});
-
-  return Object.entries(categoryTotals)
-    .map(([category, amount]) => ({ category, amount }))
-    .sort((first, second) => second.amount - first.amount);
 }
 
 function escapeCsvValue(value: string | number | undefined) {
@@ -55,28 +46,80 @@ function buildInvoiceDueDate(invoice: Invoice) {
   return formatDueDateDisplay(invoice.invoiceDate, invoice.terms);
 }
 
+// Plain-language names for the few books accounts that are not business categories.
+const FRIENDLY_NAMES: Record<string, string> = {
+  'Opening Balance Equity': 'Starting balances',
+  'Owner Contributions': 'Money you put in',
+  'Owner Draws': 'Money you took out',
+  'Profit to date': 'Profit so far',
+};
+
+function friendly(name: string) {
+  return FRIENDLY_NAMES[name] ?? name;
+}
+
+function sumLines(lines: ReportLine[], section: string) {
+  return lines.filter((line) => line.section === section).reduce((total, line) => total + line.amountCents, 0);
+}
+
 export default function ReportsScreen() {
   const { width } = useWindowDimensions();
   const isCompact = width < 760;
   const profile = useBusinessProfile();
   const invoices = useInvoices();
   const expenses = useExpenses();
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const invoicesThisYear = invoices.filter((invoice) => isSameYear(invoice.invoiceDate, now));
-  const expensesThisYear = expenses.filter((expense) => isSameYear(expense.date, now));
-  const income = calculateInvoiceTotal(invoicesThisYear);
-  const totalExpenses = expensesThisYear.reduce((total, expense) => total + expense.amount, 0);
+  const bounds = yearBounds();
+  const currentYear = Number(bounds.start.slice(0, 4));
+
+  // Cash basis (money actually received) is the default; accrual (money invoiced) is one tap away.
+  const [basis, setBasis] = useState<'cash' | 'accrual'>('cash');
+  const [profitLines, setProfitLines] = useState<ReportLine[] | null>(null);
+  const [balanceLines, setBalanceLines] = useState<ReportLine[] | null>(null);
+  const [agingLines, setAgingLines] = useState<AgingLine[] | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadFailed(false);
+    Promise.all([
+      fetchProfitAndLoss(bounds.start, bounds.end, basis),
+      fetchBalanceSheet(bounds.today),
+      fetchArAging(bounds.today),
+    ]).then(([profit, balance, aging]) => {
+      if (cancelled) return;
+      if (!profit || !balance || !aging) {
+        setLoadFailed(true);
+        return;
+      }
+      setProfitLines(profit);
+      setBalanceLines(balance);
+      setAgingLines(aging);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [basis, invoices, expenses, bounds.start, bounds.end, bounds.today]);
+
+  const incomeLines = (profitLines ?? []).filter((line) => line.section === 'income' || line.section === 'unapplied');
+  const expenseLines = (profitLines ?? [])
+    .filter((line) => line.section === 'expense')
+    .sort((first, second) => second.amountCents - first.amountCents);
+  const income = incomeLines.reduce((total, line) => total + line.amountCents, 0);
+  const totalExpenses = sumLines(profitLines ?? [], 'expense');
   const netProfit = income - totalExpenses;
-  const expensesByCategory = groupExpensesByCategory(expensesThisYear);
+  const assets = (balanceLines ?? []).filter((line) => line.section === 'assets');
+  const liabilities = (balanceLines ?? []).filter((line) => line.section === 'liabilities');
+  const equity = (balanceLines ?? []).filter((line) => line.section === 'equity');
+  const owedTotal = (agingLines ?? []).reduce((total, line) => total + line.balanceCents, 0);
+  const incomeLabel = basis === 'cash' ? 'Money collected' : 'Money invoiced';
 
   function exportProfitAndLossCsv() {
-    downloadCsv(`profit-and-loss-${currentYear}.csv`, [
+    downloadCsv(`profit-and-loss-${basis}-${currentYear}.csv`, [
       ['section', 'label', 'amount'],
-      ['Money In', 'Invoice money', centsToCsvDollars(income)],
-      ...expensesByCategory.map((expense) => ['Money Out', expense.category, centsToCsvDollars(expense.amount)]),
+      ...incomeLines.map((line) => ['Money In', friendly(line.name), centsToCsvDollars(line.amountCents)]),
+      ...expenseLines.map((line) => ['Money Out', line.name, centsToCsvDollars(line.amountCents)]),
       ['Money Out', 'Total money out', centsToCsvDollars(totalExpenses)],
-      ['Profit', 'Money in minus money out', centsToCsvDollars(netProfit)],
+      ['Profit', basis === 'cash' ? 'Money collected minus money out' : 'Money invoiced minus money out', centsToCsvDollars(netProfit)],
     ]);
   }
 
@@ -154,7 +197,22 @@ export default function ReportsScreen() {
         <Text style={styles.heroLabel}>📈 This Year</Text>
         <Text style={styles.heroValue}>{currentYear}</Text>
         <Text style={styles.heroCopy}>{profile.businessName}</Text>
+        <View style={styles.basisRow}>
+          {(['cash', 'accrual'] as const).map((option) => (
+            <Pressable
+              key={option}
+              style={[styles.basisChip, basis === option && styles.basisChipActive]}
+              onPress={() => setBasis(option)}
+            >
+              <Text style={[styles.basisChipText, basis === option && styles.basisChipTextActive]}>
+                {option === 'cash' ? 'Count money when it comes in' : 'Count money when I bill it'}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       </View>
+
+      {loadFailed && <Text style={styles.errorText}>Could not load your reports. Pull to refresh or try again.</Text>}
 
       <View style={styles.reportCard}>
         <View style={styles.sectionHeader}>
@@ -163,9 +221,19 @@ export default function ReportsScreen() {
         </View>
 
         <View style={styles.reportRow}>
-          <Text style={styles.reportLabel}>Invoice money</Text>
-          <Text style={styles.reportAmount}>{formatInvoiceAmount(income)}</Text>
+          <Text style={styles.reportLabel}>{incomeLabel}</Text>
+          <Text style={styles.reportAmount}>
+            {formatInvoiceAmount(incomeLines.filter((line) => line.section === 'income').reduce((total, line) => total + line.amountCents, 0))}
+          </Text>
         </View>
+        {incomeLines
+          .filter((line) => line.section === 'unapplied')
+          .map((line) => (
+            <View key={line.name} style={styles.reportRow}>
+              <Text style={styles.reportLabel}>{line.name}</Text>
+              <Text style={styles.reportAmount}>{formatInvoiceAmount(line.amountCents)}</Text>
+            </View>
+          ))}
       </View>
 
       <View style={styles.reportCard}>
@@ -175,10 +243,10 @@ export default function ReportsScreen() {
         </View>
 
         <View style={styles.reportList}>
-          {expensesByCategory.map((expense) => (
-            <View key={expense.category} style={styles.reportRow}>
-              <Text style={styles.reportLabel}>{expense.category}</Text>
-              <Text style={styles.reportAmount}>{formatInvoiceAmount(expense.amount)}</Text>
+          {expenseLines.map((line) => (
+            <View key={line.accountId ?? line.name} style={styles.reportRow}>
+              <Text style={styles.reportLabel}>{line.name}</Text>
+              <Text style={styles.reportAmount}>{formatInvoiceAmount(line.amountCents)}</Text>
             </View>
           ))}
         </View>
@@ -187,15 +255,59 @@ export default function ReportsScreen() {
       <View style={styles.netProfitCard}>
         <View style={styles.pageHeaderText}>
           <Text style={styles.netProfitLabel}>Profit</Text>
-          <Text style={styles.netProfitSubtext}>Money in minus money out for {currentYear}</Text>
+          <Text style={styles.netProfitSubtext}>
+            {basis === 'cash' ? 'Money collected minus money out' : 'Money invoiced minus money out'} for {currentYear}
+          </Text>
         </View>
 
         <Text style={[styles.netProfitValue, isCompact && styles.netProfitValueCompact]}>
           {formatInvoiceAmount(netProfit)}
         </Text>
       </View>
+
+      <View style={styles.reportCard}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>🏦 What You Have And Owe (today)</Text>
+        </View>
+        <BalanceGroup title="What you have" lines={assets} />
+        <BalanceGroup title="What you owe" lines={liabilities} />
+        <BalanceGroup title="What's yours" lines={equity} />
+      </View>
+
+      <View style={styles.reportCard}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>💰 Who Owes You</Text>
+          <Text style={styles.sectionTotal}>{formatInvoiceAmount(owedTotal)}</Text>
+        </View>
+        <View style={styles.reportList}>
+          {(agingLines ?? []).map((line) => (
+            <View key={line.invoiceId} style={styles.reportRow}>
+              <Text style={styles.reportLabel}>
+                #{line.invoiceNumber} {line.customer} · {line.bucket === 'Current' ? 'Not due yet' : `${line.daysPastDue ?? 0} days late`}
+              </Text>
+              <Text style={styles.reportAmount}>{formatInvoiceAmount(line.balanceCents)}</Text>
+            </View>
+          ))}
+          {agingLines !== null && agingLines.length === 0 && <Text style={styles.reportLabel}>Nobody owes you right now.</Text>}
+        </View>
+      </View>
     </AppShell>
   );
+
+  function BalanceGroup({ title, lines }: { title: string; lines: ReportLine[] }) {
+    if (lines.length === 0) return null;
+    return (
+      <View style={styles.reportList}>
+        <Text style={styles.groupTitle}>{title}</Text>
+        {lines.map((line) => (
+          <View key={line.accountId ?? line.name} style={styles.reportRow}>
+            <Text style={styles.reportLabel}>{friendly(line.name)}</Text>
+            <Text style={styles.reportAmount}>{formatInvoiceAmount(line.amountCents)}</Text>
+          </View>
+        ))}
+      </View>
+    );
+  }
 }
 
 const styles = StyleSheet.create({
@@ -321,6 +433,44 @@ const styles = StyleSheet.create({
     color: '#ff7a00',
     fontSize: 20,
     fontWeight: '900',
+  },
+  basisRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 16,
+  },
+  basisChip: {
+    backgroundColor: '#252525',
+    borderColor: '#383838',
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  basisChipActive: {
+    backgroundColor: 'rgba(255, 122, 0, 0.14)',
+    borderColor: 'rgba(255, 122, 0, 0.45)',
+  },
+  basisChipText: {
+    color: '#d4d4d4',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  basisChipTextActive: {
+    color: '#ff7a00',
+  },
+  errorText: {
+    color: '#ff6b6b',
+    fontSize: 14,
+    fontWeight: '800',
+    marginBottom: 16,
+  },
+  groupTitle: {
+    color: '#a3a3a3',
+    fontSize: 14,
+    fontWeight: '900',
+    marginTop: 8,
   },
   reportList: {
     gap: 12,
