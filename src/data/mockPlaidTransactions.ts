@@ -1,7 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { getCurrentUserId } from './authStore';
-import { saveExpense } from './mockExpenses';
-import { generateId } from '@/utils/id';
+import { loadExpenses } from './mockExpenses';
 import { supabase } from '@/lib/supabase';
 
 // Bank transactions pulled from Plaid (see api/plaid-transactions-sync.ts),
@@ -93,37 +92,33 @@ export function clearPlaidTransactions() {
 // marks the transaction itself as categorized so it drops out of the
 // review queue. The Expense and the transaction are linked via expense_id
 // so re-syncing never double-counts it.
+//
+// One database transaction (categorize_plaid_transaction): the expense is
+// created, recorded in the books as paid from THIS transaction's own
+// connected bank account / card, and linked - or none of it happens.
 export async function categorizeTransaction(transaction: PlaidTransaction, category: string) {
   const userId = getCurrentUserId();
   if (!userId) {
     throw new Error('You must be signed in to categorize a transaction.');
   }
 
-  const expenseId = generateId();
-  await saveExpense({
-    id: expenseId,
-    date: transaction.date,
-    vendor: transaction.merchantName || transaction.name,
-    category,
-    amount: transaction.amount,
-    notes: 'Imported from bank transaction.',
+  const { data, error } = await supabase.rpc('categorize_plaid_transaction', {
+    p_transaction_id: transaction.id,
+    p_category: category,
   });
 
-  const { error } = await supabase
-    .from('plaid_transactions')
-    .update({ category, expense_id: expenseId, updated_at: new Date().toISOString() })
-    .eq('id', transaction.id)
-    .eq('user_id', userId);
-
   if (error) {
-    console.error('Failed to link categorized transaction', error);
+    console.error('Failed to categorize transaction', error);
     throw error;
   }
 
+  const expenseId = data as string;
   transactionsSnapshot = transactionsSnapshot.map((item) =>
     item.id === transaction.id ? { ...item, category, expenseId } : item
   );
   emitChange();
+  // The new expense lives in the expenses store; refresh it so Expenses shows it.
+  await loadExpenses(userId);
 }
 
 // Marks a transaction as "not a business expense" (a transfer, a credit

@@ -6,11 +6,15 @@ import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimens
 
 import { AppShell } from '@/components/AppShell';
 import { addCategory, useCategories } from '@/data/mockCategories';
+import { PAID_PERSONALLY_LABEL, loadExpensePaidFrom, useLedgerAccounts } from '@/data/ledgerAccounts';
 import { expenseDraft, saveExpense, useExpenses } from '@/data/mockExpenses';
 import { generateId } from '@/utils/id';
 import { formatMoneyCents, parseMoneyInputToCents } from '@/utils/money';
 import { selectTextOnFocus } from '@/utils/selectOnFocus';
 import { formatDateDisplay, normalizeDateToISO, toISODateString } from '@/utils/date';
+
+// Remembered for the session only; it prefills "Paid from" but never decides it.
+let lastPaidFromId: string | null = null;
 
 export default function NewExpenseScreen() {
   const { width } = useWindowDimensions();
@@ -18,6 +22,7 @@ export default function NewExpenseScreen() {
   const searchParams = useLocalSearchParams();
   const expenses = useExpenses();
   const categories = useCategories();
+  const ledgerAccounts = useLedgerAccounts();
   const [originalId, setOriginalId] = useState<string | undefined>(undefined);
   const [date, setDate] = useState(() => formatDateDisplay(toISODateString(new Date())));
   const [vendor, setVendor] = useState(expenseDraft.vendor);
@@ -27,6 +32,11 @@ export default function NewExpenseScreen() {
   const [showSavedToast, setShowSavedToast] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [isAddingCategory, setIsAddingCategory] = useState(false);
+  // The real account this money came out of. No silent default: the first
+  // time, the user chooses; after that the last choice is offered again (changeable).
+  const [paidFromId, setPaidFromId] = useState<string | null>(lastPaidFromId);
+  const [saveError, setSaveError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (showSavedToast) {
@@ -73,60 +83,54 @@ export default function NewExpenseScreen() {
       setAmount(formatMoneyCents(foundExpense.amount));
       setCategory(foundExpense.category);
       setNotes(foundExpense.notes);
+      loadExpensePaidFrom(foundExpense.id).then((accountId) => {
+        if (accountId) setPaidFromId(accountId);
+      });
     }
   }, [expenses, originalId, searchParams.id]);
 
-  function handleSaveExpense() {
-    const expenseId = originalId ?? generateId();
-    saveExpense(
-      {
-        id: expenseId,
-        date: normalizeDateToISO(date),
-        vendor,
-        category,
-        amount: parseMoneyInputToCents(amount),
-        notes,
-      },
-      originalId
-    );
-    // default was save & close; keep that behavior elsewhere
-    router.replace('/expenses');
-  }
-
-  function handleSave() {
+  // One save path for every button. Returns true when the expense was recorded.
+  async function persist(): Promise<boolean> {
+    if (isSaving) return false;
+    if (!originalId && !paidFromId) {
+      setSaveError('Choose where this money came out of.');
+      return false;
+    }
     // Reuse the same id across repeated "Save" clicks on a brand-new
-    // expense - otherwise each click would generate a fresh id and create
-    // a new duplicate row instead of updating the one just saved.
+    // expense - otherwise each click would create a duplicate.
     const expenseId = originalId ?? generateId();
-    saveExpense(
-      {
-        id: expenseId,
-        date: normalizeDateToISO(date),
-        vendor,
-        category,
-        amount: parseMoneyInputToCents(amount),
-        notes,
-      },
-      originalId
-    );
-    setOriginalId(expenseId);
-    setShowSavedToast(true);
+    setIsSaving(true);
+    setSaveError('');
+    try {
+      await saveExpense(
+        {
+          id: expenseId,
+          date: normalizeDateToISO(date),
+          vendor,
+          category,
+          amount: parseMoneyInputToCents(amount),
+          notes,
+        },
+        paidFromId,
+        originalId
+      );
+      lastPaidFromId = paidFromId;
+      setOriginalId(expenseId);
+      return true;
+    } catch (error) {
+      setSaveError(error instanceof Error && error.message ? error.message : 'Could not save this. Nothing was changed.');
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
   }
 
-  function handleSaveAndClose() {
-    const expenseId = originalId ?? generateId();
-    saveExpense(
-      {
-        id: expenseId,
-        date: normalizeDateToISO(date),
-        vendor,
-        category,
-        amount: parseMoneyInputToCents(amount),
-        notes,
-      },
-      originalId
-    );
-    router.replace('/expenses');
+  async function handleSave() {
+    if (await persist()) setShowSavedToast(true);
+  }
+
+  async function handleSaveAndClose() {
+    if (await persist()) router.replace('/expenses');
   }
 
   function handleCancel() {
@@ -160,6 +164,44 @@ export default function NewExpenseScreen() {
           <Field label="Date" value={date} onChangeText={setDate} />
           <Field label="Vendor" value={vendor} onChangeText={setVendor} />
           <Field label="Amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" selectOnFocus />
+        </View>
+
+        <View style={styles.categorySection}>
+          <Text style={styles.fieldLabel}>Paid from</Text>
+          <View style={styles.categoryGrid}>
+            {ledgerAccounts.moneyAccounts.map((account) => {
+              const isActive = account.id === paidFromId;
+              return (
+                <Pressable
+                  key={account.id}
+                  style={[styles.categoryChip, isActive && styles.categoryChipActive]}
+                  onPress={() => setPaidFromId(account.id)}
+                >
+                  <Text style={[styles.categoryChipText, isActive && styles.categoryChipTextActive]}>{account.name}</Text>
+                </Pressable>
+              );
+            })}
+            {ledgerAccounts.ownerPaidAccountId && (
+              <Pressable
+                style={[styles.categoryChip, paidFromId === ledgerAccounts.ownerPaidAccountId && styles.categoryChipActive]}
+                onPress={() => setPaidFromId(ledgerAccounts.ownerPaidAccountId)}
+              >
+                <Text
+                  style={[
+                    styles.categoryChipText,
+                    paidFromId === ledgerAccounts.ownerPaidAccountId && styles.categoryChipTextActive,
+                  ]}
+                >
+                  {PAID_PERSONALLY_LABEL}
+                </Text>
+              </Pressable>
+            )}
+          </View>
+          {ledgerAccounts.loaded && ledgerAccounts.moneyAccounts.length === 0 && (
+            <Text style={styles.actionSubtext}>
+              No bank accounts or cards are connected yet. Connect one in Settings, or choose “{PAID_PERSONALLY_LABEL}”.
+            </Text>
+          )}
         </View>
 
         <View style={styles.categorySection}>
@@ -215,6 +257,8 @@ export default function NewExpenseScreen() {
             <Text style={styles.receiptText}>Save this expense first, then attach the receipt from the Expenses list.</Text>
           </View>
         </View>
+
+        {saveError !== '' && <Text style={styles.errorText}>{saveError}</Text>}
 
         <View
           style={[
@@ -537,6 +581,12 @@ const styles = StyleSheet.create({
     color: '#111111',
     fontSize: 16,
     fontWeight: '900',
+  },
+  errorText: {
+    color: '#ff6b6b',
+    fontSize: 14,
+    fontWeight: '800',
+    marginTop: 16,
   },
   toast: {
     position: 'fixed',

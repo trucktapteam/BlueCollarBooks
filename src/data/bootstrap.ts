@@ -12,6 +12,7 @@ import { clearBusinessProfile, loadBusinessProfile } from './mockBusiness';
 import { clearCategories, loadCategories } from './mockCategories';
 import { clearCustomers, loadCustomers } from './mockCustomers';
 import { clearExpenses, loadExpenses } from './mockExpenses';
+import { clearLedgerAccounts } from './ledgerAccounts';
 import { clearInvoices, loadInvoices } from './mockInvoices';
 import { clearPlaidTransactions, loadPlaidTransactions } from './mockPlaidTransactions';
 import { clearSubscription, loadSubscription } from './subscriptionStore';
@@ -35,6 +36,7 @@ onAuthChange((session) => {
     clearSubscription();
     clearPlaidTransactions();
     clearCategories();
+    clearLedgerAccounts();
     return;
   }
 
@@ -47,4 +49,5 @@ onAuthChange((session) => {
   loadSubscription(userId);
   loadPlaidTransactions(userId);
   loadCategories(userId);
+  // The books' accounts load right after bank accounts (see loadBankAccounts).
 });

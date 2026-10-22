@@ -123,11 +123,11 @@ export function clearExpenses() {
   emitChange();
 }
 
-export function addExpense(expense: Expense) {
-  saveExpense({ ...expense, id: expense.id ?? generateId() });
-}
-
-export async function saveExpense(expense: Expense, originalId?: string) {
+// Saves the expense and records it in the books in ONE database transaction
+// (save_expense). `paidFromAccountId` is the real account the money came out
+// of (a bank account, a card, or the owner's own pocket); it is required for
+// a new expense, and optional when editing (omitted = keep where it was paid from).
+export async function saveExpense(expense: Expense, paidFromAccountId: string | null, originalId?: string) {
   const userId = getCurrentUserId();
   if (!userId) {
     throw new Error('You must be signed in to save an expense.');
@@ -142,14 +142,20 @@ export async function saveExpense(expense: Expense, originalId?: string) {
     receipt: expense.receipt ?? existingExpense?.receipt,
   };
 
-  const { error } = await supabase.from('expenses').upsert({
-    id: expenseToSave.id,
-    user_id: userId,
-    date: expenseToSave.date,
-    vendor: expenseToSave.vendor,
-    category: expenseToSave.category,
-    amount: expenseToSave.amount,
-    notes: expenseToSave.notes,
+  if (!existingExpense && !paidFromAccountId) {
+    throw new Error('Choose where this money came out of before saving.');
+  }
+
+  const { error } = await supabase.rpc('save_expense', {
+    p_expense: {
+      id: expenseToSave.id,
+      date: expenseToSave.date,
+      vendor: expenseToSave.vendor,
+      category: expenseToSave.category,
+      amount: expenseToSave.amount,
+      notes: expenseToSave.notes,
+    },
+    p_paid_from_account_id: paidFromAccountId,
   });
 
   if (error) {
@@ -165,6 +171,22 @@ export async function saveExpense(expense: Expense, originalId?: string) {
     addActivity(`Expense added: ${expenseToSave.vendor} ${formatMoneyCents(expenseToSave.amount)}`);
   }
 
+  emitChange();
+}
+
+// Deletes the expense and takes it back out of the books (one transaction).
+// If it came from a bank transaction, that transaction returns to the review list.
+export async function deleteExpense(expenseId: string) {
+  const { error } = await supabase.rpc('delete_expense', { p_expense_id: expenseId });
+  if (error) {
+    console.error('Failed to delete expense', error);
+    throw error;
+  }
+  const expense = expensesSnapshot.find((item) => item.id === expenseId);
+  expensesSnapshot = expensesSnapshot.filter((item) => item.id !== expenseId);
+  if (expense) {
+    addActivity(`Expense deleted: ${expense.vendor} ${formatMoneyCents(expense.amount)}`);
+  }
   emitChange();
 }
 

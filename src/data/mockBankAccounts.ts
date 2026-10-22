@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { getCurrentUserId } from './authStore';
+import { loadLedgerAccounts } from './ledgerAccounts';
 import { supabase } from '@/lib/supabase';
 
 export type BankAccount = {
@@ -64,6 +65,12 @@ export async function loadBankAccounts(userId: string) {
 
   bankAccountsSnapshot = (data ?? []).map(rowToBankAccount);
   emitChange();
+
+  // Every connected bank/card must have its own account in the books before
+  // anything can be paid from or deposited to it - this also runs after a new
+  // bank connection (dashboard re-calls loadBankAccounts), so new accounts
+  // appear in "Paid from" without a reload.
+  await loadLedgerAccounts(userId);
 }
 
 export function clearBankAccounts() {
