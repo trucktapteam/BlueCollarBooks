@@ -3,6 +3,8 @@
 // mockInvoices.ts - behavior is unchanged (including the known
 // delete-then-insert non-atomicity that Stage C replaces with one atomic
 // database function).
+import { computeDueDate, toISODateString } from '../utils/date.ts';
+
 export type DbError = { code?: string; message?: string };
 type Result = PromiseLike<{ error: DbError | null }>;
 
@@ -31,6 +33,13 @@ export type PersistableInvoice = {
   lineItems?: { id: string; description: string; amount: number }[];
 };
 
+// Stored alongside terms so the due date is a fact in the database, not
+// something every screen re-derives. Null if the invoice date is missing.
+function dueDateFor(invoice: PersistableInvoice): string | null {
+  const due = computeDueDate(invoice.invoiceDate, invoice.terms);
+  return due ? toISODateString(due) : null;
+}
+
 export async function writeInvoiceRows(client: InvoiceDbClient, userId: string, invoice: PersistableInvoice) {
   const { error: invoiceError } = await client.from('invoices').upsert({
     id: invoice.id,
@@ -42,6 +51,7 @@ export async function writeInvoiceRows(client: InvoiceDbClient, userId: string, 
     status: invoice.status,
     invoice_date: invoice.invoiceDate || null,
     terms: invoice.terms ?? null,
+    due_date: dueDateFor(invoice),
     po_number: invoice.poNumber ?? null,
     bol_number: invoice.bolNumber ?? null,
     shipper: invoice.shipper ?? null,

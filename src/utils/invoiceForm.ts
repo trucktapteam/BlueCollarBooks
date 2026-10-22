@@ -29,6 +29,7 @@ export function buildInvoiceForSave(form: InvoiceFormValues) {
     amount: form.amountCents,
     status: form.status,
     invoiceDate: normalizeDateToISO(form.date),
+    terms: form.terms,
     poNumber: form.poNumber,
     bolNumber: form.bolNumber,
     shipper: form.shipper,

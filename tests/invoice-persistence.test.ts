@@ -30,6 +30,13 @@ function fakeDb(opts: { failLineItemInsert?: boolean } = {}) {
 
 const base = { id: 'inv1', invoice: '1', customer: 'X', amount: 100, status: 'Draft', invoiceDate: '2026-06-01' };
 
+test('terms and a due date derived from them are written to the invoice row', async () => {
+  const { tables, client } = fakeDb();
+  await writeInvoiceRows(client, 'u1', { ...base, terms: 'Net 30', lineItems: [] });
+  assert.equal(tables.invoices[0].terms, 'Net 30');
+  assert.equal(tables.invoices[0].due_date, '2026-07-01');
+});
+
 test('editing an invoice replaces its line items', async () => {
   const { tables, client } = fakeDb();
   await writeInvoiceRows(client, 'u1', { ...base, lineItems: [{ id: 'a', description: 'old', amount: 100 }] });

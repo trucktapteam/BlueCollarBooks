@@ -14,10 +14,10 @@ test('form builder trims the customer and normalizes the date', () => {
   assert.equal(inv.invoiceDate, '2026-04-01');
 });
 
-// KNOWN BUG (audit): the terms typed on the form never reach saveInvoice, so
-// every invoice is stored with terms = null and due dates silently fall back
-// to the invoice date. Fixed in the next commit.
-test('invoice terms from the form are included in what gets saved', { todo: 'terms are dropped before save' }, () => {
+// Regression test for an audit finding: the terms typed on the form used to be
+// dropped before save, so every invoice was stored with terms = null and due
+// dates silently fell back to the invoice date.
+test('invoice terms from the form are included in what gets saved', () => {
   const inv = buildInvoiceForSave(form) as { terms?: string };
   assert.equal(inv.terms, 'Net 30');
 });
