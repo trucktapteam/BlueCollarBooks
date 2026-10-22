@@ -21,6 +21,7 @@ begin
     values ('inv-a', a, 'A-1', 'A Customer', 10000, 'Sent', '2026-06-01');
   insert into expenses (id, user_id, vendor, amount, date) values ('exp-a', a, 'A Vendor', 500, '2026-06-02');
   insert into plaid_items (id, user_id, item_id, access_token) values ('pi-b', b, 'item-b', 'token-b');
+  insert into plaid_transactions (id, user_id, plaid_item_id, plaid_account_id, date, name, amount, pending, excluded) values ('tb-1', b, 'item-b', 'acct', '2026-06-01', 'n', 500, false, false);
 
   -- ---------- positive control: same-owner children are allowed ----------
   begin
@@ -42,7 +43,7 @@ begin
       ('attachment -> other user''s invoice',  $q$insert into invoice_attachments (id, invoice_id, user_id, name, type) values ('x3','inv-a','00000000-0000-4000-8000-0000000000bb','f','t')$q$),
       ('receipt -> other user''s expense',     $q$insert into expense_receipts (id, expense_id, user_id, name, type) values ('x4','exp-a','00000000-0000-4000-8000-0000000000bb','f','t')$q$),
       ('invoice -> other user''s customer',    $q$insert into invoices (id, user_id, invoice_number, customer, customer_id, amount, status) values ('x5','00000000-0000-4000-8000-0000000000bb','B-1','c','cust-a',1,'Draft')$q$),
-      ('bank txn -> other user''s expense',    $q$insert into plaid_transactions (id, user_id, plaid_item_id, plaid_account_id, date, name, amount, pending, excluded, expense_id) values ('x6','00000000-0000-4000-8000-0000000000bb','item-b','acct','2026-06-01','n',1,false,false,'exp-a')$q$),
+      ('bank link -> other user''s expense',   $q$insert into bank_matches (user_id, plaid_transaction_id, kind, expense_id) values ('00000000-0000-4000-8000-0000000000bb','tb-1','expense','exp-a')$q$),
       ('bank txn -> other user''s plaid item', $q$insert into plaid_transactions (id, user_id, plaid_item_id, plaid_account_id, date, name, amount, pending, excluded) values ('x7','00000000-0000-4000-8000-0000000000aa','item-b','acct','2026-06-01','n',1,false,false)$q$)
     ) as v(label, stmt)
     loop

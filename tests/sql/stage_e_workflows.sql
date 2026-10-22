@@ -185,41 +185,41 @@ begin
 
   -- ---- bank transactions become expenses paid from THEIR OWN connected account ----
   select pg_temp.bal(chk), pg_temp.bal(fuel) into v, v2;
-  perform categorize_plaid_transaction('t1', 'Fuel');
+  perform resolve_bank_transaction('t1', 'expense', '{"category":"Fuel","confirm_new":true}'::jsonb);
   if pg_temp.bal(chk) = v - 8000 and pg_temp.bal(fuel) = v2 + 8000
-     and (select expense_id is not null and category = 'Fuel' from plaid_transactions where id = 't1')
-     and pg_temp.act((select expense_id from plaid_transactions where id = 't1')) = 1
+     and (select m.expense_id is not null and m.created_event from bank_matches m where m.plaid_transaction_id = 't1' and m.undone_at is null)
+     and pg_temp.act((select m.expense_id from bank_matches m where m.plaid_transaction_id = 't1' and m.undone_at is null)) = 1
   then results := results || 'PASS Plaid checking transaction: expense paid from that checking account, linked both ways'::text;
   else failures := failures || ('FAIL categorize t1 ' || pg_temp.bal(chk)); end if;
   select pg_temp.bal(card) into v;
-  perform categorize_plaid_transaction('t3', 'Meals');
+  perform resolve_bank_transaction('t3', 'expense', '{"category":"Meals","confirm_new":true}'::jsonb);
   if pg_temp.bal(card) = v + 2500 then results := results || 'PASS Plaid credit-card transaction: expense charged to that credit card'::text; else failures := failures || ('FAIL categorize t3 ' || pg_temp.bal(card)); end if;
   for t in select * from (values
-    ('already categorized',                  '23505', 'select categorize_plaid_transaction(''t1'', ''Fuel'')'),
-    ('money-in transaction',                 '23514', 'select categorize_plaid_transaction(''t2'', ''Fuel'')'),
-    ('excluded transaction',                 '23514', 'select categorize_plaid_transaction(''t4'', ''Fuel'')'),
-    ('transaction from an account not in the books','23514', 'select categorize_plaid_transaction(''t5'', ''Fuel'')'),
-    ('category that does not exist',         '23514', 'select categorize_plaid_transaction(''t6'', ''Nope'')'),
-    ('unknown transaction',                  'P0002', 'select categorize_plaid_transaction(''nope'', ''Fuel'')'),
-    ('another user''s transaction',          'P0002', 'select categorize_plaid_transaction(''tb1'', ''Fuel'')')
+    ('already categorized',                  '23505', 'select resolve_bank_transaction(''t1'', ''expense'', ''{"category":"Fuel","confirm_new":true}''::jsonb)'),
+    ('money-in transaction',                 '23514', 'select resolve_bank_transaction(''t2'', ''expense'', ''{"category":"Fuel","confirm_new":true}''::jsonb)'),
+    ('excluded transaction',                 '23514', 'select resolve_bank_transaction(''t4'', ''expense'', ''{"category":"Fuel","confirm_new":true}''::jsonb)'),
+    ('transaction from an account not in the books','23514', 'select resolve_bank_transaction(''t5'', ''expense'', ''{"category":"Fuel","confirm_new":true}''::jsonb)'),
+    ('category that does not exist',         '23514', 'select resolve_bank_transaction(''t6'', ''expense'', ''{"category":"Nope","confirm_new":true}''::jsonb)'),
+    ('unknown transaction',                  'P0002', 'select resolve_bank_transaction(''nope'', ''expense'', ''{"category":"Fuel","confirm_new":true}''::jsonb)'),
+    ('another user''s transaction',          'P0002', 'select resolve_bank_transaction(''tb1'', ''expense'', ''{"category":"Fuel","confirm_new":true}''::jsonb)')
   ) as v(label, code, s)
   loop
     select (select count(*) from expenses), (select count(*) from journal_entries) into n, n2;
     begin execute t.s; failures := failures || ('FAIL accepted: ' || t.label);
     exception when others then
       if sqlstate = t.code and (select count(*) from expenses) = n and (select count(*) from journal_entries) = n2
-         and not exists (select 1 from plaid_transactions where id in ('t2','t4','t5','t6','tb1') and (expense_id is not null or category is not null))
+         and not exists (select 1 from bank_matches where plaid_transaction_id in ('t2','t4','t5','t6','tb1'))
       then results := results || ('PASS rejected, nothing left behind: ' || t.label);
       else failures := failures || ('FAIL ' || t.label || ' -> ' || sqlstate || ' ' || sqlerrm); end if;
     end;
   end loop;
   -- deleting the expense returns the bank transaction to the review queue and reverses the books
   declare eid text; begin
-    select expense_id into eid from plaid_transactions where id = 't1';
+    select m.expense_id into eid from bank_matches m where m.plaid_transaction_id = 't1' and m.undone_at is null;
     select pg_temp.bal(chk) into v;
     perform delete_expense(eid);
     if not exists (select 1 from expenses where id = eid) and pg_temp.bal(chk) = v + 8000 and pg_temp.act(eid) = 0
-       and (select expense_id is null and category is null from plaid_transactions where id = 't1')
+       and not exists (select 1 from bank_matches where plaid_transaction_id = 't1')
     then results := results || 'PASS delete_expense: books reversed, row gone, bank transaction back in the review queue'::text;
     else failures := failures || 'FAIL delete_expense plaid'; end if;
   end;
@@ -358,7 +358,7 @@ begin
   for t in select * from (values
     ('B deleting A''s expense',          'P0002', 'select delete_expense(''e1'')'),
     ('B editing A''s expense',           'P0002', format('select save_expense(''{"id":"e1","date":"2026-06-10","vendor":"x","category":"Fuel","amount":1}'', %L)', b_chk)),
-    ('B categorizing A''s bank transaction','P0002', 'select categorize_plaid_transaction(''t6'', ''Fuel'')'),
+    ('B categorizing A''s bank transaction','P0002', 'select resolve_bank_transaction(''t6'', ''expense'', ''{"category":"Fuel","confirm_new":true}''::jsonb)'),
     ('B deleting A''s invoice',          'P0002', 'select delete_invoice(''i1'')'),
     ('B changing A''s invoice status',   'P0002', 'select set_invoice_status(''i1'', ''Draft'')'),
     ('B saving over A''s invoice id',    'P0002', 'select save_invoice(''{"id":"i1","invoice_number":"x","customer":"x","amount":1,"status":"Draft"}'', ''[]'')'),
